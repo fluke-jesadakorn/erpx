@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Assets HTTP router, Next transport/SSR cutover, shared composition mount and the five owner workflows are implemented and owner-qualified; a native Finance acquisition-cost port and browser acceptance remain open",
+  "capability": "assets-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Five physical Asset actions with ECMAScript trim, UTF-16 bounds, date/currency validation, placement/condition/retirement rules, late version and independent-review/disposal guards.",
+    "application": "Workspace/detail/create/change use cases, one transaction-bound register unit for the Finance acquisition handoff, owner command replay/retention in the composition backend.",
+    "http": "Owner-local Router for GET workspace and GET detail (`?id=`), POST create/change; exact Host/Holding target, origin, single Idempotency-Key, JSON content type, 64 KiB body limit, bounded 2,000-item/1,000-option/500-history reads and bounded response headers, business-error status mapping. Normal Account session, current Company/branch/department scope and the serializable owner unit are supplied by the required composition backend.",
+    "ssr": "Assets list, dedicated register index and detail presenters call the native transport and fail closed with 503 NATIVE_ASSETS_UNAVAILABLE when ERPX_NATIVE_ASSETS_CONFIG is absent or the native request fails. No silent TypeScript fallback.",
+    "rest": "The Assets API route (and the app re-export) delegates GET/POST to the native transport. Origin and Idempotency-Key remain required on POST.",
+    "commercial": "The retained Commercial purchase controls still gate the UI and a Next-side preflight command admission runs before the native writer; the native owner unit does not yet bind Commercial admission."
+  },
+  "changedFiles": [
+    "packages/server-assets/Cargo.toml",
+    "packages/server-assets/src/application/asset.rs",
+    "packages/server-assets/src/adapters/asset_register.rs",
+    "packages/server-assets/src/adapters/asset_http.rs",
+    "packages/server-assets/src/adapters/asset_wire.rs",
+    "packages/server-assets/src/adapters/mod.rs",
+    "packages/server-assets/src/public/asset_http.rs",
+    "packages/server-assets/src/public/asset_register.rs",
+    "packages/server-assets/src/public/mod.rs",
+    "tests/integration/assets/rust-asset-http-postgres.test.rs",
+    "tests/support/assets/http-backend.rs",
+    "tests/unit/assets/native-assets-transport.test.ts",
+    "packages/feature-assets/src/adapters/server/native-assets.ts",
+    "packages/feature-assets/src/adapters/server/native-assets-page.ts",
+    "packages/feature-assets/src/adapters/server/native-assets-owned.ts",
+    "packages/feature-assets/src/adapters/server/next-native-assets.ts",
+    "packages/feature-assets/src/lib/asset-view.ts",
+    "packages/feature-assets/src/lib/native-assets.ts",
+    "packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/assets/route.ts",
+    "packages/feature-assets/src/components/asset-maintenance-console.tsx",
+    "packages/feature-assets/package.json",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/assets/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/assets/[id]/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/services/assets/register/_screen.tsx",
+    "tests/catalogue/suite-manifest.json",
+    ".env.example",
+    "src/composition/src/asset_http.rs",
+    "src/composition/src/lib.rs",
+    "src/composition/src/private_development_api.rs",
+    "Cargo.lock"
+  ],
+  "tests": [
+    "cargo test -p erpx-server-assets --locked -- --test-threads=1: 44 passed (lib 4, asset_register_policy 9, asset_http_postgres 4, asset_register_postgres 16, maintenance_effects 2, maintenance_source 9)",
+    "cargo check -p erpx-service --locked: the shared composition including src/composition/src/asset_http.rs and the private API mount compiles",
+    "cargo clippy -p erpx-server-assets --locked --all-targets: erpx-server-assets is clean; only pre-existing erpx-server-organization warnings remain",
+    "vitest tests/unit/assets/native-assets-transport.test.ts: 6 passed",
+    "vitest tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts: 40 passed",
+    "tsc --noEmit: packages/feature-assets, packages/workplace, apps/assets and tests/config pass",
+    "assets.rust-asset-http-postgres.integration covers: normal Account session 401, unknown Host 404, wrong origin 403, missing/duplicate key 422, wrong content type 422, 70 KiB body 422, wrong Company 409 WORK_CONTEXT_CHANGED, wrong assignment 409 WORK_CONTEXT_CHANGED, Company/branch/department reads, foreign Company 404, branch-outsider command 404, stale version 409, placement/condition/retirement persistence and readback, independent review 403 and 200, posted-disposal 409, retired condition 409, create replay with one event/receipt/audit/outbox/cost row, and idempotency conflict 409",
+    "cargo test -p erpx-service --test module_assembly --locked: 4 passed; the remaining organization dependency-contract drift predates this slice and is not Assets. The Assets contract itself does not drift.",
+    "cargo test -p erpx-server-runtime --test rust_architecture --locked: remaining failures are pre-existing support/brand/collaboration portable-core findings; no erpx-server-assets finding remains."
+  ],
+  "legacy": {
+    "retained": "The TypeScript asset read/write in packages/server-assets/src/adapters/assets.ts and public/asset-maintenance.ts remains because executive, operations and support integration suites still import createAsset/changeAsset. The Assets UI, SSR pages and REST route no longer call it.",
+    "removed": "No TypeScript asset implementation was deleted.",
+    "failClosed": "Unset ERPX_NATIVE_ASSETS_CONFIG returns 503 from pages and the REST route. Configuration or transport failures never select the TypeScript reader or writer."
+  },
+  "mountDelta": {
+    "ownerPublicApi": "erpx_server_assets::public::asset_http::{asset_router, AssetHttpTarget, AssetHttpBackend, AssetHttpReadReply, AssetHttpReadRequest, AssetHttpCommandRequest, AssetWorkspaceResponse, AssetDetailResponse, AssetCommandResponse, AssetRenderedContext}",
+    "backendReference": "Lift tests/support/assets/http-backend.rs into src/composition/src/asset_http.rs. It owns AccountPolicy parsing, HoldingWorkAuthorizer, CapturedHoldingMutation, AssetActor/CommandActor, PgAssetRegister, replay/retain receipt+audit+outbox and the Finance cost provider.",
+    "privateDevelopmentApi": [
+      "let mut asset_targets = Vec::new();",
+      "asset_targets.push(erpx_server_assets::public::asset_http::AssetHttpTarget { host: holding.host.clone(), holding_slug: holding.registration.slug.clone(), origin: format!(\"https://{}\", holding.host), backend: Arc::new(crate::asset_http::AssetHttpService::new(config.policy.clone(), authorizer.clone(), crate::asset_http::AssetHttpConfiguration::new(holding.registration.holding_id.clone(), company.clone()), Arc::new(SharedClock(clock.clone())), Arc::new(finance_acquisition_cost_provider)))});",
+      "router = router.merge(erpx_server_assets::public::asset_http::asset_router(asset_targets).map_err(|_| \"PRIVATE_API_ASSETS_CONFIGURATION_INVALID\")?);"
+    ],
+    "lockfile": "Cargo.lock now contains the erpx-server-assets edges for axum, tower (dev), erpx-server-identity-access (dev) and erpx-server-workflow (dev), committed with the composition mount.",
+    "nextEnvironment": "Set ERPX_NATIVE_ASSETS_CONFIG={privateBaseUrl:\"http://127.0.0.1:<owned-loopback-port>\",timeoutMs:250..30000,holdings:[{origin:\"https://<registered-holding>\",holdingSlug:\"<slug>\",holdingId:\"h00N\"}]} for each affected app.",
+    "appliedIn": "fea3ba4bf feat(assets): mount native HTTP/SSR and close the owner slice"
+  },
+  "limits": [
+    "No browser or authenticated page/SSR render was executed. No Assets workflow is claimed browser-verified; the main agent runs the browser cohort.",
+    "Shared composition mounting is applied in fea3ba4bf; src/composition/src/asset_http.rs implements the reference backend and private_development_api.rs mounts the router. Browser rendering remains unverified.",
+    "The applied composition binds FinanceAssetCost, which accepts zero-cost registrations and fails positive cost closed with ASSET_ACQUISITION_COST_UNAVAILABLE. A native Rust Finance Money snapshot port remains required for real positive-cost registrations. HTTP tests use the reference test provider that writes the same money_transaction_snapshots identity on the request transaction.",
+    "Commercial purchase admission remains a Next-side preflight plus UI control. The native owner command does not yet bind server-side purchase admission.",
+    "Maintenance full lifecycle remains in the Maintenance owner; this slice verifies Asset-side references, placement and retirement guards.",
+    "Cargo.lock is committed with the composition mount; no lockfile remains modified by this subagent.",
+    "A transient concurrent src/composition/server-runtime http_support build break was resolved by the owning agent; final in-tree cargo test, clippy and cargo check runs pass.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed.",
+    "At the final environment check, 127.0.0.1:3100 was not listening; private 3101 and console-dev-erpx.jesadakorn.com health returned 200. No development browser/page render was attempted, and ERPX_NATIVE_ASSETS_CONFIG is not set in the current .env.local."
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "@erpx/talent-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/hire-handoff-page": "./src/components/hire-handoff-page.tsx",
+    "./components/hire-pay-group-setup": "./src/components/hire-pay-group-setup.tsx",
+    "./components/talent-editor": "./src/components/talent-editor.tsx",
+    "./components/candidate-privacy-editor": "./src/components/candidate-privacy-editor.tsx",
+    "./components/talent-console": "./src/components/talent-console.tsx",
+    "./components/candidate-privacy-page": "./src/components/candidate-privacy-page.tsx",
+    "./components/use-talent-command": "./src/components/use-talent-command.ts",
+    "./components/hire-handoff-editor": "./src/components/hire-handoff-editor.tsx",
+    "./public/native-talent-requisition": "./src/public/native-talent-requisition.ts",
+    "./public/native-talent-page": "./src/public/native-talent-page.ts",
+    "./adapters/server/next-native-talent": "./src/adapters/server/next-native-talent.ts",
+    "./lib/hire-pay-group-command": "./src/lib/hire-pay-group-command.ts",
+    "./lib/hire-command": "./src/lib/hire-command.ts",
+    "./lib/command": "./src/lib/command.ts",
+    "./lib/hire-consumption-command": "./src/lib/hire-consumption-command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/identity-access-ui": "workspace:*",
+    "@erpx/platform-runtime-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/identity-access-server": "workspace:*",
+    "@erpx/people-payroll-server": "workspace:*",
+    "@erpx/talent-server": "workspace:*",
+    "@erpx/work-projection-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "@erpx/platform-workplace": "workspace:*",
+    "react": "19.3.1",
+    "server-only": "0.0.1"
+  }
+}

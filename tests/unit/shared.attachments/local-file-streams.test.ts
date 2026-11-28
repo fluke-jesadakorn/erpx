@@ -11,7 +11,7 @@ vi.mock('node:fs',async()=>{
  }};
 });
 vi.resetModules();
-const {LocalFileStore}=await import("@erpx/server-runtime/adapters/runtime/filesystem");
+const {LocalFileStore}=await import("@erpx/platform-runtime-server/adapters/runtime/filesystem");
 
 describe('Private local file readers',()=>{
  let directory:string|undefined;

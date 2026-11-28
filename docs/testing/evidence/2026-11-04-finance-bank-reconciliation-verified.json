@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "finance/feature-bank-reconciliation verified on current source with authenticated manual match and readback",
+  "capability": "finance-bank-reconciliation-verified",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "23cd33c10",
+  "journey": {
+    "statement": "statement-1aad4e15-06c8-4680-a2f7-7cb24b501266 / STMT-BM-1793796468474 imported 201",
+    "row": "bankrow-1aad4e15-06c8-4680-a2f7-7cb24b501266-0, -12500.00 THB, unmatched v1",
+    "fixture": "released payment pay-bankmatch-fixture-1793800000000 with posted balanced journal v2; synthetic source explicitly marked",
+    "match": "POST /finance/bank/transactions/{id}/reconcile 200, matched v2, matched_type payment, matched_id fixture payment",
+    "negatives": ["stale version 409", "already matched 409"],
+    "readback": "desktop/mobile 200, matched/Reconciled, 0 console/page/HTTP errors"
+  },
+  "tests": [
+    "finance.rust-bank-reconciliation-postgres.integration 2/2",
+    "finance.rust-bank-reconciliation-http-postgres.integration 1/1",
+    "finance.rust-bank-workspace-postgres.integration 4/4",
+    "native-finance-bank transport 3/3"
+  ],
+  "limits": [
+    "Automated mapping/multi-candidate groups remain in the legacy path.",
+    "THB amount cell shows a display-only USD-rate-unavailable annotation.",
+    "Stale/already-matched negatives return generic 409 rather than match-specific codes.",
+    "Screenshots are private ignored artifacts under .scratch/dev/agents/browser-brand-finance/evidence-v10.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

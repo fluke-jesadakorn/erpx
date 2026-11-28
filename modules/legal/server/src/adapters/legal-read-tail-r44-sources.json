@@ -1,0 +1,4 @@
+{
+  "externalUploadShare": "SELECT {projection} FROM legal_external_uploads {uploadAlias} JOIN legal_shares {shareAlias} ON {shareAlias}.id={uploadAlias}.share_id ",
+  "filePreservationHoldTarget": "SELECT {projection} FROM legal_file_preservations p JOIN legal_hold_targets {targetAlias} ON {targetAlias}.item_id=p.item_id JOIN legal_holds {holdAlias} ON {holdAlias}.id={targetAlias}.hold_id WHERE {holdAlias}.state{inequality}'released'"
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { CalendarItem } from "@erpx/feature-work_projection/lib/calendar";
-import { calendarRange } from "@erpx/feature-work_projection/lib/calendar";
+import type { CalendarItem } from "@erpx/work-projection-ui/lib/calendar";
+import { calendarRange } from "@erpx/work-projection-ui/lib/calendar";
 import {
   clipToDay,
   localDateTimeCandidates,
@@ -8,7 +8,7 @@ import {
   placeTimelineItems,
   snapInstant,
   timelineDay,
-} from "@erpx/feature-work_projection/lib/calendar-timeline";
+} from "@erpx/work-projection-ui/lib/calendar-timeline";
 
 const item = (id: string, startsAt: number, endsAt: number): CalendarItem => ({
   id,

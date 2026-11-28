@@ -1,0 +1,5 @@
+{
+  "visibilityMemberGuard": "EXISTS(SELECT 1 FROM legal_members lm WHERE lm.item_id={alias}.id AND lm.user_id=?)",
+  "eligibleProbe": "SELECT 1 WHERE legal_person_eligible(?,?,?,?,?)",
+  "preparationGuard": "EXISTS(SELECT 1 FROM legal_items WHERE id=? AND kind IN ('rule','template'))"
+}

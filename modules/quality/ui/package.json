@@ -1,0 +1,39 @@
+{
+  "name": "@erpx/quality-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./public/native-quality": "./src/public/native-quality.ts",
+    "./components/quality-console.module.css": "./src/components/quality-console.module.css",
+    "./components/quality-console": "./src/components/quality-console.tsx",
+    "./components/quality-cancellation-history": "./src/components/quality-cancellation-history.tsx",
+    "./components/source-record-backdrop": "./src/components/source-record-backdrop.tsx",
+    "./components/use-quality-command": "./src/components/use-quality-command.ts",
+    "./components/quality-tool": "./src/components/quality-tool.tsx",
+    "./components/quality-draft-boundary": "./src/components/quality-draft-boundary.tsx",
+    "./components/quality-purchase-context": "./src/components/quality-purchase-context.tsx",
+    "./lib/quality-purchase-controls": "./src/lib/quality-purchase-controls.ts",
+    "./lib/quality-command-attempt": "./src/lib/quality-command-attempt.ts",
+    "./lib/quality-command-fetch": "./src/lib/quality-command-fetch.ts",
+    "./adapters/server/native-quality": "./src/adapters/server/native-quality.ts",
+    "./adapters/server/native-quality-page": "./src/adapters/server/native-quality-page.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/files-ui": "workspace:*",
+    "@erpx/records-ui": "workspace:*",
+    "@erpx/platform-runtime-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/quality-server": "workspace:*",
+    "@erpx/work-projection-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "server-only": "0.0.1"
+  }
+}

@@ -1,10 +1,9 @@
-import { mkdir } from "node:fs/promises";
+import { copyFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { pinnedNode } from "./app-task";
 
 // Use the production Node HTTPS implementation, including verified DNS pinning.
-const node = resolve(".runtime/node/node-v26.11.1-darwin-arm64/bin/node");
-if (Bun.spawnSync([node, "--version"]).stdout.toString().trim() !== "v26.11.1")
-  throw new Error("NODE_26_11_1_REQUIRED");
+const node = pinnedNode();
 const outdir = resolve(".scratch/dev/worker");
 await mkdir(outdir, { recursive: true });
 const bundle = await Bun.build({
@@ -23,6 +22,12 @@ const bundle = await Bun.build({
   }],
 });
 if (!bundle.success) throw new Error("DEV_JOBS_BUILD_FAILED");
+// The bundled worker reads the native assertion contract relative to its own
+// file, so it must travel with the bundle.
+await copyFile(
+  resolve("modules/workflow/server/src/adapters/native-command-assertion-sql.json"),
+  resolve(outdir, "native-command-assertion-sql.json"),
+);
 const child = Bun.spawn([node, resolve(outdir, "jobs.mjs")], {
   stdout: "inherit", stderr: "inherit", stdin: "ignore",
   env: {

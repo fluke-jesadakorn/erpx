@@ -1,18 +1,23 @@
-import { getRuntime, closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
-import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, supportWork,customerNotificationWork,attachmentWork } from "@erpx/server-runtime/adapters/runtime/jobs";
-import { attachmentRuntimeReadiness } from "@erpx/server-files/public/attachments/readiness";
+import {fieldOutboxQuarantine as financeCustomerOutbox} from '@erpx/finance-server/public/field-outbox-predicate';
+import {fieldOutboxQuarantine as filesOutbox} from '@erpx/files-server/public/field-outbox-predicate';
+import {fieldOutboxQuarantine as fieldOutbox} from '@erpx/field-service-server/public/field-outbox-predicate';
+import {fieldOutboxQuarantine as operationsOutbox} from '@erpx/operations-server/public/field-outbox-predicate';
+import {fieldOutboxQuarantine as collaborationOutbox} from '@erpx/collaboration-server/public/field-outbox-predicate';
+import {serviceCountOutboxQuarantine} from '@erpx/inventory-server/public/service-count-outbox-predicate';
+import { getRuntime, closeRuntime } from "@erpx/platform-runtime-server/adapters/runtime/env";
+import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, customerNotificationWork,attachmentWork } from "@erpx/platform-runtime-server/adapters/runtime/jobs";
+import { attachmentRuntimeReadiness } from "@erpx/files-server/public/attachments/readiness";
 
 let stopping=false;
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>{stopping=true;});
 const env=getRuntime();
+const nativeOutboxQuarantine=`(${serviceCountOutboxQuarantine}) OR (${fieldOutbox}) OR (${operationsOutbox}) OR (${collaborationOutbox}) OR (${filesOutbox}) OR (${financeCustomerOutbox})`;
 async function heartbeat() {
   const attachments=await attachmentRuntimeReadiness();
   await env.CONTROL_DB.prepare(`INSERT INTO runtime_health(service,heartbeat_at,details_json) VALUES('jobs',?,?)
     ON CONFLICT(service) DO UPDATE SET heartbeat_at=excluded.heartbeat_at,details_json=excluded.details_json`)
     .bind(Date.now(),JSON.stringify({maintenance:await maintenance(env.ERPX_DATA_DIR),attachments})).run();
 }
-let supportRunning:Promise<void>|null=null;
-const supportPulse=setInterval(()=>{if(stopping||supportRunning)return;supportRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await supportWork(env)})().catch(()=>console.error('{"event":"support_sla_iteration_failed"}')).finally(()=>{supportRunning=null})},30000);
 let customerNotificationRunning:Promise<void>|null=null;
 const customerNotificationPulse=setInterval(()=>{if(stopping||customerNotificationRunning)return;customerNotificationRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await customerNotificationWork(env)})().catch(()=>console.error('{"event":"customer_notification_iteration_failed"}')).finally(()=>{customerNotificationRunning=null})},3000);
 let legalRunning:Promise<void>|null=null;
@@ -21,7 +26,7 @@ let posRunning: Promise<void> | null = null;
 function posPulseWork() {
  if(stopping||posRunning)return;
  posRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await posQueueWork(env);})()
-  .catch(()=>console.error('{"event":"pos_iteration_failed"}')).finally(()=>{posRunning=null;});
+  .catch(error=>console.error(JSON.stringify({event:'pos_iteration_failed',code:error instanceof Error?error.message:String(error)}))).finally(()=>{posRunning=null;});
 }
 const posPulse=setInterval(posPulseWork,3000);
 posPulseWork();
@@ -38,20 +43,20 @@ let billingRunning: Promise<void> | null = null;
 function billingPulseWork() {
  if(stopping || billingRunning)return;
  billingRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await billingWork(env);})()
-  .catch(()=>console.error('{"event":"billing_iteration_failed"}')).finally(()=>{billingRunning=null;});
+  .catch(error=>console.error(JSON.stringify({event:'billing_iteration_failed',code:error instanceof Error?error.message:String(error),stack:error instanceof Error?(error.stack??'').split('\n').slice(0,5):[]}))).finally(()=>{billingRunning=null;});
 }
 const billingPulse=setInterval(billingPulseWork,30000);
 billingPulseWork();
 let pmsRunning: Promise<void> | null = null;
 const pmsPulse = setInterval(() => {
  if (stopping || pmsRunning) return;
- pmsRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await pmsWork(env);})().catch(()=>console.error('{"event":"pms_iteration_failed"}')).finally(()=>{pmsRunning=null;});
+ pmsRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await pmsWork(env);})().catch(error=>console.error(JSON.stringify({event:'pms_iteration_failed',code:error instanceof Error?error.message:String(error)}))).finally(()=>{pmsRunning=null;});
 },3000);
 let directoryRunning: Promise<void> | null = null;
 const directoryPulse = setInterval(() => {
  if(stopping || directoryRunning)return;
  directoryRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await directoryWork(env);})()
-  .catch(()=>console.error('{"event":"directory_iteration_failed"}')).finally(()=>{directoryRunning=null;});
+  .catch(error=>console.error(JSON.stringify({event:'directory_iteration_failed',code:error instanceof Error?error.message:String(error)}))).finally(()=>{directoryRunning=null;});
 },10000);
 let aiRunning: Promise<void> | null = null;
 const aiPulse = setInterval(() => {
@@ -67,9 +72,9 @@ try {
     try {
       if(!await maintenance(env.ERPX_DATA_DIR)) {
         if(Date.now()-scheduledAt>=120_000){await scheduledWork(env);scheduledAt=Date.now();}
-        for(const slot of await activeSlots(env)){if(stopping)break;await runOne(env,slot.id);}
+        for(const slot of await activeSlots(env)){if(stopping)break;await runOne(env,slot.id,undefined,nativeOutboxQuarantine);}
       }
-    } catch(error) {console.error(JSON.stringify({event:'jobs_iteration_failed',code:error instanceof Error?error.name:'UnknownError'}));}
+    } catch(error) {console.error(JSON.stringify({event:'jobs_iteration_failed',code:error instanceof Error?`${error.name}: ${error.message}`:String(error),stack:error instanceof Error?(error.stack??'').split('\n').slice(0,6):[]}));}
     if(!stopping)await new Promise(resolve=>setTimeout(resolve,1000));
   }
-} finally {clearInterval(supportPulse);await supportRunning;clearInterval(customerNotificationPulse);await customerNotificationRunning;clearInterval(legalPulse);await legalRunning;clearInterval(pmsPulse);await pmsRunning;clearInterval(posPulse);await posRunning;clearInterval(attachmentPulse);await attachmentRunning;clearInterval(billingPulse);await billingRunning;clearInterval(directoryPulse);clearInterval(aiPulse);clearInterval(pulse);await directoryRunning;await aiRunning;await closeRuntime();}
+} finally {clearInterval(customerNotificationPulse);await customerNotificationRunning;clearInterval(legalPulse);await legalRunning;clearInterval(pmsPulse);await pmsRunning;clearInterval(posPulse);await posRunning;clearInterval(attachmentPulse);await attachmentRunning;clearInterval(billingPulse);await billingRunning;clearInterval(directoryPulse);clearInterval(aiPulse);clearInterval(pulse);await directoryRunning;await aiRunning;await closeRuntime();}

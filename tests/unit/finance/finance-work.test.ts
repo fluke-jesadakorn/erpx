@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { financeWork } from "@erpx/feature-finance/lib/finance-work";
-import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
+import { financeWork } from "@erpx/finance-ui/lib/finance-work";
+import type { WorkItem } from "@erpx/work-projection-ui/lib/work-item";
 
 const row = (id: string, overrides: Partial<WorkItem> = {}): WorkItem => ({ id, type: "invoice", title: id, detail: "Review source evidence", href: `/finance/invoices/${id}`, status: "draft", updatedAt: 1, queue: "todo", canAct: true, relationships: ["assigned"], ...overrides });
 

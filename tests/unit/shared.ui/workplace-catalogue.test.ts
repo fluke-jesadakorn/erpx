@@ -1,14 +1,14 @@
 import { expect, it, vi } from "vitest";
-import { moduleRegistry } from "@erpx/catalogue/module-registry";
-import { availableNavigationAppIds, workplaceModuleDestinations } from "@erpx/feature-work_projection/lib/workplace-catalogue";
-import { workplaceNavigation } from "@erpx/feature-work_projection/lib/workplace-navigation";
-import { frontWorkReturn } from "@erpx/feature-work_projection/lib/front-work-return";
-import { workReviewCommand } from "@erpx/feature-work_projection/lib/work-review";
+import { moduleRegistry } from "@erpx/platform-catalogue/module-registry";
+import { availableNavigationAppIds, workplaceModuleDestinations } from "@erpx/work-projection-ui/lib/workplace-catalogue";
+import { workplaceNavigation } from "@erpx/work-projection-ui/lib/workplace-navigation";
+import { frontWorkReturn } from "@erpx/work-projection-ui/lib/front-work-return";
+import { workReviewCommand } from "@erpx/work-projection-ui/lib/work-review";
 
 const migrationPorts = vi.hoisted(() => ({ bindings: vi.fn(), workspace: vi.fn(), grants: vi.fn() }));
-vi.mock("@erpx/server-runtime/public/runtime", () => ({ activeHoldingBindings: migrationPorts.bindings }));
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({ firstAuthorizedWorkspace: migrationPorts.workspace }));
-vi.mock("@erpx/server-commercial/public/package-grants", () => ({ readCompanyPurchaseFacts: migrationPorts.grants }));
+vi.mock("@erpx/platform-runtime-server/public/runtime", () => ({ activeHoldingBindings: migrationPorts.bindings }));
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({ firstAuthorizedWorkspace: migrationPorts.workspace }));
+vi.mock("@erpx/commercial-server/public/package-grants", () => ({ readCompanyPurchaseFacts: migrationPorts.grants }));
 
 it("keeps existing workspace recovery scoped to current authority without reading or inventing product grants", async () => {
   vi.stubEnv("ERPX_ENVIRONMENT", "local");
@@ -17,7 +17,7 @@ it("keeps existing workspace recovery scoped to current authority without readin
   try {
     migrationPorts.bindings.mockResolvedValue([{ slug: "acme", displayName: "Acme" }, { slug: "denied", displayName: "Other company" }]);
     migrationPorts.workspace.mockImplementation(async (holding: string) => holding === "acme" ? { kind: "branch", holdingSlug: "acme", branchSlug: "main" } : null);
-    const { existingWorkspaceLaunchChoices } = await import("@erpx/server-work_projection/public/product-launcher");
+    const { existingWorkspaceLaunchChoices } = await import("@erpx/work-projection-server/public/product-launcher");
     expect(await existingWorkspaceLaunchChoices()).toEqual([{ holding: "Acme", href: "https://console-dev-erpx.jesadakorn.com/holdings/acme/branches/main/home" }]);
     expect(migrationPorts.grants).not.toHaveBeenCalled();
     const bindingReads=migrationPorts.bindings.mock.calls.length;vi.stubEnv("ERPX_CONSOLE_RETIRED", "enabled");

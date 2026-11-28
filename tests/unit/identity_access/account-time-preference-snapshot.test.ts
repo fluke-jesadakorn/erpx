@@ -1,13 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-const mocks = vi.hoisted(() => ({ session: vi.fn(), read: vi.fn() }));
-vi.mock("@erpx/server-identity_access/adapters/authorization", () => ({ currentSession: mocks.session }));
-vi.mock("@erpx/server-runtime/public/runtime", () => ({ runtimeEnv: async () => ({ CONTROL_DB: {
-  prepare: () => ({ bind: (id: string) => ({ first: () => mocks.read(id) }) }),
-} }) }));
-import { accountTimePreferenceSnapshot } from "@erpx/server-identity_access/public/account-time-preference";
+const mocks = vi.hoisted(() => ({ session: vi.fn(), read: vi.fn(), native: vi.fn() }));
+vi.mock("@erpx/identity-access-server/adapters/authorization", () => ({ currentSession: mocks.session }));
+vi.mock("@erpx/platform-runtime-server/public/native-http", () => ({ nativeRequest: mocks.native }));
+import { accountTimePreference, accountTimePreferenceSnapshot, setTimePreferenceReadForTest } from "@erpx/identity-access-server/public/account-time-preference";
 
-beforeEach(() => { mocks.session.mockReset(); mocks.read.mockReset(); });
+beforeEach(() => { mocks.session.mockReset(); mocks.read.mockReset(); setTimePreferenceReadForTest(id => mocks.read(id)); });
 it("seeds only the current authenticated account's preference without serializing identity or session facts", async () => {
   mocks.session.mockResolvedValue({ session: { user: { id: "account-one", email: "private@example.test" }, session: { id: "private-session", token: "private-token" } } });
   mocks.read.mockResolvedValue({ mode: "manual", timeZone: "Asia/Bangkok", hourCycle: "h12", version: 4 });
@@ -40,10 +38,29 @@ it("retains the authenticated account identity during a preference outage withou
   const first = await accountTimePreferenceSnapshot(), unavailable = await accountTimePreferenceSnapshot();
   expect(unavailable).toEqual({ key: first!.key, preference: undefined });
 });
+it("reads the time preference with the exact Holding cookie and no asserted user identity", async () => {
+  setTimePreferenceReadForTest(undefined);
+  const preference = { mode: "manual", timeZone: "Asia/Bangkok", hourCycle: "h12", version: 4 };
+  mocks.native.mockResolvedValueOnce(Response.json({ data: preference }));
+  const host = "oasisdreamhouse-demo.jesadakorn.com";
+  const cookie = "__Host-erpx-product=test-session";
+  const incoming = new Headers({ host, cookie, "x-erpx-context-user": "untrusted" });
+  vi.stubEnv("ERPX_NATIVE_ACCOUNT_SESSION_CONFIG", JSON.stringify({
+    privateBaseUrl: "http://127.0.0.1:3382", timeoutMs: 5000,
+    accountOrigin: "https://account-oasisdreamhouse-demo.jesadakorn.com", holdingOrigins: [`https://${host}`],
+  }));
+  try {
+    expect(await accountTimePreference("render-key-only", incoming)).toEqual(preference);
+    expect(mocks.native).toHaveBeenCalledExactlyOnceWith(
+      new URL("http://127.0.0.1:3382/api/v1/account/time-preference"),
+      { headers: { host, cookie, accept: "application/json" } }, 5000,
+    );
+  } finally { vi.unstubAllEnvs(); }
+});
 
 import {createElement,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {TimeText} from '@erpx/feature-people_payroll/components/time/time-preference-context';
+import {TimeText} from '@erpx/people-payroll-ui/components/time/time-preference-context';
 const timeContextProbe=vi.hoisted(()=>({wrap:null as null|((ready:boolean,children:ReactNode)=>ReactNode)}));
 vi.mock('react',async importOriginal=>{
  const actual=await importOriginal<typeof import('react')>();

@@ -1,0 +1,2 @@
+//! Quality inspection reference witness; Files retains attachment metadata.
+pub use crate::adapters::quality_inspection_attachment_refs::{CurrentQualityInspectionAttachmentRefPage, CurrentQualityInspectionAttachmentRefs, QualityInspectionAttachmentRef, QualityInspectionRefCursor, inspect_quality_inspection_attachment_ref_page, inspect_quality_inspection_attachment_refs, lock_quality_inspection_attachment_refs};

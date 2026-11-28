@@ -1,0 +1,115 @@
+import type { RouteContext } from "@erpx/platform-contracts/next-routes";
+import {canonicalDestinationLinks} from "@erpx/work-projection-ui/lib/destination-links";
+import {z} from "zod";
+import {requestPublicOrigin} from "@erpx/manage-erpx-server/public/public-origin";
+import {publicScope,requireWorkContext} from "@erpx/identity-access-server/public/authorization";
+import {holdingResources} from "../../../../../../../../runtime/server/src/public/runtime";
+import {ApiError,errorResponse} from "@erpx/platform-runtime-server/public/http";
+import {attachmentsV2ReadOnly} from "@erpx/files-server/public/attachments/feature";
+import {attachmentPolicy,authorizeAttachmentTarget} from "@erpx/files-server/public/attachments/policy";
+import {createAttachmentSet,reserveAttachmentFile} from "@erpx/files-server/public/attachments/service";
+import {legacyAttachmentPolicy} from "@erpx/files-server/public/attachments/legacy-policy";
+import {withNativeSupportAttachment} from "@erpx/files-server/public/native-support-attachments";
+import {workspaceBase} from "@erpx/work-projection-ui/lib/workspace";
+import {appUploadTaskState} from "@erpx/operations-server/public/app-upload-task-source";
+const allowedTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+  "text/csv",
+] as const;
+const schema = z.object({
+  ownerType: z.enum([
+    "support_ticket",
+    "employee_request",
+    "leave_request",
+    "expense_claim",
+    "expense_payment",
+    "invoice_payment",
+    "staff_task",
+    "social_draft",
+    "holding_brand",
+    "branch_brand",
+    "company_storefront_brand",
+    "quality_hold",
+    "commerce_order_delivery",
+  ]),
+  expectedVersion: z.number().int().positive().optional(),
+  ownerId: z.string().min(1).max(128),
+  purpose: z.string().min(1).max(64),
+  filename: z.string().min(1).max(255),
+  mediaType: z.enum(allowedTypes),
+  bytes: z
+    .number()
+    .int()
+    .min(1)
+    .max(10 * 1024 * 1024),
+});
+
+export async function POST(
+  request: Request,
+  context: RouteContext<"/api/v1/holdings/[holdingSlug]/uploads">,
+) {
+  try {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== requestPublicOrigin(request))
+      throw new ApiError(
+        403,
+        "ORIGIN_FORBIDDEN",
+        "Use the application origin.",
+      );
+    const { holdingSlug } = await context.params;
+    const actor = await requireWorkContext(holdingSlug);
+    const parsed = schema.safeParse(await request.json());
+    if (!parsed.success)
+      throw new ApiError(
+        422,
+        "VALIDATION_FAILED",
+        parsed.error.issues[0]?.message ?? "Invalid upload.",
+      );
+    if (!attachmentsV2ReadOnly()) {
+      const commandKey=request.headers.get("Idempotency-Key")??"";
+      if(!/^[a-zA-Z0-9:_.-]{8,180}$/.test(commandKey))throw new ApiError(422,"COMMAND_KEY_REQUIRED","A valid Idempotency-Key is required.");
+      if(parsed.data.ownerType==="support_ticket"){
+        const mapped=legacyAttachmentPolicy(parsed.data.ownerType,parsed.data.purpose);
+        if(!mapped)throw new ApiError(422,"ATTACHMENT_PURPOSE_UNSUPPORTED","This legacy file purpose is not registered. Use an explicit attachment set and purpose.");
+        if(parsed.data.expectedVersion===undefined)throw new ApiError(422,"EXPECTED_VERSION_REQUIRED","Add the current Support case version.");
+        const data=await withNativeSupportAttachment(async client=>{
+          const set=await client.create(request.headers,actor,{key:`${commandKey}:set`,targetId:parsed.data.ownerId,purposeKey:mapped.purposeKey as "support_evidence"|"internal_evidence"|"customer_shareable",expectedTargetVersion:parsed.data.expectedVersion!});
+          const reserved=await client.reserve(request.headers,actor,set.id,{key:`${commandKey}:file`,filename:parsed.data.filename,mediaType:parsed.data.mediaType,bytes:parsed.data.bytes});
+          return {set,reserved};
+        });
+        return Response.json(canonicalDestinationLinks({data:{
+          id:data.reserved.uploadIntentId,
+          ...data.reserved,
+          uploadUrl:`/api/v1${workspaceBase(publicScope(actor))}/uploads/${data.reserved.uploadIntentId}/content`,
+          attachmentSetId:data.set.id,
+          expectedTargetVersion:parsed.data.expectedVersion,
+        }}),{status:201});
+      }
+      const mapped=legacyAttachmentPolicy(parsed.data.ownerType,parsed.data.purpose);
+      if(!mapped)throw new ApiError(422,"ATTACHMENT_PURPOSE_UNSUPPORTED","This legacy file purpose is not registered. Use an explicit attachment set and purpose.");
+      const {write}=await holdingResources(actor.holdingId),policy=attachmentPolicy(parsed.data.ownerType,mapped.purposeKey,mapped.componentKind),scope=await authorizeAttachmentTarget(write,actor,policy,parsed.data.ownerId,"write");
+      const expectedTargetVersion=parsed.data.expectedVersion??scope.version;
+      const dynamicTaskState=mapped.componentRef===null
+        ? await appUploadTaskState(write,parsed.data.ownerId,actor.companyId)
+        : null;
+      const componentRef=mapped.componentRef??(dynamicTaskState?`task:${dynamicTaskState.state}`:null);
+      if(!componentRef)throw new ApiError(422,"ATTACHMENT_CONTEXT_UNSUPPORTED","This legacy file owner has no active domain binding context.");
+      const set=await createAttachmentSet(write,actor,{targetType:parsed.data.ownerType,targetId:parsed.data.ownerId,componentKind:mapped.componentKind,componentRef,purposeKey:mapped.purposeKey,expectedTargetVersion},`${commandKey}:set`,{compatibilityAdapter:true});
+      const reserved=await reserveAttachmentFile(write,actor,set.id,{filename:parsed.data.filename,mediaType:parsed.data.mediaType,bytes:parsed.data.bytes},`${commandKey}:file`,{compatibilityAdapter:true});
+      return Response.json(canonicalDestinationLinks({data:{
+        id:reserved.uploadIntentId,
+        ...reserved,
+        attachmentSetId:set.id,
+        expectedTargetVersion,
+      }}),{status:201});
+    }
+    throw new ApiError(503,"ATTACHMENTS_READ_ONLY","Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.");
+  } catch (error) {
+    return errorResponse(error);
+  }
+}

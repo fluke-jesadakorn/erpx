@@ -1,20 +1,31 @@
-import {applicationRequest} from '@erpx/server-runtime/public/application-request';
+import {applicationRequest} from '@erpx/platform-runtime-server/public/application-request';
 import {beforeEach,expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 const mocks=vi.hoisted(()=>({session:vi.fn(),enabled:true,host:'account-dev-erpx.jesadakorn.com'}));
-vi.mock("@erpx/server-identity_access/adapters/authorization",()=>({currentSession:mocks.session}));
-vi.mock("@erpx/feature-runtime/lib/product-hosts",()=>({configuredProductOrigin:()=>mocks.enabled?'https://account-dev-erpx.jesadakorn.com':null,productHostForHost:(host:string|null)=>mocks.enabled&&host==='account-dev-erpx.jesadakorn.com'?'account':null}));
+vi.mock("@erpx/identity-access-server/adapters/authorization",()=>({currentSession:mocks.session}));
+vi.mock("@erpx/platform-runtime-ui/lib/product-hosts",()=>({configuredProductOrigin:()=>mocks.enabled?'https://account-dev-erpx.jesadakorn.com':null,productHostForHost:(host:string|null)=>mocks.enabled&&host==='account-dev-erpx.jesadakorn.com'?'account':null}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:mocks.host})}));
-vi.mock("@erpx/server-identity_access/public/directory-lookup",()=>({routedConnection:vi.fn()}));
-vi.mock("@erpx/server-runtime/public/presentation-configuration",()=>({publicBetaEnabled:async()=>false}));
-vi.mock("@erpx/feature-identity_access/lib/auth-client",()=>({authClient:{signIn:{email:vi.fn()}}}));
+vi.mock("@erpx/identity-access-server/public/directory-lookup",()=>({routedConnection:vi.fn(),nativeConnectionById:vi.fn()}));
+vi.mock("@erpx/platform-runtime-server/public/presentation-configuration",()=>({publicBetaEnabled:async()=>false}));
+vi.mock("@erpx/identity-access-ui/lib/auth-client",()=>({authClient:{signIn:{email:vi.fn()}}}));
 import {isValidElement,type ReactNode,type ReactElement} from 'react';
-import {accountWorkspaceTarget,accountWorkspaceLoginReturn} from '@erpx/server-identity_access/public/rules/account-workspace';
-import {accountWorkspaceRequest} from '@erpx/server-identity_access/public/account-workspace';
-import {ApiError} from '@erpx/server-runtime/public/http';
+import {accountWorkspaceTarget,accountWorkspaceLoginReturn} from '@erpx/identity-access-server/public/rules/account-workspace';
+import {deviceAccountReturn,deviceDirectoryLogin} from '@erpx/identity-access-ui/lib/device-account-return';
+import {accountWorkspaceRequest} from '@erpx/identity-access-server/public/account-workspace';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
 const origin='https://account-dev-erpx.jesadakorn.com';
 const request=(next='/my-access?tag=one&tag=two#roles',host='account-dev-erpx.jesadakorn.com')=>new Request('https://'+host+'/account/launch?'+new URLSearchParams({next}),{headers:{host}});
 beforeEach(()=>{vi.clearAllMocks();mocks.enabled=true;mocks.host='account-dev-erpx.jesadakorn.com';mocks.session.mockResolvedValue({session:{user:{id:'platform-only'},session:{id:'current-central-session'}}});});
+it('returns an added Directory account only to a known staff app and strips credentials from its original page',()=>{
+ const value='/account/device-return?'+new URLSearchParams({app:'finance',next:'/holdings/acme/finance/documents?code=private&token=private&queue=open'}),clean='/account/device-return?'+new URLSearchParams({app:'finance',next:'/holdings/acme/finance/documents?queue=open'});
+ expect(deviceAccountReturn(value)).toBe(clean);expect(deviceAccountReturn(clean)).toBe(clean);
+ for(const app of ['apps','admin','pos','pms'])expect(deviceAccountReturn('/account/device-return?'+new URLSearchParams({app,next:'/'}))).toBeTruthy();
+ for(const value of ['/account/device-return?app=portal','/account/device-return?app=account','/account/device-return?app=console','/account/device-return?app=finance&app=people','/account/device-return?app=finance&next=/&next=/private','/account/device-return?app=finance&code=private','/account/device-return?app=finance#override','https://evil.test/account/device-return?app=finance'])expect(deviceAccountReturn(value)).toBeNull();
+ expect(deviceAccountReturn('/account/device-return?'+new URLSearchParams({app:'finance',next:'https://evil.test/'}))).toBe('/account/device-return?app=finance&next=%2F');
+ const connection='11111111-2222-4333-8444-555555555555',link=origin+'/login?'+new URLSearchParams({connection,next:'https://evil.test/',code:'private'}),destination=deviceDirectoryLogin(link,origin,'finance','/holdings/acme/finance/documents?token=private&queue=open')!;
+ expect(new URL(destination).searchParams.get('connection')).toBe(connection);expect(new URL(destination).searchParams.get('next')).toBe('/account/device-return?'+new URLSearchParams({app:'finance',next:'/holdings/acme/finance/documents?queue=open'}));expect(destination).not.toContain('private');expect(destination).not.toContain('evil');
+ for(const link of ['https://evil.test/login?connection='+connection,origin+'/login?connection='+connection+'&connection='+connection,origin+'/security?connection='+connection,origin+'/login?connection=invalid'])expect(deviceDirectoryLogin(link,origin,'finance','/')).toBeNull();
+});
 it('admits only three exact self paths and removes callback credentials while preserving ordinary repeated query and fragment',()=>{
  for(const path of ['/my-access','/security','/my-profile'])expect(accountWorkspaceTarget(path+'?code=private&state=secret&token=secret&session_token=secret&_rsc=private&tag=one&tag=two#details')).toBe(path+'?tag=one&tag=two#details');
  for(const value of ['/','/my-profile/other','/my-profile/','/holdings/acme/people-organization/profiles/user/overview','/api/v1/account/profile','/sso/callback','/account/launch?next=/security','https://evil.test/my-access','//evil.test/my-access','/x/../my-access','/%6dy-access','/my-access%2fother','/my-access?x=%00','/security?x=%5c','/my-access?bad=%zz'])expect(accountWorkspaceTarget(value)).toBeNull();
@@ -52,7 +63,7 @@ it('admits only a closed sanitized bridge to Account login and preserves its fra
  for(const value of ['/holdings/acme/work','/platform/users','https://evil.test/security','/account/launch?next=/security&next=/my-access','/account/launch?next=/api/v1/account/profile','/account/launch?next=/security#override','/account/launch?next=/security&code=private'])expect(accountWorkspaceLoginReturn(value)).toBeNull();
 });
 it('passes the exact Account bridge through the actual login Server page while preserving opaque SSO and Console legacy returns',async()=>{
- const {default:LoginPage}=await import('@erpx/workplace/routes/login/page');
+ const {default:LoginPage}=await import('@erpx/platform-workplace/routes/login/page');
  function find(node:ReactNode):ReactElement<{next?:string}>|undefined{if(Array.isArray(node)){for(const child of node){const result=find(child);if(result)return result;}return;}if(!isValidElement<{children?:ReactNode}>(node))return;if(typeof node.type==='function'&&node.type.name==='LoginForm')return node as ReactElement<{next?:string}>;return find(node.props.children);}
  const target='/my-profile?tag=one&tag=two#profile',bridge=accountWorkspaceLoginReturn(target)!;expect(find(await LoginPage({searchParams:Promise.resolve({next:bridge})}))!.props.next).toBe(bridge);
  const transaction={sso:'a'.repeat(8)+'-'+ 'b'.repeat(4)+'-'+ 'c'.repeat(4)+'-'+ 'd'.repeat(4)+'-'+ 'e'.repeat(12),state:'s'.repeat(43),challenge:'c'.repeat(43)};expect(find(await LoginPage({searchParams:Promise.resolve({...transaction,next:bridge})}))!.props.next).toBe('/sso/authorize?'+new URLSearchParams({transaction:transaction.sso,state:transaction.state,challenge:transaction.challenge}));

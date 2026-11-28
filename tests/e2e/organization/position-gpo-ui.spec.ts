@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import type { PeopleLifecycleData } from "@erpx/feature-people_payroll/lib/people-lifecycle";
-import type { GpoRulesOverview } from "@erpx/feature-organization/lib/gpo-rules";
+import type { PeopleLifecycleData } from "@erpx/people-payroll-ui/lib/people-lifecycle";
+import type { GpoRulesOverview } from "@erpx/organization-ui/lib/gpo-rules";
 import { interceptOrganizationWrites, organizationSession, readDirectory, readOrganization, selectExplorerItem } from "../../support/helpers/organization-access-browser";
 
 test("HR can choose a Position independently of its Directory readiness", async ({ context, page }) => {

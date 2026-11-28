@@ -1,3 +1,3 @@
 // App-owned entry; shared payloads do not import another application.
-export { default } from "@erpx/workplace/routes/legal-portal/enroll/page";
+export { default } from "@erpx/platform-workplace/routes/legal-portal/enroll/page";
 

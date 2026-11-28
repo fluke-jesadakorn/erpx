@@ -1,0 +1,107 @@
+{
+  "schema": "erpx.evidence/native-customer-timeline-browser/v1",
+  "recorded_at": "2026-11-09T11:22:37.832059Z",
+  "head": "0cf200906c605b40b2a0509f67856bac62dcbca4",
+  "environment": {
+    "public_holding_origin": "https://acme.jesadakorn.com",
+    "development_gateway": "http://127.0.0.1:3100",
+    "native_timeline_api": "http://127.0.0.1:3198",
+    "native_account_api": "http://127.0.0.1:3199",
+    "account": "jesadakorn.kirtnu@gmail.com",
+    "native_timeline_config": "ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG set in .env.local for acme/northstar; 3198 private API uses disposable clone databases populated from the exact development business tables"
+  },
+  "native_read": {
+    "endpoint": "GET /api/v1/holdings/acme/customers/party_customer_demo/timeline",
+    "status": 200,
+    "customer": {
+      "id": "party_customer_demo",
+      "name": "Acme Corporation Retail Customer",
+      "code": "CUS-001"
+    },
+    "items": 15,
+    "first_items": [
+      "Invoice \u00b7 INV-ACME-CO-0029 \u00b7 partially_paid",
+      "Invoice \u00b7 INV-ACME-CO-0027 \u00b7 posted",
+      "Invoice \u00b7 INV-ACME-CO-0025 \u00b7 paid"
+    ],
+    "coverage": [
+      "Sales quotations/orders",
+      "Fulfillments and customer returns",
+      "Internal contact history",
+      "Customer follow-up history",
+      "Qualified CRM lead/opportunity history",
+      "CRM follow-up activities",
+      "Field Service agreements and visits",
+      "Finance invoice status",
+      "Legal records linked to orders"
+    ],
+    "limitations": "Internal staff projection. Source records remain authoritative. Order/return entries show their latest state, not a complete transition log. Field Service, Finance and Legal entries show scoped source state; Portal and customer-authority records are not included."
+  },
+  "app_route": {
+    "endpoint": "GET /api/v1/holdings/acme/customers?id=party_customer_demo&limit=30",
+    "status": 200,
+    "native_payload": true,
+    "items": 15,
+    "coverage_present": true,
+    "limitations_present": true
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "url": "https://acme.jesadakorn.com/bangkok/accounting/sales/customers/directory/party_customer_demo/history?returnTo=%2Fbangkok%2Faccounting%2Fsales%2Fcustomers%2Fdirectory",
+      "status": 200,
+      "heading": "Customer history",
+      "invoice_items": 15,
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "url": "https://acme.jesadakorn.com/bangkok/accounting/sales/customers/directory/party_customer_demo/history?returnTo=%2Fbangkok%2Faccounting%2Fsales%2Fcustomers%2Fdirectory",
+      "status": 200,
+      "heading": "Customer history",
+      "invoice_items": 15,
+      "failed_business_requests": [],
+      "page_errors": []
+    }
+  },
+  "retirement": {
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customers/[id]/screen.tsx no longer reads data.timeline",
+    "api": "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customers/route.ts uses nativeCustomerTimeline only for an id read",
+    "profile": "packages/server-sales/src/application/customers.ts and adapters/customers.ts no longer compute or return the legacy timeline",
+    "notes": "packages/server-sales/src/application/notes.ts and adapters/notes.ts no longer validate through the legacy timeline",
+    "mandatory": "nativeCustomerTimeline throws NATIVE_CUSTOMER_TIMELINE_CONFIGURATION_REQUIRED (503) when the native config is absent; no silent TS fallback",
+    "remaining_internal_consumer": "packages/server-customer_360/src/adapters/executive-main-evidence-sources.ts still uses customerTimelineEvents for Executive customer-activity evidence; tracked outside the Customer 360 page workflow"
+  },
+  "tests": [
+    {
+      "suite": "sales.semantic-services.unit",
+      "result": "112/112 pass"
+    },
+    {
+      "suite": "sales.customers-workspace.integration",
+      "result": "4/4 pass"
+    },
+    {
+      "suite": "customer_360.native-customer-timeline-transport.unit",
+      "result": "12/12 pass"
+    },
+    {
+      "suite": "customer_360.customer-timeline.integration",
+      "result": "6/6 pass with ERPX_FILES_PREVIEW_BIN, ERPX_HEIF_CONVERT, ERPX_PDFTOPPM_BIN, ERPX_CLAMD_SOCKET and ERPX_CLAMAV_DATABASE_DIR set"
+    },
+    {
+      "suite": "support.package-surfaces.integration",
+      "result": "20/22 pass; the two remaining failures are pre-existing/outside this bundle: the Executive customer-evidence assertion and the Support native Field fixture config panic at rust-field-files-vitest-held-provider.rs:338"
+    }
+  ],
+  "screenshots": [
+    ".scratch/dev/native-timeline-history-desktop.png",
+    ".scratch/dev/native-timeline-history-mobile.png"
+  ],
+  "notes": [
+    "The 3198 private API reads disposable clone databases populated from the exact development business tables for verification; it is not a production runtime.",
+    "The browser History page shows exactly the 15 native invoice items, not the earlier 21-event retained TypeScript timeline.",
+    "The customer timeline integration suite passes 6/6 with the native Field fixture tool environment; the support suite's remaining Field failure is a fixture config panic in the provider example, not the timeline transport."
+  ]
+}

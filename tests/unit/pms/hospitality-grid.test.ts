@@ -1,6 +1,6 @@
 import {expect,it} from 'vitest';
-import {expandRoomNumbers,roomSaveKey,mergeSetupSave,type SetupSave} from "@erpx/feature-shared/lib/hospitality-grid";
-import {assertHospitalityDevelopmentTarget} from "@erpx/feature-shared/lib/hospitality-seed-target";
+import {expandRoomNumbers,roomSaveKey,mergeSetupSave,type SetupSave} from "@erpx/platform-shared-ui/lib/hospitality-grid";
+import {assertHospitalityDevelopmentTarget} from "@erpx/platform-shared-ui/lib/hospitality-seed-target";
 it('expands padded room ranges and rejects overlapping or unbounded grids',()=>{
  expect(expandRoomNumbers('001-003, 201')).toEqual(['001','002','003','201']);
  expect(()=>expandRoomNumbers('101-103, 102')).toThrow('Duplicate');
@@ -38,19 +38,19 @@ it('rejects every non-development database before connections',()=>{
 });
 
 import {afterEach,vi} from 'vitest';
-import {workFetch} from '@erpx/feature-work_projection/lib/work-fetch';
-import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/command-context';
-import {createLatestRead} from '@erpx/feature-shared/lib/latest-read';
-import {setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
-import {plusDays} from '@erpx/server-pms/public/rules/pms-model';
+import {workFetch} from '@erpx/work-projection-ui/lib/work-fetch';
+import {captureWorkCommandContext} from '@erpx/work-projection-ui/lib/command-context';
+import {createLatestRead} from '@erpx/platform-shared-ui/lib/latest-read';
+import {setContextSwitching} from '@erpx/work-projection-ui/lib/context-switch';
+import {plusDays} from '@erpx/pms-server/public/rules/pms-model';
 
 afterEach(()=>{if(typeof document!=='undefined')setContextSwitching(false);vi.unstubAllGlobals();});
 const retainedPmsOwnerSources={
  front:{path:'../../../fixtures/pms/source-baselines/pms-front-workspace-pre-standard.tsx.txt',sha256:'61d78d6df643999f4190f20224ea53261fcbf7d383eb5edc011f0cfc299c752f'},
  backoffice:{path:'../../../fixtures/pms/source-baselines/pms-backoffice-workspace-pre-standard.tsx.txt',sha256:'87f620301e1ec4b955fef5a5c41343e7c938c70d46d58aed1ca548e2542adc58'},
 };
-const actualPmsFrontSource=process.env.ERPX_PMS_WORKSPACE_BASELINE==='1'?retainedPmsOwnerSources.front.path:"../../../packages/feature-pms/src/components/standard-pms-front-workspace.tsx";
-const actualPmsBackofficeSource=process.env.ERPX_PMS_WORKSPACE_BASELINE==='1'?retainedPmsOwnerSources.backoffice.path:"../../../packages/feature-pms/src/components/standard-pms-backoffice-workspace.tsx";
+const actualPmsFrontSource=process.env.ERPX_PMS_WORKSPACE_BASELINE==='1'?retainedPmsOwnerSources.front.path:"../../../modules/pms/ui/src/components/standard-pms-front-workspace.tsx";
+const actualPmsBackofficeSource=process.env.ERPX_PMS_WORKSPACE_BASELINE==='1'?retainedPmsOwnerSources.backoffice.path:"../../../modules/pms/ui/src/components/standard-pms-backoffice-workspace.tsx";
 /** Only explicit historical probes read text fixtures. Ordinary tests still read
  * the real current owners. Pins bind both native pre-standard source bytes and
  * their provenance manifest before any of the existing callback extraction. */
@@ -86,20 +86,20 @@ async function pmsReadEffectSource(path:string,kind:'calendar'|'housekeeping'){
  return {ts,file,effect:effects[0]};
 }
 async function actualCalendarRead(base='/front/acme/acme-co/pms'){
- const {ts,file,effect}=await pmsReadEffectSource("../../../packages/feature-pms/src/components/operations-calendar.tsx",'calendar');
+ const {ts,file,effect}=await pmsReadEffectSource("../../../modules/pms/ui/src/components/operations-calendar.tsx",'calendar');
  if(!ts.isBlock(effect.body))throw Error('Expected original Calendar effect block.');
  const statements=effect.body.statements,chain=statements.find(ts.isExpressionStatement),cleanup=statements.find(ts.isReturnStatement),declarations=statements.filter(ts.isVariableStatement);
  if(!chain||!cleanup?.expression)throw Error('Expected original Calendar read chain and cleanup.');
  // Execute the original request/JSON handler and cleanup bodies. Only expose
  // their promises to the test; React hooks are neither called nor mocked.
  const body=`${declarations.map(node=>node.getText(file)).join('\n')}\nconst complete=${chain.expression.getText(file)};return {complete,cleanup:${cleanup.expression.getText(file)}};`;
- const emitted=ts.transpileModule(body,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const emitted=ts.transpileModule(body,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const setLoaded=vi.fn(),setError=vi.fn(),build=new Function('workFetch','captureWorkCommandContext','base','propertyId','from','plusDays','setLoaded','setError',emitted) as (...ports:unknown[])=>{complete:Promise<void>;cleanup:()=>void};
  return {...build(workFetch,captureWorkCommandContext,base,'original-hotel','2026-10-16',plusDays,setLoaded,setError),setLoaded,setError};
 }
 async function actualHousekeepingRead(owner:'front'|'backoffice',timeout=20_000){
  const path=owner==='front'?actualPmsFrontSource:actualPmsBackofficeSource, {ts,file,effect}=await pmsReadEffectSource(path,'housekeeping');
- const emitted=ts.transpileModule(`return (${effect.getText(file)})();`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const emitted=ts.transpileModule(`return (${effect.getText(file)})();`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const reads=createLatestRead<unknown>(timeout),readEpoch={current:0},setData=vi.fn(),setError=vi.fn(),setNotice=vi.fn(),clear=vi.fn(),invalidateReads=vi.fn(()=>{readEpoch.current++;reads.cancel();});
  let refresh:(()=>Promise<void>)|undefined;
  const schedule=vi.fn((callback:()=>Promise<void>,delay:number)=>{refresh=callback;expect(delay).toBe(8000);return 1;});
@@ -155,10 +155,10 @@ it.each(['front','backoffice'] as const)('actual %s Housekeeping retains its ini
 
 import * as React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {FrontLocalizedTree} from '@erpx/front/components/front-language';
-import {Button,Field,Table,TableFrame,TextInput} from '@erpx/ui/components/foundation';
-import {CollectionRecordLink} from '@erpx/feature-records/components/record-collection';
-import {dates,records,defaultConfig,type Snapshot} from '@erpx/server-pms/public/rules/pms-model';
+import {FrontLocalizedTree} from '@erpx/platform-front/components/front-language';
+import {Button,Field,Table,TableFrame,TextInput} from '@erpx/platform-ui/components/foundation';
+import {CollectionRecordLink} from '@erpx/records-ui/components/record-collection';
+import {dates,records,defaultConfig,type Snapshot} from '@erpx/pms-server/public/rules/pms-model';
 const calendarRoute=vi.hoisted(()=>({pathname:'/holdings/acme/pms/front-desk',query:'property=original-hotel'}));
 vi.mock('next/navigation',()=>({usePathname:()=>calendarRoute.pathname,useSearchParams:()=>new URLSearchParams(calendarRoute.query)}));
 const retainedCalendar:Snapshot={
@@ -169,14 +169,14 @@ const retainedCalendar:Snapshot={
  ],
 };
 async function actualCalendarRender({base='/holdings/acme',propertyId='original-hotel',from='2026-10-16'}:{base?:string;propertyId?:string;from?:string}={}){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../packages/feature-pms/src/components/operations-calendar.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-pms-calendar-render.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../modules/pms/ui/src/components/operations-calendar.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-pms-calendar-render.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  const owner=file.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='PmsOperationsCalendar');
  if(!owner||!ts.isFunctionDeclaration(owner)||!owner.body)throw Error('Expected original PMS Calendar owner.');
  const statements=owner.body.statements,effect=statements.findIndex(node=>ts.isExpressionStatement(node)&&ts.isCallExpression(node.expression)&&ts.isIdentifier(node.expression.expression)&&node.expression.expression.text==='useEffect');
  if(effect<0)throw Error('Expected original Calendar read/render boundary.');
  // Render the exact original projection after its effect declaration, with a
  // retained owner state. Real React and child widgets render; no hook is mocked.
- const emitted=ts.transpileModule(statements.slice(effect+1).map(node=>node.getText(file)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText;
+ const emitted=ts.transpileModule(statements.slice(effect+1).map(node=>node.getText(file)).join('\n'),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText;
  const loaded={base:'/holdings/acme',propertyId:'original-hotel',from:'2026-10-16',snapshot:retainedCalendar};
  const names=['React','FrontLocalizedTree','Button','Field','Table','TableFrame','TextInput','CollectionRecordLink','dates','records','plusDays','loaded','from','error','retry','setFrom','setRetry','base','propertyId'];
  const render=new Function(...names,emitted) as (...ports:unknown[])=>React.ReactNode;
@@ -196,7 +196,7 @@ it('actual PMS Calendar render preserves current loaded room widgets without a r
  const html=await actualCalendarRender();expect(html).toContain('Retained private room 701');expect(html).toContain('/records/pms_record/retained-private-stay/overview');expect(html).not.toContain('Loading calendar…');
 });
 
-import {BookingPaymentReturn,type BookingPaymentReturnStatus} from '@erpx/feature-pms/components/booking-payment-return';
+import {BookingPaymentReturn,type BookingPaymentReturnStatus} from '@erpx/pms-ui/components/booking-payment-return';
 const bookingReturnObserver=vi.hoisted(()=>({active:false,stateIndex:0,effects:[] as Array<()=>void|(()=>void)>,dependencies:[] as Array<React.DependencyList|undefined>,updates:[] as unknown[],errors:[] as unknown[]}));
 vi.mock('react',async importOriginal=>{
  const actual=await importOriginal<typeof import('react')>();
@@ -209,10 +209,16 @@ vi.mock('react',async importOriginal=>{
  };
 });
 afterEach(()=>{bookingReturnObserver.active=false;if(vi.isFakeTimers()){vi.clearAllTimers();vi.useRealTimers();}});
-const bookingReturnIdentity={slug:'original-holding',propertyId:'original-property',attempt:'original-payment.original-signature'};
+const bookingReturnIdentity={slug:'acme',propertyId:'original-property',attempt:'original-payment.original-signature'};
 const bookingReturnStatus=(state:BookingPaymentReturnStatus['state'],refundState:string|null=null):BookingPaymentReturnStatus=>({number:'ORIGINAL-BOOKING-1',state,paymentState:state==='confirmed'?'received':'pay_at_hotel',checkoutUrl:state==='payment_pending'?'https://checkout.stripe.com/c/pay/original':null,managementToken:undefined,refundState});
 function bookingReturnResponse(status:BookingPaymentReturnStatus,identity:Partial<typeof bookingReturnIdentity>={}){return Response.json({data:{...status,attemptToken:identity.attempt??bookingReturnIdentity.attempt,hotel:{id:identity.propertyId??bookingReturnIdentity.propertyId}}});}
-function bookingReturnTimers(){vi.useFakeTimers();vi.stubGlobal('window',{setInterval,clearInterval});}
+function bookingReturnTimers(){
+ vi.useFakeTimers();
+ // The actual Holding transport reads these browser ports. Only native fetch
+ // IO is substituted; namespace selection and receipt validation stay real.
+ vi.stubGlobal('window',{setInterval,clearInterval,location:new URL('https://acme.jesadakorn.com/book/original-property')});
+ vi.stubGlobal('document',{documentElement:{dataset:{erpxApp:'booking'}}});
+}
 /** Actual React supplies both state/effect hooks and renders the original
  * component/widgets. Transparent observers record its real closure and state
  * publications; tests explicitly drive effect setup/cleanup, timers and native
@@ -230,7 +236,7 @@ it('actual Booking return keeps expired receipts observable through late refund 
   expect(mounted.html).toContain('Payment period expired');expect(fetcher).not.toHaveBeenCalled();await vi.advanceTimersByTimeAsync(4999);expect(fetcher).not.toHaveBeenCalled();await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledOnce();expect(mounted.updates).toEqual([bookingReturnStatus('refund_review','requested')]);
   mounted.cleanup();mounted=observeBookingReturn(bookingReturnStatus('refund_review','requested'));expect(mounted.html).toContain('Payment needs review');expect(fetcher).toHaveBeenCalledTimes(1);await vi.advanceTimersByTimeAsync(5000);expect(fetcher).toHaveBeenCalledTimes(2);expect(mounted.updates).toEqual([bookingReturnStatus('refund_review','succeeded')]);
   const pendingDependencies=mounted.dependencies;mounted.cleanup();mounted=observeBookingReturn(bookingReturnStatus('refund_review','succeeded'));expect(mounted.dependencies).not.toEqual(pendingDependencies);expect(mounted.html).toContain('Refund: succeeded');await vi.advanceTimersByTimeAsync(20000);expect(fetcher).toHaveBeenCalledTimes(2);expect(mounted.updates).toEqual([]);
-  for(const [url,init] of fetcher.mock.calls){expect(String(url)).toBe('/api/public/booking/original-holding/reservations?attempt=original-payment.original-signature');expect(init?.cache).toBe('no-store');expect(init?.method).toBeUndefined();}
+  for(const [url,init] of fetcher.mock.calls){expect(String(url)).toBe('https://acme.jesadakorn.com/__erpx/booking/api/public/booking/acme/reservations?attempt=original-payment.original-signature');expect(init?.cache).toBe('no-store');expect(init?.method).toBeUndefined();expect(init?.signal).toBeInstanceOf(AbortSignal);}
  }finally{mounted.cleanup();}
 });
 it('actual Booking return follows pending then expired to a late confirmed receipt without duplicate mount GETs',async()=>{
@@ -252,12 +258,12 @@ it.each(['attempt','propertyId'] as const)('actual Booking return rejects anothe
  try{await vi.advanceTimersByTimeAsync(5000);expect(mounted.updates).toEqual([]);expect(mounted.errors).toEqual(['Payment status unavailable']);expect(fetcher).toHaveBeenCalledOnce();}finally{mounted.cleanup();}
 });
 
-import {pmsPackageCommandAllowed} from '@erpx/feature-pms/lib/package-access';
-import {capturePmsWorkspaceCommandContext,sendPmsWorkspaceCommand,pendingPmsWorkspaceCommand,type PmsWorkspaceCommandAttempt,type PmsWorkspaceCommandSource} from '@erpx/feature-pms/lib/workspace-command';
-import {canonicalUiHref} from '@erpx/feature-work_projection/lib/destination-registry';
-import {TaskCompletionDrafts} from '@erpx/feature-pms/components/task-completion-drafts';
-import {changedPmsTaskCompletionAttachments} from '@erpx/feature-pms/components/workspace-types';
-import {attachmentContentUrl} from '@erpx/feature-files/lib/attachment-client';
+import {pmsPackageCommandAllowed} from '@erpx/pms-ui/lib/package-access';
+import {capturePmsWorkspaceCommandContext,sendPmsWorkspaceCommand,pendingPmsWorkspaceCommand,type PmsWorkspaceCommandAttempt,type PmsWorkspaceCommandSource} from '@erpx/pms-ui/lib/workspace-command';
+import {canonicalUiHref} from '@erpx/work-projection-ui/lib/destination-registry';
+import {TaskCompletionDrafts} from '@erpx/pms-ui/components/task-completion-drafts';
+import {changedPmsTaskCompletionAttachments} from '@erpx/pms-ui/components/workspace-types';
+import {attachmentContentUrl} from '@erpx/files-ui/lib/attachment-client';
 
 type PmsSendOwner='front'|'backoffice';
 /** Execute the real send and its Form onSubmit closure with explicit state,
@@ -283,7 +289,7 @@ async function actualPmsWorkspaceSend(owner:PmsSendOwner,options:{holdRefresh?:b
  const commandSource:{current:PmsWorkspaceCommandSource|null}={current:null},formSource:{current:PmsWorkspaceCommandSource|null}={current:null},formEdits={current:0};
  const layouts:import('typescript').ArrowFunction[]=[];
  const collectLayouts=(node:import('typescript').Node)=>{if(ts.isCallExpression(node)&&ts.isIdentifier(node.expression)&&node.expression.text==='useLayoutEffect'&&node.arguments[0]&&ts.isArrowFunction(node.arguments[0]))layouts.push(node.arguments[0]);ts.forEachChild(node,collectLayouts);};collectLayouts(file);
- const setup=(name:'commandSource'|'formSource')=>{const effect=layouts.find(node=>node.getText(file).includes(name+'.current'));if(!effect)throw Error('Expected the actual PMS mounted source effect.');const ports={commandSource,formSource,base,propertyId:'original-hotel',section:'housekeeping',frontMode:owner==='front',choiceApi:`/api/v1${base}/pms`};const body=ts.transpileModule(`return (${effect.getText(file)})();`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;return new Function(...Object.keys(ports),body)(...Object.values(ports)) as ()=>void;};
+ const setup=(name:'commandSource'|'formSource')=>{const effect=layouts.find(node=>node.getText(file).includes(name+'.current'));if(!effect)throw Error('Expected the actual PMS mounted source effect.');const ports={commandSource,formSource,base,propertyId:'original-hotel',section:'housekeeping',frontMode:owner==='front',choiceApi:`/api/v1${base}/pms`};const body=ts.transpileModule(`return (${effect.getText(file)})();`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;return new Function(...Object.keys(ports),body)(...Object.values(ports)) as ()=>void;};
  const disposeCommand=setup('commandSource'),disposeForm=setup('formSource');
  const taskForm={isConnected:true};
  const setData=vi.fn((updated:{snapshot?:{property:{id:string};records?:unknown[]}})=>{if(options.reflectCreatedSource&&updated.snapshot&&commandSource.current){commandSource.current={...commandSource.current,propertyId:updated.snapshot.property.id};formSource.current={...formSource.current!,propertyId:updated.snapshot.property.id};}if(options.taskCompletesOnRefresh&&taskForm)taskForm.isConnected=false;}),setCommandState=vi.fn(),setError=vi.fn(),setNotice=vi.fn(),router={push:vi.fn(),refresh:vi.fn()},events:string[]=[],completions:unknown[]=[];
@@ -313,17 +319,17 @@ async function actualPmsWorkspaceSend(owner:PmsSendOwner,options:{holdRefresh?:b
  });vi.stubGlobal('fetch',fetcher);
  const reads=createLatestRead<unknown>();
  const bindings={workFetch,captureWorkCommandContext,capturePmsWorkspaceCommandContext,sendPmsWorkspaceCommand,pendingPmsWorkspaceCommand,setCommandState,commandSource,pmsPackageCommandAllowed,canonicalUiHref,displayCurrency:'THB',frontMode:owner==='front',base,erpBase:'/holdings/acme',propertyId:'original-hotel',data,attempts,readEpoch,pendingWrites,reads,language:'en',tr:(value:string)=>value,setError,setNotice,setData,router,nativeRouter:router,section:'housekeeping',listReadKey:JSON.stringify({view:'list',section:'housekeeping',page:'1'})};
- const emitted=ts.transpileModule(`const runCommand=(${runCommand.getText(file)});const send=(${send.getText(file)});const retryOriginal=(${retryOriginal.getText(file)});return {send,retryOriginal};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const emitted=ts.transpileModule(`const runCommand=(${runCommand.getText(file)});const send=(${send.getText(file)});const retryOriginal=(${retryOriginal.getText(file)});return {send,retryOriginal};`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const callbacks=new Function(...Object.keys(bindings),emitted)(...Object.values(bindings)) as {send:(op:string,input:unknown,version?:number,attachmentSetIds?:string[],onAcknowledged?:(refreshed:boolean)=>void,onEditableRejected?:()=>void)=>Promise<boolean>;retryOriginal:()=>Promise<boolean>},execute=callbacks.send;
  let draft='Original housekeeping note',editVersion='original-edit',checkboxValues=(options.completionChecklist??[]).map(()=>false);
  const reset=vi.fn(()=>{draft='';checkboxValues=checkboxValues.map(()=>false);}),form=Object.assign(taskForm,{reset,getAttribute:(name:string)=>name==='data-erpx-edit-version'?editVersion:null}),formElement=form,editingVersion={current:3 as number|undefined},completionAttachmentActivities={current:new Set<string>()},completionAttachments={current:new Map()},setCompletionAttachmentPending=vi.fn(),setSuccess=vi.fn(),setBusy=vi.fn(),setRoomSets=vi.fn(),formError=vi.fn(),captureCompletionDraft=vi.fn(),completionAcknowledged=vi.fn();
  class OwnerFormData extends FormData{constructor(){super();this.set('notes',draft);checkboxValues.forEach((checked,index)=>{if(checked)this.set(`check_${index}`,'on');});}}
  Object.defineProperty(browser.doc,'activeElement',{value:{closest:()=>form}});
- const taskCompletionAttachmentActivities={current:new Set<string>()},ownerActivityJs=ts.transpileModule(`return (${ownerAttachmentActivity.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,updateOwnerAttachmentActivity=new Function('base','propertyId','hidden','taskCompletionAttachmentActivities',ownerActivityJs)(base,'original-hotel',{id:'original-task'},taskCompletionAttachmentActivities) as (purposeKey:string,active:boolean)=>void;
+ const taskCompletionAttachmentActivities={current:new Set<string>()},ownerActivityJs=ts.transpileModule(`return (${ownerAttachmentActivity.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,updateOwnerAttachmentActivity=new Function('base','propertyId','hidden','taskCompletionAttachmentActivities',ownerActivityJs)(base,'original-hotel',{id:'original-task'},taskCompletionAttachmentActivities) as (purposeKey:string,active:boolean)=>void;
  const formBindings={capturePmsWorkspaceCommandContext,changedPmsTaskCompletionAttachments,formSource,formEdits,FormData:OwnerFormData,setError:formError,setBusy,setSuccess,setRoomSets,completionAttachmentActivities,completionAttachments,setCompletionAttachmentPending,attachment:{purposeKey:'room_photo'},onCompletionAttachmentActivity:updateOwnerAttachmentActivity,pending:false,hidden:{id:'original-task'},displayFields:[...(options.completionChecklist??[]).map((label,index)=>({name:`check_${index}`,label,type:'checkbox'})),{name:'notes',type:'textarea'}],transform:undefined,op:options.operation??'task.complete',send:execute,editingVersion,version:3,roomSets:1,roomKeys:[],decimalToMinor:(value:string)=>Number(value),onCompletionDraft:captureCompletionDraft,onCompletionAcknowledged:completionAcknowledged};
- const formJs=ts.transpileModule(`return (${submit.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
- const changeJs=ts.transpileModule(`return (${change.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
- const activityChangeJs=ts.transpileModule(`return (${activityChange.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const formJs=ts.transpileModule(`return (${submit.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const changeJs=ts.transpileModule(`return (${change.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const activityChangeJs=ts.transpileModule(`return (${activityChange.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  let onChange=new Function(...Object.keys(formBindings),changeJs)(...Object.values(formBindings)) as ()=>void;
  let onSubmit=new Function(...Object.keys(formBindings),formJs)(...Object.values(formBindings)) as (event:{preventDefault:()=>void;currentTarget:typeof form})=>Promise<void>;
  return {browser,attempts,readEpoch,pendingWrites,setCommandState,retry:callbacks.retryOriginal,execute,dispose:()=>{disposeCommand();disposeForm();readEpoch.current++;form.isConnected=false;},reads,setData,setError,setNotice,router,events,completions,fetcher,started,release,readStarted,readRelease,reset,form,editingVersion,setSuccess,formError,
@@ -395,7 +401,7 @@ it('renders completion drafts with the captured values and explicit keep-editing
 it.each(['front','backoffice'] as const)('actual %s housekeeping owner exposes retained completion drafts through its rendered screen',async owner=>{
  const ts=await import('typescript'),{readFile}=await import('node:fs/promises');
  const ownerSource=await readPmsOwnerSource(owner==='front'?actualPmsFrontSource:actualPmsBackofficeSource);
- const screenPath=owner==='front'?"../../../packages/feature-pms/src/components/pms-front-housekeeping-screen.tsx":"../../../packages/feature-pms/src/components/pms-backoffice-rooms-housekeeping-screen.tsx";
+ const screenPath=owner==='front'?"../../../modules/pms/ui/src/components/pms-front-housekeeping-screen.tsx":"../../../modules/pms/ui/src/components/pms-backoffice-rooms-housekeeping-screen.tsx";
  const screenSource=await readFile(new URL(screenPath,import.meta.url),'utf8'),screen=ts.createSourceFile('actual-pms-housekeeping-screen.tsx',screenSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  const rendered:import('typescript').JsxSelfClosingElement[]=[];
  const visit=(node:import('typescript').Node)=>{if(ts.isJsxSelfClosingElement(node)&&node.tagName.getText(screen)==='TaskCompletionDrafts')rendered.push(node);ts.forEachChild(node,visit);};visit(screen);
@@ -421,9 +427,9 @@ it.each(['front','backoffice'] as const)('actual %s PMS retains the mapped attac
  const ts=await import('typescript'),source=await readPmsOwnerSource(owner==='front'?actualPmsFrontSource:actualPmsBackofficeSource),file=ts.createSourceFile('actual-pms-completion-base.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let mapBase:import('typescript').ArrowFunction|undefined,capture:import('typescript').ArrowFunction|undefined;
  const visit=(node:import('typescript').Node)=>{if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='pmsFileBase'&&node.initializer&&ts.isArrowFunction(node.initializer))mapBase=node.initializer;if(ts.isJsxAttribute(node)&&node.name.getText(file)==='onCompletionDraft'&&node.initializer&&ts.isJsxExpression(node.initializer)&&node.initializer.expression){const find=(child:import('typescript').Node)=>{if(ts.isArrowFunction(child)&&child.parameters[0]?.name.getText(file)==='values'&&child.getText(file).includes('attachmentBase:'))capture=child;ts.forEachChild(child,find);};find(node.initializer.expression);}ts.forEachChild(node,visit);};visit(file);
  if(!mapBase||!capture)throw Error('The actual PMS completion-draft mapper and capture callback are required.');
- const mapBaseJs=ts.transpileModule(`return (${mapBase.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,mapBasePort=new Function(mapBaseJs)() as (base:string)=>string,base=owner==='front'?'/front/acme/acme-co':'/holdings/acme',attachments=[{base}],choiceApi=`/api/v1${base}/pms`,hidden={id:'original-task'};let drafts:Record<string,Record<string,unknown>>={};
+ const mapBaseJs=ts.transpileModule(`return (${mapBase.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,mapBasePort=new Function(mapBaseJs)() as (base:string)=>string,base=owner==='front'?'/front/acme/acme-co':'/holdings/acme',attachments=[{base}],choiceApi=`/api/v1${base}/pms`,hidden={id:'original-task'};let drafts:Record<string,Record<string,unknown>>={};
  const setTaskCompletionDrafts=(update:(current:Record<string,Record<string,unknown>>)=>Record<string,Record<string,unknown>>)=>{drafts=update(drafts);};
- const captureDraftJs=ts.transpileModule(`return (${capture!.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,captureDraft=new Function('hidden','propertyId','base','attachments','choiceApi','setTaskCompletionDrafts','title','pmsFileBase',captureDraftJs)(hidden,'original-hotel',base,attachments,choiceApi,setTaskCompletionDrafts,'Mark task complete',mapBasePort) as (values:unknown)=>void;
+ const captureDraftJs=ts.transpileModule(`return (${capture!.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,captureDraft=new Function('hidden','propertyId','base','attachments','choiceApi','setTaskCompletionDrafts','title','pmsFileBase',captureDraftJs)(hidden,'original-hotel',base,attachments,choiceApi,setTaskCompletionDrafts,'Mark task complete',mapBasePort) as (values:unknown)=>void;
  captureDraft({checklist:[],notes:'Later note',attachments:[]});const saved=drafts[JSON.stringify([base,'original-hotel','original-task'])];
  expect(saved?.attachmentBase).toBe(owner==='front'?'/front/acme/acme-co/pms':'/holdings/acme');
  expect(attachmentContentUrl(String(saved?.attachmentBase),'attachment-link','preview')).toContain(owner==='front'?'/api/v1/front/acme/acme-co/pms/attachment-links/attachment-link/content':'/api/v1/holdings/acme/attachment-links/attachment-link/content');
@@ -531,16 +537,16 @@ it.each(['front','backoffice'] as const)('actual %s PMS editor keeps original re
  const path=owner==='front'?actualPmsFrontSource:actualPmsBackofficeSource,source=await readPmsOwnerSource(path),file=ts.createSourceFile('actual-pms-editor-recovery.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),Form=file.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='Form');
  if(!Form)throw Error('The actual PMS editor is required.');
  const observed:Record<string,unknown>[]=[],ports={useFrontLanguage:()=> 'en',frontText:(text:string)=>text,useState:React.useState,useRef:React.useRef,useLayoutEffect:React.useLayoutEffect,operationPermission:()=> 'pms.housekeeping',FormDisclosure:(props:Record<string,unknown>)=>{observed.push(props);return props.children as React.ReactNode;},Plus:()=>null,PmsChoiceSelect:()=>null,AttachmentPanel:()=>null,UiField:({children}:{children:React.ReactNode})=>React.createElement('label',null,children),Select:'select',TextArea:'textarea',TextInput:'input',Button:({children,type,disabled}:{children:React.ReactNode;type?:'button'|'submit';disabled?:boolean})=>React.createElement('button',{type,disabled},children),styles:new Proxy({}, {get:(_target,key)=>String(key)})};
- const compiled=ts.transpileModule(Form.getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+ const compiled=ts.transpileModule(Form.getText(file),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const Component=new Function('require','exports',...Object.keys(ports),compiled+';return Form;')(require,{},...Object.values(ports)) as React.ComponentType<Record<string,unknown>>;
  const html=renderToStaticMarkup(React.createElement(Component,{title:'Complete room task',op:'task.complete',fields:[{name:'first',label:'First',type:'text'},{name:'second',label:'Second',type:'text'},{name:'notes',label:'Notes',type:'textarea'}],permissions:['pms.housekeeping'],send:vi.fn(async()=>false),pending:true,recovery:React.createElement('p',null,'Captured original recovery')}));
  expect(observed).toHaveLength(1);expect(observed[0]).toMatchObject({inline:false,dismissDisabled:true,retainFormContents:true});expect(html).toContain('Captured original recovery');expect(html).toContain('name="notes"');
 });
 it('actual record drawer keeps optional owner recovery inside the detail boundary during its initial read while the default content remains unchanged',async()=>{
- const {readFile}=await import('node:fs/promises'),{createRequire}=await import('node:module'),ts=await import('typescript'),require=createRequire(import.meta.url),source=await readFile(new URL("../../../packages/feature-records/src/components/record-collection.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-record-recovery.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),declaration=file.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='RecordCollectionDrawer');
+ const {readFile}=await import('node:fs/promises'),{createRequire}=await import('node:module'),ts=await import('typescript'),require=createRequire(import.meta.url),source=await readFile(new URL("../../../modules/records/ui/src/components/record-collection.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-record-recovery.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),declaration=file.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='RecordCollectionDrawer');
  if(!declaration)throw Error('The real owner drawer is required.');
  const observed:Record<string,unknown>[]=[],fetcher=vi.fn(),ports={useState:React.useState,useRef:React.useRef,useEffect:React.useEffect,usePathname:()=>'/original-record',useSearchParams:()=>new URLSearchParams({detailKind:'pms_entry',detailId:'original-entry'}),workFetch:fetcher,RecordDrawer:(props:Record<string,unknown>)=>{observed.push(props);return React.createElement('section',null,props.children as React.ReactNode);}};
- const compiled=ts.transpileModule(declaration.getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+ const compiled=ts.transpileModule(declaration.getText(file),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const vm={exports:{} as Record<string,unknown>};new Function('require','module','exports',...Object.keys(ports),compiled)(require,vm,vm.exports,...Object.values(ports));
  const Drawer=vm.exports.RecordCollectionDrawer as React.ComponentType<Record<string,unknown>>,props={kind:'pms_entry',title:'Original entry',endpoint:'/original-owner',select:()=>null};
  const normal=renderToStaticMarkup(React.createElement(Drawer,props));expect(normal).toContain('Loading record details');expect(React.isValidElement(observed[0].children)&&observed[0].children.type).toBe('p');
@@ -586,10 +592,10 @@ it('actual Backoffice creation retains a wrong Property acknowledgement and reco
  }finally{f.release();f.reads.cancel();}
 });
 
-import {installPmsPendingNavigation,pmsPendingDepartureAllowed,samePmsCommandView} from '@erpx/feature-pms/lib/pending-navigation';
-import {hasUnsavedWork,confirmContextSwitch,contextSwitchBlockReason} from '@erpx/feature-work_projection/lib/context-switch';
-import {destinationHref} from '@erpx/feature-shared/lib/destination-router';
-import {isProductHandoffHref} from '@erpx/feature-work_projection/lib/product-navigation';
+import {installPmsPendingNavigation,pmsPendingDepartureAllowed,samePmsCommandView} from '@erpx/pms-ui/lib/pending-navigation';
+import {hasUnsavedWork,confirmContextSwitch,contextSwitchBlockReason} from '@erpx/work-projection-ui/lib/context-switch';
+import {destinationHref} from '@erpx/platform-shared-ui/lib/destination-router';
+import {isProductHandoffHref} from '@erpx/work-projection-ui/lib/product-navigation';
 
 /** Run the actual owner pending callback and actual navigation hook with explicit
  * commit/cleanup ports, alongside the existing real native send-handler seam. */
@@ -599,24 +605,25 @@ async function actualPmsLifetimeMount(owner:PmsSendOwner,f:Awaited<ReturnType<ty
  let pending:import('typescript').ArrowFunction|undefined,localDraftPending:import('typescript').ArrowFunction|undefined;
  const visit=(node:import('typescript').Node)=>{if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.initializer&&ts.isCallExpression(node.initializer)&&node.initializer.arguments[0]&&ts.isArrowFunction(node.initializer.arguments[0])){if(node.name.text==='hasPendingCommand')pending=node.initializer.arguments[0];if(node.name.text==='hasLocalTaskCompletionDraft')localDraftPending=node.initializer.arguments[0];}ts.forEachChild(node,visit);};visit(file);
  if(!pending||!localDraftPending)throw Error('The actual owner pending and local-draft lifetime callbacks are required.');
- const pendingJs=ts.transpileModule(`return (${pending.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const pendingJs=ts.transpileModule(`return (${pending.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const isPending=new Function('attempts','pendingWrites',pendingJs)(f.attempts,f.pendingWrites) as ()=>boolean;
- const draftCount={current:0},localDraftPendingJs=ts.transpileModule(`return (${localDraftPending.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const draftCount={current:0},localDraftPendingJs=ts.transpileModule(`return (${localDraftPending.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const isLocalDraftPending=new Function('taskCompletionDraftCount','taskCompletionAttachmentActivities',localDraftPendingJs)(draftCount,f.ownerAttachmentActivities) as ()=>boolean;
- const text=await readFile(new URL("../../../packages/feature-pms/src/components/pending-command-navigation.tsx",import.meta.url),'utf8'),hookFile=ts.createSourceFile('actual-lifetime-hook.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),hook=hookFile.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='usePmsPendingNavigation');
+ const text=await readFile(new URL("../../../modules/pms/ui/src/components/pending-command-navigation.tsx",import.meta.url),'utf8'),hookFile=ts.createSourceFile('actual-lifetime-hook.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),hook=hookFile.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='usePmsPendingNavigation');
  if(!hook)throw Error('The actual owner navigation hook is required.');
  const cleanups:(()=>void)[]=[],router={...f.router,replace:vi.fn()},ports={useCallback:(callback:unknown)=>callback,useMemo:(create:()=>unknown)=>create(),useLayoutEffect:(commit:()=>()=>void)=>{cleanups.push(commit());},useProductNavigationScope:()=>({audience:null}),destinationHref,isProductHandoffHref,installPmsPendingNavigation,pmsPendingDepartureAllowed};
- const js=ts.transpileModule(hook.getText(hookFile),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const js=ts.transpileModule(hook.getText(hookFile),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const guarded=new Function('exports',...Object.keys(ports),js+';return usePmsPendingNavigation;')({},...Object.values(ports))(router,isPending,'en',isLocalDraftPending) as {push:(href:string)=>void;replace:(href:string)=>void};
  return {guarded,router,isPending,isLocalDraftPending,draftCount,discardDraft:()=>{draftCount.current=0;},cleanup:()=>{cleanups.splice(0).forEach(cleanup=>cleanup());}};
 }
 async function actualAttachmentPanelSetActivity(retryUploads:{current:Map<string,unknown>},onActivityChange:(active:boolean)=>void){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-files/src/components/attachment-panel.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-attachment-panel.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../modules/files/ui/src/components/attachment-panel.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-attachment-panel.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  let callback:import('typescript').ArrowFunction|undefined;
  const visit=(node:import('typescript').Node)=>{if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='setActivity'&&node.initializer&&ts.isCallExpression(node.initializer)&&node.initializer.arguments[0]&&ts.isArrowFunction(node.initializer.arguments[0]))callback=node.initializer.arguments[0];ts.forEachChild(node,visit);};visit(file);
  if(!callback)throw Error('The actual AttachmentPanel activity callback is required.');
- const emitted=ts.transpileModule(`return (${callback.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,busyRef={current:false},mounted={current:true},setBusy=vi.fn();
- return new Function('busyRef','mounted','setBusy','onActivityChange','retryUploads',emitted)(busyRef,mounted,setBusy,onActivityChange,retryUploads) as (active:boolean)=>void;
+ const emitted=ts.transpileModule(`return (${callback.getText(file)});`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,busyRef={current:false},mounted={current:true},setBusy=vi.fn();
+ const {pendingFieldWithdrawal}=await import('@erpx/files-ui/lib/native-field-withdraw'),{pendingFieldBind}=await import('@erpx/files-ui/lib/native-field-bind');
+ return new Function('busyRef','mounted','setBusy','onActivityChange','retryUploads','pendingFieldWithdrawal','pendingFieldBind','withdrawalScope',emitted)(busyRef,mounted,setBusy,onActivityChange,retryUploads,pendingFieldWithdrawal,pendingFieldBind,'pms-test-scope') as (active:boolean)=>void;
 }
 function pmsLifetimeBrowser(f:Awaited<ReturnType<typeof actualPmsWorkspaceSend>>,withNavigation=true){
  const url=new URL('https://pms-dev-erpx.jesadakorn.com/acme/acme-co/holding/housekeeping?property=original-hotel&page=1');
@@ -733,15 +740,15 @@ it.each(['front','backoffice'] as const)('actual %s first proven PMS validation 
 // Closed setup queue ports exercise the real queue and original PMS engine.
 // POS/Commerce fixtures below expose their actual documented receipt shapes;
 // they do not claim native DB, money, permission or purchase acceptance.
-import {createHospitalitySetupCommands,captureHospitalitySetupCompletion,hospitalitySetupQueueKey,legacyHospitalitySetupQueueKey,type HospitalitySetupSource,type HospitalitySetupDraft} from '@erpx/feature-shared/lib/hospitality-setup-command';
-import {executePms as setupExecutePms,newProperty as setupNewProperty} from '@erpx/feature-pms/lib/pms-engine';
-import {decimalToMinor as setupDecimalToMinor} from '@erpx/feature-finance/lib/finance-money';
+import {createHospitalitySetupCommands,captureHospitalitySetupCompletion,hospitalitySetupQueueKey,legacyHospitalitySetupQueueKey,type HospitalitySetupSource,type HospitalitySetupDraft} from '@erpx/platform-shared-ui/lib/hospitality-setup-command';
+import {executePms as setupExecutePms,newProperty as setupNewProperty} from '@erpx/pms-ui/lib/pms-engine';
+import {decimalToMinor as setupDecimalToMinor} from '@erpx/finance-ui/lib/finance-money';
 import {createHash as setupHash} from 'node:crypto';
 import {createRequire as setupRequire} from 'node:module';
 import {readFileSync as setupRead} from 'node:fs';
 import {resolve as setupResolve} from 'node:path';
-import type {HospitalitySetup} from '@erpx/server-pms/public/hospitality-setup';
-import {registerUnsavedWork as setupRegisterUnsavedWork} from '@erpx/feature-work_projection/lib/context-switch';
+import type {HospitalitySetup} from '@erpx/pms-server/public/hospitality-setup';
+import {registerUnsavedWork as setupRegisterUnsavedWork} from '@erpx/work-projection-ui/lib/context-switch';
 function setupData():HospitalitySetup{
  const hotel=setupNewProperty('setup-hotel','setup-company','setup-branch','Reviewed hotel','2026-10-18');setupExecutePms(hotel,'room_type.save',{name:'Standard',capacity:2},{userId:'setup-user',now:1,uuid:()=> 'setup-type',independent:()=>true});
  return{companyId:'setup-company',companyName:'Reviewed Company',branchId:'setup-branch',branches:[{id:'setup-branch',name:'Reviewed branch'}],properties:[{id:hotel.property.id,name:hotel.property.name,state:'setup',business_date:hotel.property.businessDate}],propertyId:hotel.property.id,date:'2026-10-18',permissions:{hotel:true,restaurant:true,productCreate:true,financePrepare:true,financeApprove:false},steps:[{id:'finance',title:'Prepare Finance and stock',owner:'Finance preparer',href:'/finance/setup',blockers:['Configure Commerce accounts']},{id:'hotel',title:'Configure hotel',owner:'Hotel administrator',href:'/pms/settings',blockers:[]}],ready:false,hotel,posConfigured:true,posCurrency:'THB',warehouses:[{id:'setup-warehouse',name:'Kitchen'}],registers:[{id:'setup-register',name:'Restaurant',warehouse_id:'setup-warehouse',mode:'restaurant'}],products:[],tables:[],charts:[{id:'setup-chart',name:'THB native chart',base_currency:'THB'}],accounts:[],suggestions:[],roomChargeRequirements:['Same company and branch'],activationRestrictions:['Rehearsal does not approve production']};
@@ -808,8 +815,8 @@ it('closed setup keeps one-shot completion separate from newer form fields witho
 type SetupHookCell={value?:unknown;current?:unknown;deps?:readonly unknown[];cleanup?:()=>void};
 function setupHooks(){const cells:SetupHookCell[]=[],effects:(()=>void)[]=[],layouts:(()=>void)[]=[];let cursor=0;const state=(initial:unknown)=>{const index=cursor++;if(!cells[index])cells[index]={value:typeof initial==='function'?initial():initial};return[cells[index].value,(next:unknown)=>{cells[index].value=typeof next==='function'?next(cells[index].value):next;}];},effect=(queue:(()=>void)[],run:()=>void|(()=>void),deps?:readonly unknown[])=>{const index=cursor++,old=cells[index];if(!old||!deps||!old.deps||deps.length!==old.deps.length||deps.some((value,i)=>!Object.is(value,old.deps?.[i])))queue.push(()=>{old?.cleanup?.();const cleanup=run();cells[index]={deps,cleanup:typeof cleanup==='function'?cleanup:undefined};});};return{react:{...React,useState:state,useRef:(initial:unknown)=>{const index=cursor++;return cells[index]??(cells[index]={current:initial});},useEffect:(run:()=>void|(()=>void),deps?:readonly unknown[])=>effect(effects,run,deps),useLayoutEffect:(run:()=>void|(()=>void),deps?:readonly unknown[])=>effect(layouts,run,deps)},render<T>(run:()=>T){cursor=0;const result=run();while(layouts.length)layouts.shift()!();while(effects.length)effects.shift()!();return result;},close(){for(const cell of cells)cell.cleanup?.();}};}
 function setupNodes(tree:React.ReactNode,result:React.ReactElement<Record<string,unknown>>[]=[]){React.Children.forEach(tree,node=>{if(!React.isValidElement<Record<string,unknown>>(node))return;result.push(node);setupNodes(node.props.children as React.ReactNode,result);});return result;}
-async function mountSetup(c:ReturnType<typeof setupBrowser>,network:(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>){const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_HOSPITALITY_SETUP_SOURCE_ROOT??'.',source=setupRead(setupResolve(root,'packages/feature-shared/src/components/hospitality/standard-setup-guide.tsx'),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,loaded={exports:{} as Record<string,unknown>},hooks=setupHooks(),router={refresh:vi.fn(),push:vi.fn()};vi.stubGlobal('fetch',network);const command=await import('@erpx/feature-shared/lib/hospitality-setup-command');
- const ports=(path:string):unknown=>{if(path==='react')return hooks.react;if(path==='react/jsx-runtime')return require(path);if(path.endsWith("@erpx/front/components/front-language"))return{FrontLanguageContext:setupLanguageContext,FrontLocalizedTree};if(path.endsWith("@erpx/feature-shared/lib/front-language"))return{frontText:setupFrontText};if(path.endsWith("@erpx/feature-shared/lib/destination-router"))return{useRouter:()=>router};if(path.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return{canonicalUiHref:(url:string)=>url};if(path.endsWith("@erpx/workplace/components/workspace-link"))return{default:'OwnerWorkspaceLink'};if(path.endsWith("@erpx/ui/components/foundation"))return{Button:'Button',Card:'Card',Field:'Field',InlineNotice:'Notice',Select:'Select',Table:'Table',TableFrame:'TableFrame',TextInput:'TextInput'};if(path.endsWith("@erpx/ui/components/draft-form-drawer"))return{DraftFormDrawer:'RightDrawer'};if(path.endsWith("@erpx/feature-work_projection/lib/context-switch"))return{contextIsSwitching:()=>false,registerUnsavedWork:setupRegisterUnsavedWork};if(path.endsWith("@erpx/feature-work_projection/lib/work-refresh"))return{announceWorkChange:()=>c.surface.dispatchEvent(new Event('erpx:work-changed'))};if(path.endsWith("@erpx/feature-finance/lib/finance-money"))return{decimalToMinor:setupDecimalToMinor};if(path.endsWith("@erpx/feature-shared/lib/hospitality-grid"))return{expandRoomNumbers,roomSaveKey};if(path.endsWith("@erpx/feature-shared/lib/hospitality-setup-command"))return command;if(path.endsWith("@erpx/server-pms/public/rules/pms-model"))return{records};if(path.endsWith('.module.css'))return{default:new Proxy({}, {get:(_target,key)=>String(key)})};throw Error('Unexpected actual standard setup presenter import '+path);};new Function('require','module','exports',compiled)(ports,loaded,loaded.exports);let props={initial:c.source.data,base:c.source.base,owner:c.source.owner,canBootstrapPos:c.source.canBootstrapPos,canReadPos:c.source.canReadPos};const Component=loaded.exports.StandardHospitalitySetupGuide as (p:typeof props)=>React.ReactElement<typeof props>;
+async function mountSetup(c:ReturnType<typeof setupBrowser>,network:(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>){const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_HOSPITALITY_SETUP_SOURCE_ROOT??'.',source=setupRead(setupResolve(root,'platform/shared/ui/src/components/hospitality/standard-setup-guide.tsx'),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{esModuleInterop: false, module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,loaded={exports:{} as Record<string,unknown>},hooks=setupHooks(),router={refresh:vi.fn(),push:vi.fn()};vi.stubGlobal('fetch',network);const command=await import('@erpx/platform-shared-ui/lib/hospitality-setup-command');
+ const ports=(path:string):unknown=>{if(path==='react')return hooks.react;if(path==='react/jsx-runtime')return require(path);if(path.endsWith("@erpx/platform-front/components/front-language"))return{FrontLanguageContext:setupLanguageContext,FrontLocalizedTree};if(path.endsWith("@erpx/platform-shared-ui/lib/front-language"))return{frontText:setupFrontText};if(path.endsWith("@erpx/platform-shared-ui/lib/destination-router"))return{useRouter:()=>router};if(path.endsWith("@erpx/work-projection-ui/lib/destination-registry"))return{canonicalUiHref:(url:string)=>url};if(path.endsWith("@erpx/platform-workplace/components/workspace-link"))return{default:'OwnerWorkspaceLink'};if(path.endsWith("@erpx/platform-ui/components/foundation"))return{Button:'Button',Card:'Card',Field:'Field',InlineNotice:'Notice',Select:'Select',Table:'Table',TableFrame:'TableFrame',TextInput:'TextInput'};if(path.endsWith("@erpx/platform-ui/components/draft-form-drawer"))return{DraftFormDrawer:'RightDrawer'};if(path.endsWith("@erpx/work-projection-ui/lib/context-switch"))return{contextIsSwitching:()=>false,registerUnsavedWork:setupRegisterUnsavedWork};if(path.endsWith("@erpx/work-projection-ui/lib/work-refresh"))return{announceWorkChange:()=>c.surface.dispatchEvent(new Event('erpx:work-changed'))};if(path.endsWith("@erpx/finance-ui/lib/finance-money"))return{decimalToMinor:setupDecimalToMinor};if(path.endsWith("@erpx/platform-shared-ui/lib/hospitality-grid"))return{expandRoomNumbers,roomSaveKey};if(path.endsWith("@erpx/platform-shared-ui/lib/hospitality-setup-command"))return command;if(path.endsWith("@erpx/pms-server/public/rules/pms-model"))return{records};if(path.endsWith('.module.css'))return{default:new Proxy({}, {get:(_target,key)=>String(key)})};throw Error('Unexpected actual standard setup presenter import '+path);};new Function('require','module','exports',compiled)(ports,loaded,loaded.exports);let props={initial:c.source.data,base:c.source.base,owner:c.source.owner,canBootstrapPos:c.source.canBootstrapPos,canReadPos:c.source.canReadPos};const Component=loaded.exports.StandardHospitalitySetupGuide as (p:typeof props)=>React.ReactElement<typeof props>;
  return{router,render(){const element=Component(props),Owner=element.type;if(typeof Owner!=='function')throw Error('Actual setup owner is missing.');return hooks.render(()=>Reflect.apply(Owner,undefined,[element.props]) as React.ReactNode);},update(initial:HospitalitySetup){props={...props,initial};},close(){hooks.close();}};
 }
 it('actual standard setup preserves native prerequisite and rehearsal links and opens the whole room grid in one standard right drawer without a mount HTTP read',async()=>{
@@ -821,8 +828,8 @@ it('actual standard setup retains a closed original room-type form through unkno
  }finally{mounted.close();}
 });
 it.each(['hospitality/setup','finance/hospitality-settings'] as const)('actual %s Server caller preserves its reader/authority and binds only native public owner identity to the standard setup',async path=>{
- const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_HOSPITALITY_SETUP_SOURCE_ROOT??'.',source=setupRead(setupResolve(root,`packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/${path}/${path==='hospitality/setup'?'standard-screen':'screen'}.tsx`),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,loaded={exports:{} as Record<string,unknown>},data=setupData(),actor={userId:'setup-user',companyId:'setup-company',branchId:null,assignmentId:'original-assignment',privateAuthority:'not-client'},read=vi.fn(async()=>data),permission=vi.fn((value:unknown)=>value),has=vi.fn((_actor:unknown,key:string)=>['pos.configure','pos.accounting.prepare','finance.write'].includes(key));
- const ports=(name:string):unknown=>{if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/permissions'))return{hasPermission:has};if(name.endsWith('/authorization'))return{requireWorkContext:async()=>actor,publicScope:()=>({kind:'company'})};if(name.endsWith('/iam-permissions'))return{requirePermission:permission};if(name.endsWith('/workspace'))return{workspaceBase:()=>'/holdings/setup'};if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return{canonicalUiHref:(value:string)=>value};if(name.endsWith("@erpx/server-pms/public/hospitality-setup"))return{hospitalitySetup:read};if(name.endsWith("@erpx/feature-shared/components/hospitality/standard-setup-guide"))return{StandardHospitalitySetupGuide:'StandardSetupOwner'};if(name.endsWith('/finance-workspace'))return{FinanceWorkspace:'OriginalFinanceOwner'};if(name.endsWith('/page-error'))return{pageError:(cause:unknown)=>{throw cause;}};throw Error('Unexpected actual setup Server caller import '+name);};new Function('require','module','exports',compiled)(ports,loaded,loaded.exports);const Page=loaded.exports.default as (props:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{branch:string;property:string}>})=>Promise<React.ReactNode>,tree=await Page({params:Promise.resolve({holdingSlug:'setup'}),searchParams:Promise.resolve({branch:'setup-branch',property:'setup-hotel'})}),owner=setupNodes(tree).find(node=>node.type==='StandardSetupOwner')!;expect(read).toHaveBeenCalledExactlyOnceWith(actor,'setup-branch','setup-hotel');expect(owner.props.owner).toEqual({userId:actor.userId,companyId:actor.companyId,branchId:null});expect(owner.props.canBootstrapPos).toBe(true);expect(JSON.stringify(owner.props.owner)).not.toContain('not-client');expect(Object.keys(owner.props.owner as object).sort()).toEqual(['branchId','companyId','userId']);if(path.startsWith('finance'))expect(permission).toHaveBeenCalledExactlyOnceWith(actor,'finance.read');else expect(permission).not.toHaveBeenCalled();
+ const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_HOSPITALITY_SETUP_SOURCE_ROOT??'.',source=setupRead(setupResolve(root,`platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/${path}/${path==='hospitality/setup'?'standard-screen':'screen'}.tsx`),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{esModuleInterop: false, module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,loaded={exports:{} as Record<string,unknown>},data=setupData(),actor={userId:'setup-user',companyId:'setup-company',branchId:null,assignmentId:'original-assignment',privateAuthority:'not-client'},read=vi.fn(async()=>data),permission=vi.fn((value:unknown)=>value),has=vi.fn((_actor:unknown,key:string)=>['pos.configure','pos.accounting.prepare','finance.write'].includes(key));
+ const ports=(name:string):unknown=>{if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/permissions'))return{hasPermission:has};if(name.endsWith('/authorization'))return{requireWorkContext:async()=>actor,publicScope:()=>({kind:'company'})};if(name.endsWith('/iam-permissions'))return{requirePermission:permission};if(name.endsWith('/workspace'))return{workspaceBase:()=>'/holdings/setup'};if(name.endsWith("@erpx/work-projection-ui/lib/destination-registry"))return{canonicalUiHref:(value:string)=>value};if(name.endsWith("@erpx/pms-server/public/hospitality-setup"))return{hospitalitySetup:read};if(name.endsWith("@erpx/platform-shared-ui/components/hospitality/standard-setup-guide"))return{StandardHospitalitySetupGuide:'StandardSetupOwner'};if(name.endsWith('/finance-workspace'))return{FinanceWorkspace:'OriginalFinanceOwner'};if(name.endsWith('/page-error'))return{pageError:(cause:unknown)=>{throw cause;}};throw Error('Unexpected actual setup Server caller import '+name);};new Function('require','module','exports',compiled)(ports,loaded,loaded.exports);const Page=loaded.exports.default as (props:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{branch:string;property:string}>})=>Promise<React.ReactNode>,tree=await Page({params:Promise.resolve({holdingSlug:'setup'}),searchParams:Promise.resolve({branch:'setup-branch',property:'setup-hotel'})}),owner=setupNodes(tree).find(node=>node.type==='StandardSetupOwner')!;expect(read).toHaveBeenCalledExactlyOnceWith(actor,'setup-branch','setup-hotel');expect(owner.props.owner).toEqual({userId:actor.userId,companyId:actor.companyId,branchId:null});expect(owner.props.canBootstrapPos).toBe(true);expect(JSON.stringify(owner.props.owner)).not.toContain('not-client');expect(Object.keys(owner.props.owner as object).sort()).toEqual(['branchId','companyId','userId']);if(path.startsWith('finance'))expect(permission).toHaveBeenCalledExactlyOnceWith(actor,'finance.read');else expect(permission).not.toHaveBeenCalled();
 });
 
 it.each(['bootstrap','register','table'] as const)('closed setup validates the actual %s native receipt and same-owner created row without inventing a version',async kind=>{
@@ -847,8 +854,8 @@ it('closed setup retains the original native nightly-rate minor amount and prope
 // Standard setup continuation: actual original locale provider, retained editor,
 // and partial native batches. These are controlled owner-handler tests, not a
 // browser/DB acceptance claim.
-import {FrontLanguageContext as setupLanguageContext} from '@erpx/front/components/front-language';
-import {frontText as setupFrontText} from '@erpx/feature-shared/lib/front-language';
+import {FrontLanguageContext as setupLanguageContext} from '@erpx/platform-front/components/front-language';
+import {frontText as setupFrontText} from '@erpx/platform-shared-ui/lib/front-language';
 const setupButton=(nodes:ReturnType<typeof setupNodes>,text:string)=>{const node=nodes.find(node=>node.type==='Button'&&node.props.children===text);if(!node)throw Error('Actual setup button missing: '+text);return node;};
 function setupFormFields(initial:Record<string,string>){const draft={...initial},edit={value:'reviewed-edit'},form={isConnected:true,getAttribute:()=>edit.value,setAttribute:(_name:string,next:string)=>{edit.value=next;},reset:vi.fn(()=>{for(const name of Object.keys(draft))delete draft[name];})} as unknown as HTMLFormElement,Native=FormData;class Fields extends Native{constructor(node?:HTMLFormElement){super();if(node===form)for(const [key,value]of Object.entries(draft))this.append(key,value);}}vi.stubGlobal('FormData',Fields);return{draft,edit,form,bind(nodes:ReturnType<typeof setupNodes>){const node=nodes.find(node=>node.type==='form');if(!node)throw Error('Actual setup form missing');const ref=node.props.ref;if(ref&&typeof ref==='object'&&'current'in ref)ref.current=form;return node;},mark(node:ReturnType<typeof setupNodes>[number]){Reflect.apply(node.props.onInputCapture as (event:unknown)=>void,undefined,[{currentTarget:form}]);},submit(node:ReturnType<typeof setupNodes>[number]){Reflect.apply(node.props.onSubmit as (event:unknown)=>void,undefined,[{currentTarget:form,preventDefault:vi.fn()}]);}};}
 it('actual setup keeps the original English/Thai switch and translates owner guidance, empty state, right drawers and retention controls without an HTTP read',async()=>{
@@ -902,17 +909,17 @@ it('actual room partial correction keeps saved A unchanged and sends only correc
 });
 
 it('the canonical PMS setup entry forwards the original params and complete query promises to the real standard server owner',async()=>{
- const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=setupRead(setupResolve("packages/workplace/src/routes/holdings/[holdingSlug]/pms/setup/_entry.tsx"),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},owner=()=>null;
- new Function('require','module','exports',compiled)((name:string):unknown=>{if(name==='react/jsx-runtime')return require(name);if(name.endsWith("@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/hospitality/setup/standard-screen"))return {default:owner};throw Error('Unexpected actual PMS setup entry import '+name);},loaded,loaded.exports);
+ const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=setupRead(setupResolve("platform/workplace/src/routes/holdings/[holdingSlug]/pms/setup/_entry.tsx"),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{esModuleInterop: false, jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},owner=()=>null;
+ new Function('require','module','exports',compiled)((name:string):unknown=>{if(name==='react/jsx-runtime')return require(name);if(name.endsWith("@erpx/platform-workplace/routes/holdings/[holdingSlug]/_presenters/hospitality/setup/standard-screen"))return {default:owner};throw Error('Unexpected actual PMS setup entry import '+name);},loaded,loaded.exports);
  const params=Promise.resolve({holdingSlug:'setup'}),searchParams=Promise.resolve({branch:'original-branch',property:'original-hotel',q:['First','Second'],returnTo:'/holdings/setup/pms/settings?property=original-hotel'}),Page=loaded.exports.default as(props:{params:typeof params;searchParams:typeof searchParams})=>React.ReactElement<{params:typeof params;searchParams:typeof searchParams}>,tree=Page({params,searchParams});expect(tree.type).toBe(owner);expect(tree.props.params).toBe(params);expect(tree.props.searchParams).toBe(searchParams);expect(await tree.props.searchParams).toEqual({branch:'original-branch',property:'original-hotel',q:['First','Second'],returnTo:'/holdings/setup/pms/settings?property=original-hotel'});
 });
-import {recordDrawerHref as pmsAckRecordDrawerHref,withoutRecordDrawer as pmsAckWithoutRecordDrawer} from '@erpx/feature-records/lib/record-drawer';
+import {recordDrawerHref as pmsAckRecordDrawerHref,withoutRecordDrawer as pmsAckWithoutRecordDrawer} from '@erpx/records-ui/lib/record-drawer';
 
 // Actual PMS original completion crosses the real mounted RecordDrawer dirty
 // controller. Only DOM/router/primitives are ports; neither ACK nor dirty logic
 // is replaced. Existing owner callbacks and native command decoder remain live.
 async function mountPmsEditAckDrawer(f:Awaited<ReturnType<typeof actualPmsWorkspaceSend>>){
- const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_PMS_RECORD_ACK_SOURCE_ROOT??'.',source=setupRead(setupResolve(root,'packages/feature-records/src/components/record-drawer.tsx'),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,hooks=setupHooks(),loaded={exports:{} as Record<string,unknown>},router={push:vi.fn(),pushPreservingQuery:vi.fn()},attributes=new Map<string,string>();
+ const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_PMS_RECORD_ACK_SOURCE_ROOT??'.',source=setupRead(setupResolve(root,'modules/records/ui/src/components/record-drawer.tsx'),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{esModuleInterop: false, module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,hooks=setupHooks(),loaded={exports:{} as Record<string,unknown>},router={push:vi.fn(),pushPreservingQuery:vi.fn()},attributes=new Map<string,string>();
  const href='https://pms-dev-erpx.jesadakorn.com/acme/acme-co/holding/housekeeping?property=original-hotel&floor=3&taskState=working&detailKind=pms_record&detailId=original-task';
  Object.assign(window.location,{href,origin:new URL(href).origin,pathname:new URL(href).pathname,search:new URL(href).search});
  Object.assign(window,{history:{state:{original:'native-history'},pushState:vi.fn()}});
@@ -935,10 +942,10 @@ async function mountPmsEditAckDrawer(f:Awaited<ReturnType<typeof actualPmsWorksp
  const content=Object.assign(new EventTarget(),{contains:(node:unknown)=>node===f.form,querySelector:()=>null,querySelectorAll:()=>[]});
  const ports=(name:string):unknown=>{
   if(name==='react')return hooks.react;if(name==='react/jsx-runtime')return require(name);if(name==='react-dom')return{createPortal:(node:React.ReactNode)=>node};
-  if(name.endsWith("@erpx/ui/components/workspace"))return{WorkspaceDetail:'WorkspaceDetail'};if(name.endsWith("@erpx/ui/components/workspace-overlay"))return{useWorkspaceOverlay:()=>({editors:0})};if(name==="@erpx/feature-records/components/record-workspace")return{useRecordWorkspace:()=>({host:null})};
-  if(name.endsWith("@erpx/feature-shared/lib/destination-search"))return{useSearchParams:()=>new URLSearchParams(window.location.search)};if(name.endsWith("@erpx/feature-shared/lib/destination-router"))return{useRouter:()=>router};
-  if(name.endsWith("@erpx/ui/components/dialog"))return{Dialog:'Dialog'};if(name.endsWith("@erpx/ui/components/button"))return{Button:'Button'};if(name==="@erpx/ui/components/record-context")return{EmbeddedRecord:'EmbeddedRecord'};
-  if(name==='@erpx/feature-records/lib/record-drawer')return{recordDrawerHref:pmsAckRecordDrawerHref,withoutRecordDrawer:pmsAckWithoutRecordDrawer};if(name.endsWith("@erpx/feature-work_projection/lib/context-switch"))return{registerUnsavedWork:setupRegisterUnsavedWork};if(name.endsWith('.css'))return{};
+  if(name.endsWith("@erpx/platform-ui/components/workspace"))return{WorkspaceDetail:'WorkspaceDetail'};if(name.endsWith("@erpx/platform-ui/components/workspace-overlay"))return{useWorkspaceOverlay:()=>({editors:0})};if(name==="@erpx/records-ui/components/record-workspace")return{useRecordWorkspace:()=>({host:null})};
+  if(name.endsWith("@erpx/platform-shared-ui/lib/destination-search"))return{useSearchParams:()=>new URLSearchParams(window.location.search)};if(name.endsWith("@erpx/platform-shared-ui/lib/destination-router"))return{useRouter:()=>router};
+  if(name.endsWith("@erpx/platform-ui/components/dialog"))return{Dialog:'Dialog'};if(name.endsWith("@erpx/platform-ui/components/button"))return{Button:'Button'};if(name==="@erpx/platform-ui/components/record-context")return{EmbeddedRecord:'EmbeddedRecord'};
+  if(name==='@erpx/records-ui/lib/record-drawer')return{recordDrawerHref:pmsAckRecordDrawerHref,withoutRecordDrawer:pmsAckWithoutRecordDrawer};if(name.endsWith("@erpx/work-projection-ui/lib/context-switch"))return{registerUnsavedWork:setupRegisterUnsavedWork};if(name.endsWith('.css'))return{};
   throw Error('Unexpected actual RecordDrawer import '+name);
  };
  new Function('require','module','exports',compiled)(ports,loaded,loaded.exports);

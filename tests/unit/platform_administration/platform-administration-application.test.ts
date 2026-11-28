@@ -1,11 +1,10 @@
 import { expect, it } from "vitest";
-import { productionScope, legalProductionScope, criteriaForScope } from "@erpx/catalogue/production-scope";
-import { createReleaseAcceptanceApplication, type ReleaseRepository } from "@erpx/server-platform_administration/application/release-acceptance";
-import type { ReleaseRow } from "@erpx/server-platform_administration/domain/release-acceptance";
-import { createSystemEvidenceApplication, type SystemEvidenceTransaction } from "@erpx/server-platform_administration/application/system-evidence";
-import { createEngineeringVerificationApplication } from "@erpx/server-platform_administration/application/engineering-verification";
-import { isEngineeringVerificationOrigin, type EngineeringAttestationFacts } from "@erpx/server-platform_administration/domain/engineering-verification";
-import { createPlatformExecutiveApplication, type PlatformExecutiveRepository } from "@erpx/server-platform_administration/application/platform-executive";
+import { productionScope, legalProductionScope, criteriaForScope } from "@erpx/platform-catalogue/production-scope";
+import { createReleaseAcceptanceApplication, type ReleaseRepository } from "@erpx/platform-administration-server/application/release-acceptance";
+import type { ReleaseRow } from "@erpx/platform-administration-server/domain/release-acceptance";
+import { createSystemEvidenceApplication, type SystemEvidenceTransaction } from "@erpx/platform-administration-server/application/system-evidence";
+import { createEngineeringVerificationApplication } from "@erpx/platform-administration-server/application/engineering-verification";
+import { isEngineeringVerificationOrigin, type EngineeringAttestationFacts } from "@erpx/platform-administration-server/domain/engineering-verification";
 
 function repository<T extends object>(operations: Partial<T>): T { return new Proxy(operations as T, { get(target, name) { if (name === "then") return undefined; if (name in target) return Reflect.get(target, name); return () => { throw new Error(`unexpected operation: ${String(name)}`); }; } }); }
 const error = (_status: number, code: string) => new Error(code);
@@ -74,10 +73,31 @@ const run = "abcdef123456", fingerprint = "a".repeat(64), digest = "b".repeat(64
 const attestation = { scope: "isolated-engineering" as const, run, sourceFingerprint: fingerprint, softwareVersion: `release-${fingerprint}`, fileManifestSha256: digest };
 const attestationFacts: EngineeringAttestationFacts = { directory, release: `${directory}/release`, attestationPath: `${directory}/engineering-attestation.json`, manifestPath: `${directory}/release/release-files.json`, attestation, releaseInfo: attestation, digest };
 const environment = { ERPX_ENGINEERING_VERIFICATION_RUN: run, ERPX_ENVIRONMENT: "local", PORT: "3104", ERPX_BROWSER_SIMULATION_PORT: "3104", ERPX_DATA_DIR: directory };
+it("native engineering rosters require eight distinct run-bound lease identities", async () => {
+  const {nativeEngineeringBindings,validateNativeEngineeringRoster}=await import('@erpx/platform-runtime-server/public/native-engineering-roster');
+  const roster={version:1,run,sourceFingerprint:fingerprint,fileManifestSha256:digest,postmasterStartedMs:123456,entries:nativeEngineeringBindings.map((binding,i)=>({binding,token:(i+1).toString(16).padStart(32,'0'),oid:100+i}))};
+  expect(validateNativeEngineeringRoster(roster,run,fingerprint,digest)).toBe(true);
+  for(const changed of [
+    {...roster,run:'111111111111'}, {...roster,sourceFingerprint:'c'.repeat(64)}, {...roster,fileManifestSha256:'c'.repeat(64)}, {...roster,postmasterStartedMs:0},
+    {...roster,entries:roster.entries.slice(0,7)}, {...roster,entries:roster.entries.map((e,i)=>i===1?{...e,token:roster.entries[0]!.token}:e)},
+    {...roster,entries:roster.entries.map((e,i)=>i===1?{...e,oid:roster.entries[0]!.oid}:e)}, {...roster,entries:roster.entries.map((e,i)=>i===0?{...e,binding:'H001_DB'}:e)},
+  ])expect(validateNativeEngineeringRoster(changed,run,fingerprint,digest)).toBe(false);
+});
 it("engineering verification requires the exact isolated port before reading any attestation", () => {
   const application = createEngineeringVerificationApplication({ artifactVersion: attestation.softwareVersion, clock: { now: () => 100 }, readAttestation: () => { throw new Error("unexpected read"); } });
   expect(application.engineeringVerificationContext({ ...environment, PORT: "3101" })).toBeNull();
   expect(application.engineeringVerificationContext({ ...environment, ERPX_ENVIRONMENT: "production" })).toBeNull();
+});
+it("only a verified native Service child can use its exact owned app port", async () => {
+  const {nativeEngineeringBindings}=await import('@erpx/platform-runtime-server/public/native-engineering-roster');
+  const roster={version:1 as const,run,sourceFingerprint:fingerprint,fileManifestSha256:digest,postmasterStartedMs:123456,entries:nativeEngineeringBindings.map((binding,i)=>({binding,token:(i+1).toString(16).padStart(32,'0'),oid:100+i}))};
+  const child={...environment,NODE_ENV:'production',ERPX_PRODUCT_ENVIRONMENT:'development',PORT:'3213',HOSTNAME:'127.0.0.1',ERPX_APP_ID:'service',ERPX_APP_PORT:'3213'};
+  const valid={...attestationFacts,attestation:{...attestation,nativeRoster:roster},nativeServiceChildVerified:true};
+  let reads=0;const application=createEngineeringVerificationApplication({artifactVersion:attestation.softwareVersion,clock:{now:()=>100},readAttestation:()=>{reads++;return valid;}});
+  expect(application.engineeringVerificationContext(child)).toEqual(valid.attestation);
+  for(const changed of [{PORT:'3000'},{PORT:'3001'},{PORT:'3100'},{PORT:'3101'},{PORT:'3103'},{PORT:'3200'},{PORT:'3299'},{PORT:'3214'},{NODE_ENV:'development'},{ERPX_PRODUCT_ENVIRONMENT:'production'},{ERPX_PRODUCT_ENVIRONMENT:'staging'},{HOSTNAME:'0.0.0.0'},{ERPX_APP_ID:'account'},{ERPX_APP_ID:undefined},{ERPX_APP_PORT:'3280'},{ERPX_ENVIRONMENT:'production'},{ERPX_ENVIRONMENT:'staging'},{ERPX_BROWSER_SIMULATION_PORT:'3280'}]){const before=reads;expect(application.engineeringVerificationContext({...child,...changed})).toBeNull();expect(reads).toBe(before);}
+  for(const facts of [{...valid,nativeServiceChildVerified:false},{...valid,attestation},{...valid,digest:'c'.repeat(64)}]){const denied=createEngineeringVerificationApplication({artifactVersion:attestation.softwareVersion,clock:{now:()=>100},readAttestation:()=>facts});expect(denied.engineeringVerificationContext(child)).toBeNull();}
+  expect(application.engineeringVerificationContext(environment)).toEqual(valid.attestation);
 });
 it("tampered manifests, escaped release paths and malformed attestations cannot enable engineering guards", () => {
   for (const facts of [{ ...attestationFacts, digest: "c".repeat(64) }, { ...attestationFacts, release: "/other/release" }, { ...attestationFacts, attestation: null }]) {
@@ -93,10 +113,3 @@ it("an attested candidate permits only its local HTTP verification origins", () 
   for (const url of ["https://localhost:3104/", "http://localhost:3100/", "http://example.test:3104/"]) expect(isEngineeringVerificationOrigin(new URL(url), context)).toBe(false);
 });
 
-it("Platform insights preserve exact large integer strings and keep private sources behind current permission", async () => {
-  const source = repository<PlatformExecutiveRepository>({ failed: async () => [{ label: "2026-10", value: "9007199254740992" }], abnormal: async () => [] });
-  const application = createPlatformExecutiveApplication({ canRead: () => true, clock: { now: () => 100 }, hash: async () => "digest", repository: source, error });
-  expect((await application.platformExecutiveSnapshot({ from: "2026-01-01", to: "2026-10-01" })).metrics[0].total).toBe("9007199254740992");
-  const denied = createPlatformExecutiveApplication({ canRead: () => false, clock: { now: () => { throw new Error("unexpected clock"); } }, hash: async () => "digest", repository: repository<PlatformExecutiveRepository>({}), error });
-  await expect(denied.platformExecutiveSnapshot()).rejects.toThrow("PLATFORM_EXECUTIVE_FORBIDDEN");
-});

@@ -1,5 +1,7 @@
 # ADR-020: Next.js App Router stack
 
+> Current composition clarification,2026-10-27: [ADR-052](ADR-052-rust-backend-and-domain-aligned-frontend.md) accepts the ongoing Rust modular-monolith migration; the installed TypeScript business runtime remains in place until its cutover gates pass. The historical recovery statement below concerns the archived Rust/Dioxus/Tonic system, not this accepted migration. [ADR-049](ADR-049-product-app-workspaces-and-development-verification.md) moves routes into `apps/<id>/src/app/` and business implementations into owner packages; [ADR-051](ADR-051-holding-addresses-and-workspace-paths.md) owns development addresses. The earlier source-layout description below retains its original context. See [current service boundaries](../contracts/next/service-boundaries.md) and [pinned toolchain](../development.md#stack).
+
 Accepted 2026-09-02; current implementation clarified 2026-10-03. Supersedes ADR-002 and the Rust/Dioxus runtime decisions ADR-010/014/016. Runtime/deployment is governed by [ADR-024](ADR-024-local-postgresql-runtime.md), shared PostgreSQL by [ADR-032](ADR-032-shared-local-postgresql-cluster.md), and configured MinIO file storage by [ADR-035](ADR-035-minio-object-and-configuration-boundary.md).
 
 ## Decision
@@ -8,7 +10,7 @@ Next.js 16.4 App Router, React 19.3, TypeScript and Tailwind 4 own the applicati
 
 Holding isolation, current scoped assignments, owner-controlled human decisions, idempotency, immutable evidence and transactional audit/outbox survive the stack change. PostgreSQL jobs and rebuildable projections replace Tonic/SQLx transports and Cloudflare Workers persistence. Native integration, `bun run lint`, `bun run typecheck` and the isolated `bun run deploy:build` are current verification tools.
 
-[Owner contracts](../contracts/next/README.md) and the [route table](../contracts/next/route-table.md) describe the implementation; [the production plan](../production-plan.md) owns delivery scope. A documentation change does not require unrelated schema/traceability edits. Breaking interfaces require a new ADR and cutover entry under [contract policy](../../CONTRACT_POLICY.md).
+[Owner contracts](../contracts/next/README.md) and the [route table](../contracts/next/route-table.md) describe the implementation; [the production plan](../production-plan.md) owns delivery scope. A documentation change does not require unrelated schema/traceability edits. Breaking interfaces require a new ADR and cutover entry under [contract policy](../contracts/policy.md).
 
 ## Recovery
 

@@ -1,0 +1,4 @@
+{
+  "memberEditExists": "EXISTS(SELECT 1 FROM legal_members {alias} WHERE {alias}.item_id=i.id AND {alias}.user_id=? AND {alias}.access='edit')",
+  "jsonbAggByItem": "(SELECT jsonb_agg(to_jsonb({alias}) ORDER BY {alias}.{order}) FROM {table} {alias} WHERE {alias}.item_id=i.id)"
+}

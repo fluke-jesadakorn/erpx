@@ -1,0 +1,1 @@
+export {prepareMarketingCreativeGuards,approvedMarketingCreative,marketingCreativeSourceReadLocks,marketingCreativeSourceImage} from "@erpx/files-server/adapters/marketing-creative";

@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Files now has a bounded native attachment metadata read: Company-scoped attachment-set listing and link status, a Files-owned PostgreSQL adapter and status access audit, an owner-local HTTP router, a strict Next transport and configured route cutover. The owner remains foundation: the owner-record authority port and shared composition mounting are not implemented, SSR is not applicable to the retained client attachment panels, uploads/binding/content bytes and every other Files surface remain retained TypeScript.",
+  "capability": "files-attachment-metadata-read",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "d3fd21db1",
+  "verificationHead": "92e865b44",
+  "scope": {
+    "workflows": [],
+    "workflowBoundary": "The qualified slice is the generic attachment-set list used by the record-document attachment panel (`GET /api/v1/holdings/{holding_slug}/attachment-sets`) and the generic link-status read used after upload (`GET /api/v1/holdings/{holding_slug}/attachment-links/{link_id}/status`). Field visit and Finance payment/journal paths keep their existing native family branches. Upload reservation, upload bytes, sanitization attestation, binding, withdrawal, content bytes, publications, migrations, legal preservation and the cleanup/scan workers remain retained.",
+    "domain": "Portable Files policy only: bounded target type/id/purpose/component-kind/version filters, exact Company reader, owning-record scope with positive version, set/link/source/classification/scan vocabularies, timestamp and count bounds, unique and ordered links, draft visibility limited to the creator except Leave review, sanitization attestation required only for the five reviewed system-evidence targets, `bindable` requiring an available clean draft at the exact record version (Leave accepts a later version), and a current reader expiry guard. No request value can construct authority.",
+    "application": "`list_attachment_sets` validates the current reader, loads at most 101 sets so an oversized record fails closed instead of truncating, authorizes each distinct target through the composition port before any row is returned, requires the same Company, validates every set and link, and rechecks the reader. `attachment_link_status` reads the same-Company projection, hides another person's draft, authorizes the owning record, rechecks the reader, writes one Files-owned `attachment_access_events` `status`/`allowed` row only after authority passes, re-reads the projection and rejects any change with `ATTACHMENT_READ_CHANGED`. The application opens no transaction and reads no HTTP request.",
+    "adapters": "Files-owned PostgreSQL relations only: `attachment_sets`, `attachment_links`, `attachments`, `upload_intents`, `attachment_scan_attempts`, `attachment_events` and `attachment_access_events`. The caller must supply an active SERIALIZABLE Holding transaction; the adapter never begins, commits or retries one. SQL returns a size-bounded JSON image, rejects unknown projection fields through exact serde decoding, filters Company/target/read-only/draft visibility, selects the latest scan attempt, and reports oversized list/status images as unavailable rather than truncating.",
+    "http": "Owner-local GET `/api/v1/holdings/{holding_slug}/attachment-sets` and GET `/api/v1/holdings/{holding_slug}/attachment-links/{link_id}/status`. Requires exact distinct registered Host/Holding HTTPS targets, a strict non-duplicated query (`targetType`, `targetId`, optional `purposeKey`, `componentKind`, `expectedTargetVersion`, `readOnly`), no unknown query, empty request bodies, bounded identifiers, private/no-store, no-referrer, nosniff, and bounded BusinessError status mapping. Composition owns the Account session, current IAM/scope, owning-record authority and serializable owner unit.",
+    "transport": "`ERPX_NATIVE_ATTACHMENT_READ_CONFIG` is strictly validated: exact loopback private base, reserved ports 3000/3001/3100/3101/3103/5432/5433/5435/8080 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded Host/cookie/context headers, exact set/link/status/scan shapes, target and link identity coherence, context Company/scope/revision/assignment-version/personal fields, 2 MiB response limit and preservation of bounded owner error codes. A configured failure never falls back to the retained reader.",
+    "cutover": "In `packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts` and `attachment-links/[linkId]/status/route.ts`, Field visit/Finance payment/Finance journal branches keep their existing precedence. The native generic read is used only when `ERPX_NATIVE_ATTACHMENT_READ_CONFIG` is present; without it the existing TypeScript reader remains. A configured malformed or failed native read is surfaced through `ApiError` and never silently replaced.",
+    "ssr": "Not applicable in this slice: every attachment surface is a client component (`AttachmentPanel`, `RecordDocumentPanel`, `RecordDocumentDrawer`, `MediaPublicationPanel`) that calls the route handlers. There is no server component rendering attachment metadata to cut over, so the server boundary cutover is the two route handlers.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, catalogue qualification, owning-record authority implementation, upload/bind/content cutover, attachment worker change, staging, private production or Cloudflare verification."
+  },
+  "changedFiles": [
+    ".env.example",
+    "packages/server-files/Cargo.toml",
+    "packages/server-files/package.json",
+    "packages/server-files/src/domain/mod.rs",
+    "packages/server-files/src/domain/attachment_read.rs",
+    "packages/server-files/src/application/mod.rs",
+    "packages/server-files/src/application/attachment_read.rs",
+    "packages/server-files/src/adapters/mod.rs",
+    "packages/server-files/src/adapters/attachment_read_postgres.rs",
+    "packages/server-files/src/adapters/attachment_http.rs",
+    "packages/server-files/src/public/mod.rs",
+    "packages/server-files/src/public/attachment_read.rs",
+    "packages/server-files/src/public/attachment_http.rs",
+    "packages/server-files/src/public/native-attachments.ts",
+    "packages/workplace/src/lib/native-attachments.ts",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts",
+    "tests/unit/files/rust-attachment-read-policy.test.rs",
+    "tests/unit/files/rust-attachment-read-http.test.rs",
+    "tests/integration/files/rust-attachment-read-postgres.test.rs",
+    "tests/unit/files/native-attachment-read-transport.test.ts",
+    "tests/unit/files/native-attachment-cutover.test.ts",
+    "tests/catalogue/suite-manifest.json",
+    "docs/testing/evidence/2026-11-04-files-owner-closure.json"
+  ],
+  "sharedCompositionDelta": {
+    "edited": false,
+    "detail": "No `src/composition/**`, root `Cargo.toml`, `Cargo.lock`, package lockfile or `packages/contracts/**` change. The owner-local router is exported but not mounted; a future composition mount must implement `AttachmentTargetAuthority` with current owner ports and then register `attachment_read_router`."
+  },
+  "schemaDelta": {
+    "migrationRequired": false,
+    "detail": "No new table, column, index or migration. The slice reads existing Files tables and writes only the existing `attachment_access_events` status/allowed audit row."
+  },
+  "legacy": {
+    "removed": [],
+    "retained": [
+      "The TypeScript `listAttachmentSets` and `attachmentLinkStatus` readers when `ERPX_NATIVE_ATTACHMENT_READ_CONFIG` is unset.",
+      "Field visit and Finance payment/journal attachment routes and their existing native family branches.",
+      "Upload reservation/bytes, sanitization attestation, binding, withdrawal, content bytes, publications, scan/cleanup workers and every non-read Files surface."
+    ]
+  },
+  "verification": {
+    "cargo": {
+      "commands": [
+        "cargo test -p erpx-server-files --locked --test attachment_read_policy --test attachment_read_http --test attachment_read_postgres",
+        "cargo test -p erpx-server-files --locked",
+        "cargo test -p erpx-server-files --locked --no-fail-fast",
+        "cargo clippy -p erpx-server-files --locked --all-targets"
+      ],
+      "result": "The five new Files owner targets pass 19/19: attachment_read_policy 8, attachment_read_http 3, attachment_read_postgres 8. Clippy reports no `erpx-server-files` warning for this slice.",
+      "targets": {
+        "attachment_read_policy": "8 passed: bounded target/purpose/component/version filters; absent or expired reader; foreign Company and wrong target; set counts/timestamps/duplicate/order/bound-link/source-state negatives; sanitization attestation required only for review targets; creator-only drafts with Leave exception; bindable clean-draft exact/later-version rules; status Company/timestamp/scan/withdrawal negatives.",
+        "attachment_read_http": "3 passed: exact distinct HTTPS Holding targets; actual loopback list/status forwarding with Host, cookie, target, filter and read-only; private headers; unknown Holding/Host, duplicate/unknown/missing query, invalid component/version/readOnly, status query/body, long link and invalid body negatives; owner conflict mapped to 409.",
+        "attachment_read_postgres": "8 passed: bound sets plus own drafts with foreign Company and other-person drafts hidden; purpose/kind/version filters and rollback read-only; scan/preview/bindable/expiry read with exactly one allowed status audit; other-draft and read-only draft denial without authority or audit; authority denial aborts list and status without audit; changed projection rolls back the audit and preserves the link; caller transaction/serializable guards; more than 100 sets fails with `ATTACHMENT_LIST_LIMIT` rather than truncating."
+      }
+    },
+    "fullCrate": {
+      "command": "cargo test -p erpx-server-files --locked --no-fail-fast",
+      "observed": "80 passed, 11 failed, 0 ignored across discovered targets. All 11 failures are in the retained `attachment_scan_postgres` target: 10 fail at `pinned Bun required: NotPresent` because the pinned Bun 1.4.3 binary is absent from this environment, and one pre-existing concurrency test (`field_claim_retries_deadlock_against_committed_current_lineage`) fails independently of this slice. No new Files target failed.",
+      "environmentBlocker": "Bun 1.4.3 is not installed in the execution environment, so the repository's Bun test runner and the legacy scan target that shells out to Bun cannot run here. This does not affect the five new targets, which use cargo/vitest directly."
+    },
+    "typescript": {
+      "commands": [
+        "node_modules/.bin/tsc --noEmit --project packages/server-files/tsconfig.json",
+        "node_modules/.bin/tsc --noEmit --project packages/workplace/tsconfig.json",
+        "node_modules/.bin/tsc --noEmit --project packages/feature-files/tsconfig.json"
+      ],
+      "result": "All three typechecks passed with the pinned Node 26.11.1 runtime.",
+      "tests": "Vitest transport 6/6 and cutover 4/4 passed: strict config/port/origin/slug rejection, exact URL/headers/context, set/link/scan shape and order, context change, non-JSON, over-2 MiB response, preserved owner 404 code, network failure, unconfigured fallback and configured no-fallback behavior."
+    },
+    "browser": "Not claimed. No authenticated browser journey or page render was performed."
+  },
+  "blockers": [
+    "The owner-record authority port (`AttachmentTargetAuthority`) is not implemented in `src/composition/**`; the router is not mounted in the shared composition. This slice uses a test port in PostgreSQL tests and a probe backend in HTTP tests.",
+    "No SSR cutover exists because the attachment surfaces are client components; the cutover is the two Next route handlers.",
+    "The pinned Bun 1.4.3 binary is missing, so the repository catalogue runner and ten retained legacy scan tests that shell out to Bun could not run."
+  ],
+  "nextAction": "Composition should implement `AttachmentTargetAuthority` from the current owner read ports and mount `attachment_read_router`, then a configured browser journey can qualify the set/status cutover. A separate bounded slice can add the attachment set detail or upload reservation command only after the target authority and composition mount exist."
+}

@@ -1,19 +1,19 @@
 import * as React from "react";
 import { renderToReadableStream } from "react-dom/server.browser";
 import { expect, it, vi } from "vitest";
-import { NavigationCountsProvider, useNavigationCounts, useNavigationState } from "@erpx/workplace/components/navigation-counts";
-import { NavigationBadge } from "@erpx/workplace/components/navigation-badge";
-import type { NavigationSnapshot } from "@erpx/server-work_projection/public/navigation-snapshot";
-import { workAttention } from "@erpx/feature-work_projection/lib/work-attention";
-import { SocialHomeShell } from "@erpx/feature-collaboration/components/social-home-shell";
+import { NavigationCountsProvider, useNavigationCounts, useNavigationState } from "@erpx/platform-workplace/components/navigation-counts";
+import { NavigationBadge } from "@erpx/platform-workplace/components/navigation-badge";
+import type { NavigationSnapshot } from "@erpx/work-projection-server/public/navigation-snapshot";
+import { workAttention } from "@erpx/work-projection-ui/lib/work-attention";
+import { SocialHomeShell } from "@erpx/collaboration-ui/components/social-home-shell";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/holdings/acme/home" }));
 vi.mock("next/link", () => ({ default: ({ children, ...props }: React.ComponentProps<"a">) => React.createElement("a", props, children) }));
-vi.mock("@erpx/feature-work_projection/components/home/home-visual-prototype", () => ({ HomeVisualPrototype: ({ children }: { children: React.ReactNode }) => children }));
-vi.mock("@erpx/feature-people_payroll/components/self-service/home", () => ({ MyDayCard: () => null }));
-vi.mock("@erpx/feature-work_projection/components/today/start-actions", () => ({ StartActions: () => null }));
-vi.mock("@erpx/feature-work_projection/components/today/daily-plan", () => ({ DailyPlan: () => null }));
-vi.mock("@erpx/feature-people_payroll/components/time/time-preference-context", () => ({ TimeText: () => null }));
+vi.mock("@erpx/work-projection-ui/components/home/home-visual-prototype", () => ({ HomeVisualPrototype: ({ children }: { children: React.ReactNode }) => children }));
+vi.mock("@erpx/people-payroll-ui/components/self-service/home", () => ({ MyDayCard: () => null }));
+vi.mock("@erpx/work-projection-ui/components/today/start-actions", () => ({ StartActions: () => null }));
+vi.mock("@erpx/work-projection-ui/components/today/daily-plan", () => ({ DailyPlan: () => null }));
+vi.mock("@erpx/people-payroll-ui/components/time/time-preference-context", () => ({ TimeText: () => null }));
 vi.stubGlobal("React", React);
 // createElement's overload requires children in the props type even when they
 // are supplied through its child arguments.

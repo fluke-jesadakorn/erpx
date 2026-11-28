@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Workflow now has a bounded native approval oversight read: the Company/Holding open-approval queue and one record's approval route, decision history and linked command receipt/audit/outbox evidence. The owner-local HTTP router, strict Next transport and workflow-owned approval-administration SSR cutover are present. Workflow remains foundation overall: approval decision/reroute commands, command-ledger HTTP execution, a mounted shared-composition backend and authenticated browser acceptance remain open.",
+  "capability": "workflow-approval-oversight-read",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "b17293bc7",
+  "verificationHead": "6502391d2",
+  "scope": {
+    "workflowBoundary": "The qualified slice is the approval-administration queue read used by the approval issues/history pages and the native evidence card for one selected approval record. It returns Workflow-owned approval instances, steps and decisions plus the command receipts, audit events and outbox events linked by those decisions' command ids. Approval decisions, reroute/cancel/revise commands, staff-task/expense/leave owners' record mutations, policy-derived blocked reasons, notice delivery and every other Workflow surface remain retained TypeScript.",
+    "domain": "Portable approval oversight policy in `packages/server-workflow/src/domain/approval_oversight.rs`: exact Company and Holding-wide scope, `organization.manage`, bounded non-legal approval kinds (`expense`, `leave`, `leave_cancellation`, `task`, `overtime`), 50-row open queue, 64 steps, 512 decisions, 512 receipts, 1024 audit rows, 512 outbox rows, 64 KiB JSON/text fields, 2,000-byte reasons, exact state/phase/authority/action sets, blocked-reason coherence, timestamp/version/counter bounds, ordered and unique row identities, linked-command enforcement for receipts/audit/outbox and tag-free identifier checks.",
+    "application": "`packages/server-workflow/src/application/approval_oversight.rs` authorizes the actor before any repository call, keeps the repository Company, returns the queue with the evaluated time, reads one evidence record and revalidates every persisted row before presentation. It opens no transaction, resolves no session, reads no HTTP request and never falls back to a retained reader.",
+    "adapters": "`packages/server-workflow/src/adapters/approval_oversight_postgres.rs` reads only `approval_instances`, `approval_steps`, `approval_decisions`, `command_receipts`, `audit_events` and `outbox_events`. It requires the caller's serializable Holding transaction, locks those six tables in SHARE mode, keeps the exact Company predicate, reads the latest instance by insertion order, bounds every collection in SQL and rejects oversized persisted fields before transfer. No business-record, Identity, People or Organization SQL is added.",
+    "http": "`packages/server-workflow/src/adapters/approval_oversight_http.rs` exposes `GET /api/v1/holdings/{holding_slug}/workflow/approvals` and `GET /api/v1/holdings/{holding_slug}/workflow/approvals/{kind}/{record_id}/evidence`. It requires exact registered Host/Holding targets and HTTPS origins, rejects duplicate/invalid targets, foreign Origins, unknown kinds, malformed/oversized record ids, query strings and request bodies, returns private/no-store plus no-referrer/nosniff responses and maps BusinessError to 401/403/404/409/422/503. Session, Company scope, current authority and the serializable unit stay behind `ApprovalOversightHttpBackend`.",
+    "transport": "`packages/server-workflow/src/public/native-workflow-evidence.ts` validates `ERPX_NATIVE_WORKFLOW_CONFIG`: literal loopback private base, reserved ports 3000/3001/3100/3101/3103/5432/5433/5435/8080 and owned app ports 3200-3299 excluded, exact unique HTTPS Holding origins, unique Hosts/slugs/ids, 250..30000 ms timeout, bounded cookie/Host/context headers, exact queue/evidence/context field sets, Company/kind/record coherence, unique ordered rows, decision-command linkage, 50/64/512/1024/512 collection bounds and a 2 MiB response bound. A configured failure never falls back to the retained queue.",
+    "ssr": "In `packages/server-workflow/src/adapters/approval-administration.ts`, a configured native queue replaces the retained approval_instances queue read for the approval issues/history list; a selected record additionally fetches its native evidence and renders the owner-issued route, decisions and receipt/audit/outbox counts in `packages/feature-workflow/src/components/approval-administration.tsx`. Retained staff settings, record-version reads and the policy-rich per-row approval view remain in the same page. Without `ERPX_NATIVE_WORKFLOW_CONFIG` the retained queue is used and no native evidence card is requested. A configured malformed/failed native read throws the existing ApiError surface and never silently reads the retained queue or fabricates empty evidence.",
+    "notClaimed": "No approval approve/reject/reroute/cancel/revise command, no staff-task/expense/leave record mutation, no command-ledger execution HTTP, no policy-derived native blocked reason, no names resolution, no shared composition mount, no Next API route, no browser/authenticated SSR render, no staging, private production or Cloudflare verification and no whole-workflow/owner completion flag."
+  },
+  "changedFiles": [
+    "packages/server-workflow/Cargo.toml",
+    "packages/server-workflow/package.json",
+    "packages/server-workflow/src/domain/approval_oversight.rs",
+    "packages/server-workflow/src/domain/mod.rs",
+    "packages/server-workflow/src/application/approval_oversight.rs",
+    "packages/server-workflow/src/application/mod.rs",
+    "packages/server-workflow/src/adapters/approval_oversight_postgres.rs",
+    "packages/server-workflow/src/adapters/approval_oversight_http.rs",
+    "packages/server-workflow/src/adapters/approval-administration.ts",
+    "packages/server-workflow/src/adapters/mod.rs",
+    "packages/server-workflow/src/public/approval_oversight.rs",
+    "packages/server-workflow/src/public/approval_oversight_http.rs",
+    "packages/server-workflow/src/public/native-workflow-evidence.ts",
+    "packages/server-workflow/src/public/mod.rs",
+    "packages/feature-workflow/src/components/approval-administration.tsx",
+    "tests/unit/workflow/rust-approval-oversight.test.rs",
+    "tests/unit/workflow/rust-approval-oversight-http.test.rs",
+    "tests/integration/workflow/rust-approval-oversight-postgres.test.rs",
+    "tests/unit/workflow/native-workflow-evidence-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-workflow-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=\"$(grep -m1 '^ERPX_TEST_ADMIN_URL=' .env.local | cut -d= -f2-)\" cargo test -p erpx-server-workflow --locked",
+      "result": "63 passed, 0 failed, 0 ignored",
+      "targets": {
+        "lib": "4 passed (existing Workflow unit checks)",
+        "approval_oversight": "8 passed",
+        "approval_oversight_http": "5 passed",
+        "approval_oversight_postgres": "4 passed",
+        "command_json": "5 passed (existing)",
+        "command_ledger_postgres": "20 passed (existing)",
+        "stock_count_flow": "4 passed (existing)",
+        "stock_count_flow_postgres": "13 passed (existing)",
+        "doc-tests": "0 passed"
+      },
+      "newUnitCases": [
+        "organization.manage and an exact Holding-wide Company context are required before the repository is called; a branch-scoped actor is refused",
+        "the queue keeps the actor Company, is limited to non-legal open approvals, preserves newest-first order and rejects foreign/duplicate/unordered rows and a blocked row without a reason",
+        "a record evidence read returns the exact Company/kind/record and rejects a foreign Company, wrong kind and absent approval",
+        "duplicate step ordinals/ids, duplicate decisions/receipts, orphan command ids, foreign receipt/audit/outbox record ids and a blocked instance without a reason fail closed",
+        "unknown legal/empty/whitespace/oversized record identities and oversized pool/result JSON fail closed",
+        "repository failures propagate without a retained fallback and the serialized queue uses exactly the ten transport fields"
+      ],
+      "newHttpCases": [
+        "the actual ephemeral loopback router serves the queue and one record's evidence, forwards Host/Holding/kind/record/cookie, returns private/no-store/no-referrer/nosniff headers and maps a backend conflict to 409",
+        "a foreign Origin returns 403 ORIGIN_FORBIDDEN before the backend; unknown Host/Holding targets return 404",
+        "queries, request bodies, legal/unknown kinds, malformed/space-bearing record ids and an evidence path without the final segment are refused before the backend",
+        "invalid/unauthenticated/forbidden/not-found/unavailable owner errors map to 422/401/403/404/503; duplicate, HTTP, path-bearing, empty-host and uppercase-slug targets are rejected as configuration errors"
+      ],
+      "newPostgresCases": [
+        "the Company queue returns only its two open approvals, newest first, and preserves a persisted blocked reason; the full record evidence returns two ordered steps and one linked receipt/audit/outbox row; a foreign Company and a wrong kind return no evidence",
+        "missing transaction and read-committed transaction are refused with APPROVAL_EVIDENCE_TRANSACTION_REQUIRED / APPROVAL_EVIDENCE_SERIALIZABLE_REQUIRED before source reads",
+        "an uncommitted third step is visible inside the serializable unit and disappears on rollback; a committed third step is read back by id; source row counts are unchanged after reads",
+        "a second Company sees only its own open approval and can read its own instance but no other Company row"
+      ]
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-workflow --all-targets --locked -- -D warnings",
+      "result": "pass"
+    },
+    "rustfmt": {
+      "command": "rustfmt --edition 2024 --check on every new/changed Rust file",
+      "result": "pass"
+    },
+    "typescript": {
+      "unit": "vitest with a temporary unit config outside the committed suite manifest: tests/unit/workflow/native-workflow-evidence-transport.test.ts 5 passed",
+      "transportCases": [
+        "the registered Host, cookie and current context CAS headers are forwarded to the exact queue path and the strict queue is returned",
+        "one record's evidence is forwarded to the exact kind/record path and the native evidence is returned",
+        "a changed revision, foreign Company queue row, extra evidence key, orphan receipt command and duplicate queue row are rejected",
+        "a foreign Host is refused before transport; reserved/owned/non-loopback/non-HTTPS/duplicate-holding/undersized-timeout configurations are rejected; owner 403 and non-JSON responses fail closed",
+        "context-changed, configuration-invalid and owner-forbidden errors map to the retained page/route policy without a TypeScript fallback"
+      ],
+      "typechecks": [
+        "node_modules/.bin/tsc --noEmit --project packages/server-workflow/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project packages/feature-workflow/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project packages/feature-admin/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project apps/admin/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "targeted changed TypeScript files: pass; only the repository's pre-existing Next pages-directory warning was printed.",
+      "runnerLimit": "Bun is not installed in this worktree, so the transport test was run with a temporary Vitest config outside the committed suite manifest because the catalogue/register files are outside this subagent's edit permission. No shared suite manifest or register was edited."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "architecture": "node_modules/.bin/tsx scripts/architecture/check.ts: exit 1 on pre-existing owner/module-private import findings in legal, pos, supply, workplace and assets files outside this slice; no finding names a changed Workflow file",
+      "diffCheck": "git diff --check on changed tracked files: pass"
+    },
+    "browser": "not run. No Next dev server, authenticated page, browser session, public URL, staging, private production or Cloudflare route was accessed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "none; no root Cargo.toml, Cargo.lock or package lockfile change was authored by this subagent",
+    "compositionDelta": "No src/composition change and no router mount. The owner-local router and public ports are ready for a composition backend but are not mounted here.",
+    "publicPortsRequiredByComposition": [
+      "erpx_server_workflow::public::approval_oversight::{ApprovalOversightActor, ApprovalEvidenceQuery, ApprovalKind, ApprovalOversightRepository, PgApprovalOversight, approval_queue, approval_queue_value, approval_evidence}",
+      "erpx_server_workflow::public::approval_oversight_http::{approval_oversight_http_router, ApprovalOversightHttpTarget, ApprovalOversightHttpBackend, ApprovalOversightHttpRequest, ApprovalOversightHttpResponse, ApprovalOversightHttpCommand}"
+    ],
+    "backendRequired": "Implement ApprovalOversightHttpBackend in src/composition: resolve the normal Account session and selected Holding/Company, require organization.manage and a Holding-wide scope, build the current ApprovalOversightActor, open one serializable Holding transaction, call `approval_queue_value`/`approval_evidence` with PgApprovalOversight, map PgTransactionError to BusinessError and return the exact owner data plus a validated rendered context.",
+    "privateDevelopmentApi": [
+      "Build one ApprovalOversightHttpTarget per registered Holding with exact host, slug and HTTPS origin.",
+      "router = router.merge(erpx_server_workflow::public::approval_oversight_http::approval_oversight_http_router(targets).map_err(|_| \"PRIVATE_API_WORKFLOW_APPROVAL_CONFIGURATION_INVALID\")?);",
+      "Mount GET /api/v1/holdings/{slug}/workflow/approvals and GET /api/v1/holdings/{slug}/workflow/approvals/{kind}/{record_id}/evidence before the generic 404 fallback. The current private-development API mount is not edited by this subagent."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_WORKFLOW_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each app using approval administration. Unset configuration keeps the retained queue and does not request evidence; a malformed or failed configured read fails closed through ApiError."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "When ERPX_NATIVE_WORKFLOW_CONFIG is present, the approval-administration issue list uses the native open-approval queue instead of the retained approval_instances queue read.",
+      "When configured and a record is selected, the native evidence card is the only source for that record's approval route, decision history and linked receipt/audit/outbox evidence.",
+      "No retained TypeScript source file was deleted by this slice."
+    ],
+    "retained": [
+      "The per-row approval view, policy-derived blocked reason, eligibility/canDecide/canOverride, reroute control and staff settings remain retained TypeScript.",
+      "The expense/leave/task record-version reads and all approval approve/reject/reroute/cancel/revise commands remain retained.",
+      "The command ledger, stock-count/Flow, finance receipt, service invoice and every other Workflow owner implementation remain unchanged.",
+      "Without configuration the retained approval_instances queue remains the list source and no native evidence card is rendered."
+    ],
+    "cutover": "A configured native queue/evidence failure is bounded and surfaced through the existing page/route error policy; it never silently uses the retained queue or an empty evidence substitute. An unset configuration performs no native call and retains the existing TypeScript queue path."
+  },
+  "concurrentWork": {
+    "preserved": "This shared worktree contains concurrent uncommitted Finance, Files, Records, Identity Access and other owner work. None of those files were edited or reverted by this slice. HEAD advanced from the mission base b17293bc7 to 6502391d2 through other owners' commits while this slice remained uncommitted authored work.",
+    "rootManifests": "Root Cargo.toml, Cargo.lock, package lockfiles, src/composition/**, packages/contracts/** and docs/status/** were not modified by this subagent.",
+    "excluded": "No docs/status register, shared suite manifest or other owner implementation was edited."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No composition backend implements ApprovalOversightHttpBackend or mounts approval_oversight_http_router, so the configured SSR queue/evidence cutover is not runnable end-to-end.",
+      "The retained per-row approval view still computes policy-derived blocked reasons and decision authority; the native read does not yet replace approve/reject/reroute commands.",
+      "No authenticated browser or deployment verification was performed.",
+      "The suite manifest was not updated because this subagent was instructed not to create registers or edit outside the owner slice."
+    ],
+    "nextAction": "Have the composition owner implement the Account/Holding/authority backend and mount the two owner routes, then set ERPX_NATIVE_WORKFLOW_CONFIG and qualify the authenticated approval issues page plus the selected-record evidence card. After that, add the approval decision/reroute command with idempotency, version CAS, audit/outbox and same-transaction owner guards before retiring the retained approval command path. Browser acceptance remains deferred."
+  }
+}

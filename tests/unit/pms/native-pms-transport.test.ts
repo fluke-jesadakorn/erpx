@@ -1,0 +1,376 @@
+import {existsSync,readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {holdingHosts} from '@erpx/platform-contracts/holding-hosts';
+import {describe,it,expect,vi} from 'vitest';
+import {expandNativeApiPaths,loadNativeApiPaths} from '../../../scripts/local/native-api-paths';
+import {nativeApiPath} from '../../../scripts/local/native-api-proxy';
+vi.mock('next/headers',()=>({headers:async()=>new Headers()}));
+import {
+  createNativePmsClient,
+  nativePmsConfiguration,
+  nativePmsFailure,
+  nativePmsGuestAccountBody,
+  NativePmsError,
+  type NativePmsPageContext,
+  type NativePmsReportData,
+  type NativePmsReportEntriesData,
+} from '../../../modules/pms/ui/src/adapters/server/native-pms';
+import {nativePmsAvailable} from '../../../platform/workplace/src/lib/native-pms';
+
+const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
+  privateBaseUrl:'http://127.0.0.1:44994',
+  timeoutMs:1000,
+  holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001'}],
+  ...overrides,
+});
+const incoming=(overrides:Record<string,string>={})=>new Headers({
+  host:'acme.example.com',
+  cookie:'__Host-erpx-product=session',
+  ...overrides,
+});
+const actor:NativePmsPageContext={
+  userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',
+  branchId:'branch',departmentId:null,assignmentId:'assignment',role:'pms_housekeeping',
+  assignmentScope:'branch',scope:{kind:'branch',branchSlug:'north'},
+  authority:{revision:7,assignmentVersion:3},modules:['pms'],
+  iam:{permissions:['pms.read','pms.housekeeping','records.read']},
+};
+const context={userId:'user',holdingId:'h001',companyId:'company',branchId:'branch',
+  departmentId:null,branchSlug:'north',departmentSlug:null,assignmentId:'assignment',
+  assignmentVersion:3,revision:7,role:'pms_housekeeping',assignmentScopeKind:'branch',
+  modules:['pms'],permissions:['pms.read','pms.housekeeping','records.read'],
+  expiresAt:9_007_199_254_740_991};
+const propertyRow={id:'property-1',name:'Riverside',branchId:'branch',state:'open',businessDate:'2026-11-04'};
+const room={id:'room-1',kind:'room',version:1,updatedAt:1,data:{number:'101',typeId:'type-1',building:'Main',floor:'1',active:true,cleanliness:'dirty',dnd:true}};
+const listMeta={roomSummary:{total:1,active:1,dirty:1,clean:0,inspected:0,dnd:1,occupied:1},
+  section:'rooms',kind:'room',ids:['room-1'],from:'2026-10-05',to:'2027-01-03',page:0,q:'',status:'',
+  building:'',floor:'',typeId:'',hasNext:false};
+const workspace={
+  properties:[propertyRow],
+  snapshot:{property:{id:'property-1',companyId:'company',branchId:'branch',name:'Riverside',
+    businessDate:'2026-11-04',state:'open',version:1,config:{currency:'THB',minorUnit:2}},records:[room],listMeta},
+  defaultDate:'2026-11-04',readiness:[],canReviewBookingMedia:false,
+  bookingReadiness:{email:false,accounting:true,onlineAccounting:false,fees:false,connect:false},
+  canManageSetup:false,permissions:['pms.read','pms.housekeeping'],availablePaymentMethods:['cash'],
+  userId:'user',branches:[],staff:[{id:'staff-1',name:'Synthetic Worker'}],accounts:[],charts:[],parties:[],
+  products:[],warehouses:[],documents:[],transferRequests:[],chargeCorrections:[],
+  stripeConnectionReady:false,stripePayments:[],counterRefunds:[],bookingRefunds:[],bookingDelivery:[],
+  ledger:null,controlBalances:null,dayControls:null,
+};
+const readInput={holdingSlug:'acme',section:'rooms' as const,property:'property-1',status:'dirty',
+  q:'101',page:1,branchSlug:'north',expected:{companyId:'company',assignmentId:'assignment',
+  revision:7,assignmentVersion:3}};
+const frontActor:NativePmsPageContext={...actor,role:'pms_frontdesk',iam:{permissions:['pms.read','pms.frontdesk','records.read']}};
+const frontContext={...context,role:'pms_frontdesk',permissions:['pms.read','pms.frontdesk','records.read']};
+const stay={id:'stay-1',kind:'stay',version:1,updatedAt:1,data:{reservationId:'reservation-1',
+  guestId:'guest-1',roomId:'room-1',guestAccountId:'account-1',arrival:'2026-11-04',
+  departure:'2026-11-06',adults:2,state:'reserved',prices:[{date:'2026-11-04',total:117}]}};
+const frontListMeta={section:'front-desk',kind:'stay',ids:['stay-1'],from:'2026-10-05',to:'2027-01-03',
+  page:0,q:'',status:'arrivals',building:'',floor:'',typeId:'',hasNext:false,selectedId:'stay-1'};
+const frontWorkspace={...workspace,
+  snapshot:{...workspace.snapshot,records:[stay,room],listMeta:frontListMeta},
+  permissions:['pms.read','pms.frontdesk'],frontReady:true};
+const frontInput={holdingSlug:'acme',property:'property-1',status:'arrivals' as const,q:'Guest',
+  page:0,selectedId:'stay-1',branchSlug:'north',expected:{companyId:'company',assignmentId:'assignment',
+  revision:7,assignmentVersion:3}};
+const ok=(value:unknown)=>new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
+const failed=(status:number,code:string)=>new Response(JSON.stringify({error:{code,message:'Synthetic failure'}}),{status,headers:{'content-type':'application/json'}});
+
+describe('native PMS room-board transport',()=>{
+ it('forwards the registered Holding, session, selected scope and CAS to the room board',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:workspace,context}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  const result=await client.roomBoard(incoming(),actor,readInput);
+  expect(result.snapshot?.property.id).toBe('property-1');
+  expect(result.staff[0]).toEqual({id:'staff-1',name:'Synthetic Worker'});
+  const [method,url,requestHeaders,body]=transport.mock.calls[0];
+  expect(method).toBe('GET');
+  expect(url.toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pms/rooms?section=rooms&property=property-1&status=dirty&q=101&page=1');
+  expect(requestHeaders.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(requestHeaders.get('x-erpx-workspace-branch')).toBe('north');
+  expect(requestHeaders.get('x-erpx-context-company')).toBe('company');
+  expect(requestHeaders.get('x-erpx-context-assignment')).toBe('assignment');
+  expect(requestHeaders.get('x-erpx-context-revision')).toBe('7');
+  expect(requestHeaders.get('x-erpx-context-assignment-version')).toBe('3');
+  expect(body).toBeUndefined();
+ });
+
+ it('fails closed when authority is absent or the selected context changed',async()=>{
+  const absent=vi.fn().mockResolvedValue(ok({data:workspace,context}));
+  const client=createNativePmsClient(JSON.parse(config()),absent);
+  await expect(client.roomBoard(incoming(),{...actor,authority:undefined},readInput)).rejects.toMatchObject({code:'NATIVE_PMS_CONTEXT_CHANGED'});
+  expect(absent).not.toHaveBeenCalled();
+  const changed=vi.fn().mockResolvedValue(ok({data:workspace,context:{...context,revision:8}}));
+  const changedClient=createNativePmsClient(JSON.parse(config()),changed);
+  await expect(changedClient.roomBoard(incoming(),actor,readInput)).rejects.toMatchObject({code:'NATIVE_PMS_CONTEXT_CHANGED'});
+ });
+
+ it('rejects foreign properties, unrequested permissions and malformed workspaces',async()=>{
+  const foreign=structuredClone(workspace);
+  foreign.snapshot.property.companyId='other';
+  const untrusted=structuredClone(workspace);
+  untrusted.permissions.push('pms.reports');
+  const malformed=structuredClone(workspace);
+  delete (malformed as {defaultDate?:string}).defaultDate;
+  const duplicate=structuredClone(workspace);
+  duplicate.snapshot.records=[room,room];
+  const transport=vi.fn()
+    .mockResolvedValueOnce(ok({data:foreign,context}))
+    .mockResolvedValueOnce(ok({data:untrusted,context}))
+    .mockResolvedValueOnce(ok({data:malformed,context}))
+    .mockResolvedValueOnce(ok({data:duplicate,context}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  for(let index=0;index<4;index++)await expect(client.roomBoard(incoming(),actor,readInput)).rejects.toBeInstanceOf(NativePmsError);
+ });
+
+ it('maps bounded owner errors without falling back',async()=>{
+  const transport=vi.fn().mockResolvedValue(failed(409,'PMS_RECORD_CHANGED'));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  await expect(client.roomBoard(incoming(),actor,readInput)).rejects.toMatchObject({
+    code:'PMS_RECORD_CHANGED',status:409,message:'Synthetic failure',
+  });
+ });
+
+ it('forwards the bounded front-desk queue, session and current CAS to the owner route',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:frontWorkspace,context:frontContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  const result=await client.frontDesk(incoming(),frontActor,frontInput);
+  expect(result.snapshot?.listMeta).toMatchObject({section:'front-desk',kind:'stay',status:'arrivals'});
+  expect(result.frontReady).toBe(true);
+  const [method,url,requestHeaders,body]=transport.mock.calls[0];
+  expect(method).toBe('GET');
+  expect(url.toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pms/front-desk?property=property-1&status=arrivals&q=Guest&page=0&selectedId=stay-1');
+  expect(requestHeaders.get('cookie')).toBe('__Host-erpx-product=session');
+  expect(requestHeaders.get('x-erpx-workspace-branch')).toBe('north');
+  expect(requestHeaders.get('x-erpx-context-company')).toBe('company');
+  expect(requestHeaders.get('x-erpx-context-assignment')).toBe('assignment');
+  expect(requestHeaders.get('x-erpx-context-revision')).toBe('7');
+  expect(requestHeaders.get('x-erpx-context-assignment-version')).toBe('3');
+  expect(body).toBeUndefined();
+ });
+
+ it('rejects front-desk foreign properties, room metadata and unrequested permissions',async()=>{
+  const foreign=structuredClone(frontWorkspace);
+  foreign.snapshot.property.companyId='other';
+  const roomMeta=structuredClone(frontWorkspace);
+  roomMeta.snapshot.listMeta={...frontListMeta,kind:'room',section:'rooms',roomSummary:{total:1,active:1,dirty:0,clean:1,inspected:0,dnd:0,occupied:0}} as typeof frontListMeta & {roomSummary:{total:number;active:number;dirty:number;clean:number;inspected:number;dnd:number;occupied:number}};
+  const untrusted=structuredClone(frontWorkspace);
+  untrusted.permissions.push('pms.reports');
+  const missingMeta=structuredClone(frontWorkspace);
+  delete (missingMeta.snapshot as {listMeta?:unknown}).listMeta;
+  const changedQueue=structuredClone(frontWorkspace);
+  changedQueue.snapshot.listMeta={...frontListMeta,status:'departures'};
+  const transport=vi.fn()
+    .mockResolvedValueOnce(ok({data:foreign,context:frontContext}))
+    .mockResolvedValueOnce(ok({data:roomMeta,context:frontContext}))
+    .mockResolvedValueOnce(ok({data:untrusted,context:frontContext}))
+    .mockResolvedValueOnce(ok({data:missingMeta,context:frontContext}))
+    .mockResolvedValueOnce(ok({data:changedQueue,context:frontContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  for(let index=0;index<5;index++)await expect(client.frontDesk(incoming(),frontActor,frontInput)).rejects.toBeInstanceOf(NativePmsError);
+ });
+
+ it('rejects an unrecognized front-desk queue before transport',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:frontWorkspace,context:frontContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  await expect(client.frontDesk(incoming(),frontActor,{...frontInput,status:'payment_pending' as never})).rejects.toMatchObject({code:'NATIVE_PMS_FRONT_DESK_REQUEST_INVALID'});
+  expect(nativePmsFailure(new NativePmsError('NATIVE_PMS_FRONT_DESK_REQUEST_INVALID'))).toEqual({
+    status:422,code:'PMS_FRONT_DESK_REQUEST_INVALID',message:'Use one bounded front-desk selection.',
+  });
+  expect(transport).not.toHaveBeenCalled();
+ });
+
+ it('keeps the Next reader fail-closed unless the native configuration is present',()=>{
+  const previous=process.env.ERPX_NATIVE_PMS_CONFIG;
+  delete process.env.ERPX_NATIVE_PMS_CONFIG;
+  expect(nativePmsAvailable()).toBe(false);
+  process.env.ERPX_NATIVE_PMS_CONFIG=config();
+  expect(nativePmsAvailable()).toBe(true);
+  if(previous===undefined)delete process.env.ERPX_NATIVE_PMS_CONFIG;
+  else process.env.ERPX_NATIVE_PMS_CONFIG=previous;
+ });
+
+ it('uses the forwarded public host for the registered Holding behind the gateway',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:workspace,context}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  await client.roomBoard(
+    incoming({host:'127.0.0.1:3203','x-forwarded-host':'acme.example.com'}),
+    actor,
+    readInput,
+  );
+  const [, , requestHeaders]=transport.mock.calls[0];
+  expect(requestHeaders.get('host')).toBe('acme.example.com');
+ });
+
+ it('accepts one bounded contributor Holding port and rejects malformed ports',()=>{
+  const contributor=config({holdings:[{origin:'https://acme.erpx.localhost:3443',holdingSlug:'acme',holdingId:'h001'}]});
+  expect(()=>createNativePmsClient(JSON.parse(contributor))).not.toThrow();
+  for(const origin of [
+    'https://acme.example.com:0',
+    'https://acme.example.com:65536',
+    'https://acme.example.com:abc',
+    'https://acme.example.com:3443:1',
+  ]) {
+    expect(()=>createNativePmsClient(JSON.parse(config({holdings:[{origin,holdingSlug:'acme',holdingId:'h001'}]})))).toThrowError(NativePmsError);
+  }
+ });
+
+ it('rejects configuration that can escape the registered Holding origin',()=>{
+  for(const raw of [
+    config({privateBaseUrl:'http://127.0.0.1:3100'}),
+    config({privateBaseUrl:'http://10.0.0.1:44994'}),
+    config({holdings:[{origin:'http://acme.example.com',holdingSlug:'acme',holdingId:'h001'}]}),
+    config({holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001'},{origin:'https://acme.example.com',holdingSlug:'other',holdingId:'h002'}]}),
+    config({timeoutMs:100}),
+  ]) {
+    expect(()=>createNativePmsClient(JSON.parse(raw))).toThrowError(NativePmsError);
+  }
+  for(const raw of ['not-json',JSON.stringify({privateBaseUrl:'http://127.0.0.1:44994'})])
+    expect(()=>nativePmsConfiguration(raw)).toThrowError(NativePmsError);
+ });
+
+ it('posts a guest-account command with origin, scope query, idempotency key and body',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:{id:'account-1',status:'open'},context}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  const result=await client.guestAccountCommand(incoming({origin:'https://acme.example.com'}),actor,{
+    holdingSlug:'acme',
+    body:{operation:'guest_account.create',propertyId:'property-1',expectedVersion:1,guestId:'guest-1',reservationId:'reservation-1',name:'Guest'},
+    key:'command-1',branchSlug:'north',
+    expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3},
+  });
+  expect(result).toEqual({id:'account-1',status:'open'});
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pms/guest-account?branch=north');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('idempotency-key')).toBe('command-1');
+  expect(headers.get('content-type')).toBe('application/json');
+  expect(headers.get('x-erpx-context-company')).toBe('company');
+  expect(JSON.parse(String(body))).toMatchObject({operation:'guest_account.create',propertyId:'property-1'});
+ });
+ it('flattens the retained workspace body into the native guest-account shape',()=>{
+  expect(nativePmsGuestAccountBody({operation:'charge.add',propertyId:'property-1',expectedVersion:3,input:{guestAccountId:'account-1',price:120,description:'Minibar',stayId:'stay-1',sourceKey:'minibar-1'}})).toEqual({
+    guestAccountId:'account-1',price:120,description:'Minibar',stayId:'stay-1',sourceKey:'minibar-1',
+    operation:'charge.add',propertyId:'property-1',expectedVersion:3,
+  });
+  expect(nativePmsGuestAccountBody({operation:'guest_account.transfer',propertyId:'property-1',expectedVersion:2,input:{id:'entry-1',toGuestAccountId:'account-2',reason:'Moved to the correct bill'}})).toEqual({
+    id:'entry-1',entryId:'entry-1',toGuestAccountId:'account-2',reason:'Moved to the correct bill',
+    operation:'guest_account.transfer',propertyId:'property-1',expectedVersion:2,
+  });
+ });
+});
+
+describe('native PMS report transport',()=>{
+ const reportActor:NativePmsPageContext={...actor,iam:{permissions:['pms.read','pms.reports','records.read']}};
+ const reportContext={...context,permissions:['pms.read','pms.reports','records.read']};
+ const day={date:'2026-11-01',capacity:10,sold:4,roomRevenue:4000,netRevenue:4500,tax:200,refunds:0,cancellations:1,noShows:0};
+ const range={
+  property:{id:'property-1',name:'Riverside',branchId:'branch',state:'open',businessDate:'2026-11-01'},
+  businessDate:'2026-11-01',currency:'THB',from:'2026-11-01',to:'2026-11-02',
+  days:[day,{...day,date:'2026-11-02'}],
+  totals:{capacity:20,sold:8,roomRevenue:8000,netRevenue:9000,tax:400,refunds:0,cancellations:2,noShows:0,occupancy:0.4,adr:1000,revpar:400},
+  flow:{arrivals:2,departures:1,inHouse:4},
+  balances:{source:'pms_guest_accounts',due:1000,advance:200,deposit:300,totalAccounts:3,openAccounts:2,creditAccounts:0,accountsWithDue:1},
+  nightAudit:{businessDate:'2026-11-01',nightState:'completed',jobState:'done',ready:true,blockers:[]},
+  asOf:'2026-11-03T10:00:00Z',
+  pace:{
+   current:{asOf:'2026-11-03T10:00:00Z',coverageSince:'2026-10-01T00:00:00Z',covered:true,reservations:9,roomNights:12,quotedTotal:120000},
+   previous:{asOf:'2026-10-27T10:00:00Z',coverageSince:'2026-10-01T00:00:00Z',covered:true,reservations:7,roomNights:10,quotedTotal:100000},
+   netPickup:{reservations:2,roomNights:2,quotedTotal:20000},
+  },
+  channels:[{source:'direct',reservations:4,roomNights:6,quotedTotal:60000,cancelled:1,noShows:0,recentPickup:2,unknownCreation:0}],
+  financeBalances:{receivable:4000,advance:-3000,deposit:-500,refundPayable:-200,unallocated:0},
+ };
+ it('forwards the bounded range selection and validates the owner payload',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:range,context:reportContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  const result=await client.report(incoming({origin:'https://acme.example.com'}),reportActor,{
+   view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-02',
+   branchSlug:'north',expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3},
+  }) as NativePmsReportData;
+  expect(result.days).toHaveLength(2);
+  expect(result.pace.netPickup).toEqual({reservations:2,roomNights:2,quotedTotal:20000});
+  expect(result.channels[0].source).toBe('direct');
+  expect(result.financeBalances.receivable).toBe(4000);
+  const [method,url,headers]=transport.mock.calls[0];
+  expect(method).toBe('GET');
+  expect(url.toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pms/reports/range?property=property-1&from=2026-11-01&to=2026-11-02');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('x-erpx-workspace-branch')).toBe('north');
+  expect(headers.get('x-erpx-context-revision')).toBe('7');
+ });
+ it('forwards the bounded entry-ledger selection',async()=>{
+  const entries={date:'2026-11-01',page:2,rows:[{id:'entry-1',data:{kind:'charge',total:120}}],hasNext:false};
+  const transport=vi.fn().mockResolvedValue(ok({data:entries,context:reportContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  const result=await client.report(incoming(),reportActor,{view:'entries',holdingSlug:'acme',property:'property-1',date:'2026-11-01',page:2,branchSlug:'north'}) as NativePmsReportEntriesData;
+  expect(result.rows[0]).toEqual({id:'entry-1',data:{kind:'charge',total:120}});
+  expect(transport.mock.calls[0][1].toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pms/reports/entries?property=property-1&date=2026-11-01&page=2');
+ });
+ it('refuses a payload for a different range or view',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:range,context:reportContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  await expect(client.report(incoming(),reportActor,{view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-03',branchSlug:'north'})).rejects.toMatchObject({code:'NATIVE_PMS_RESPONSE_INVALID'});
+  await expect(client.report(incoming(),reportActor,{view:'entries',holdingSlug:'acme',property:'property-1',date:'2026-11-01',page:1,branchSlug:'north'})).rejects.toMatchObject({code:'NATIVE_PMS_RESPONSE_INVALID'});
+ });
+ it('forwards RFC 3339 observation times and rejects a malformed observation before dispatch',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:range,context:reportContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  await client.report(incoming(),reportActor,{
+   view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-02',
+   asOf:'2026-11-03T10:00:00+07:00',compareAsOf:'2026-10-27T10:00:00+07:00',branchSlug:'north',
+  });
+  expect(new URL(transport.mock.calls[0][1]).searchParams.get('asOf')).toBe('2026-11-03T10:00:00+07:00');
+  expect(new URL(transport.mock.calls[0][1]).searchParams.get('compareAsOf')).toBe('2026-10-27T10:00:00+07:00');
+  await expect(client.report(incoming(),reportActor,{
+   view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-02',asOf:'not-a-date',branchSlug:'north',
+  })).rejects.toMatchObject({code:'NATIVE_PMS_REPORT_REQUEST_INVALID'});
+  expect(transport).toHaveBeenCalledTimes(1);
+ });
+ it('refuses a range payload without pace, channels, finance balances or the observation clock',async()=>{
+  for(const key of ['asOf','pace','channels','financeBalances'] as const){
+   const payload={...range};delete (payload as unknown as Record<string,unknown>)[key];
+   const transport=vi.fn().mockResolvedValue(ok({data:payload,context:reportContext}));
+   const client=createNativePmsClient(JSON.parse(config()),transport);
+   await expect(client.report(incoming(),reportActor,{view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-02',branchSlug:'north'})).rejects.toMatchObject({code:'NATIVE_PMS_RESPONSE_INVALID'});
+  }
+ });
+});
+
+describe('PMS reports Next route retirement',()=>{
+ const read=(file:string)=>readFileSync(fileURLToPath(new URL(`../../../${file}`,import.meta.url)),'utf8');
+ const checkedIn=loadNativeApiPaths(fileURLToPath(new URL('../../../scripts/local/native-api-paths.json',import.meta.url)));
+ const environment={NODE_ENV:'test' as const,ERPX_DEV_NATIVE_PATHS:expandNativeApiPaths(checkedIn,holdingHosts).paths};
+
+ it('keeps the shared GET handler and both app re-exports unresolvable',()=>{
+  for(const file of [
+   'modules/pms/ui/src/routes/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
+   'apps/pms/src/app/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
+   'apps/compat/src/app/api/v1/holdings/[holdingSlug]/pms/reports/route.ts',
+  ]) expect(existsSync(fileURLToPath(new URL(`../../../${file}`,import.meta.url))),file).toBe(false);
+  expect(existsSync(fileURLToPath(new URL('../../../modules/pms/server/src/adapters/report_http.rs',import.meta.url)))).toBe(true);
+ });
+
+ it('matches the checked-in reports prefix on every registered Holding',()=>{
+  expect(checkedIn.holdingPrefixes).toContain('pms/reports');
+  for(const {hostname,holdingSlug} of holdingHosts){
+   const url=`/api/v1/holdings/${holdingSlug}/pms/reports?view=range&property=property-1&from=2026-11-01&to=2026-11-02`;
+   expect(nativeApiPath(environment,url,hostname,'GET'),hostname).toBe(true);
+   expect(nativeApiPath(environment,url,'unregistered.example.test','GET')).toBe(false);
+  }
+ });
+
+ it('executes PMS SQL in the native handler and leaves the browser {data} envelope intact',()=>{
+  const http=read('modules/pms/server/src/adapters/report_http.rs');
+  expect(http).toContain('/api/v1/holdings/{holding_slug}/pms/reports/{report}');
+  expect(http).toContain('/api/v1/holdings/{holding_slug}/pms/reports');
+  expect(http).toContain('PmsReportKind::parse(view)');
+  expect(http).toContain('use sqlx::{PgConnection, Row, postgres::PgRow};');
+  expect(http).toContain('.fetch_all(&mut *c)');
+  expect(http).toContain('.fetch_one(&mut *c)');
+  expect(http).toContain('serde_json::json!({"data": self.data, "context": self.context})');
+  const client=read('modules/pms/ui/src/components/range-reports.tsx');
+  expect(client).toContain('return json.data;');
+  expect(client).not.toContain('canonicalDestinationLinks');
+ });
+});

@@ -1,0 +1,6 @@
+
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';import {assertion} from "@erpx/workflow-server/public/command-assertions";import {ACTIVE_CHART_BASE_CURRENCY_SQL} from './chart-base-currency-dedupe-sql';import {accountChartGuardSql} from './finance-read-tail-r46-sql';import {finPeriodIdByCompanySql} from './finance-read-tail-r57-sql';export function manufacturingAccountingSources(db:SqlDatabase){return {async activeChart(chartId:string,companyId:string){return db.prepare(ACTIVE_CHART_BASE_CURRENCY_SQL)
+    .bind(chartId, companyId).first<{ base_currency: string }>();},
+guardAccountCategory(key:string,value:string,account:string,companyId:string,chartId:string,accountKind:'asset'|'scrap_expense'|'conversion'){return assertion(db, key, value, accountChartGuardSql(` AND status='active' AND control_kind='none' ${accountKind === 'asset' ? "AND category='asset'" : accountKind === 'scrap_expense' ? "AND category IN ('expense','other_expense')" : "AND category IN ('liability','expense')"}`), [account, companyId, chartId]);},
+async postingPeriod(companyId:string,entryDate:string,entryDate2:string){return db.prepare(finPeriodIdByCompanySql(" AND state='open' AND start_date<=? AND end_date>=? ORDER BY start_date DESC,id LIMIT 1"))
+    .bind(companyId, entryDate, entryDate2).first<{ id: string }>();}};}

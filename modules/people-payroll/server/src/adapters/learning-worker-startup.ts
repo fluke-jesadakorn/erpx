@@ -1,0 +1,3 @@
+import {createWorkerStartup} from '@erpx/people-payroll-server/adapters/worker-startup';
+const owner=createWorkerStartup('learn');
+export const learningWorkerStartupWorkspace=owner.workspace,learningWorkerStartupAccounts=owner.accounts,learningWorkerStartupPeople=owner.people,prepareLearningWorkerStartup=owner.prepare,previewLearningWorkerPlacement=owner.previewPlacement,submitLearningWorkerPlacement=owner.submitPlacement,cancelLearningWorkerPlacement=owner.cancelPlacement;

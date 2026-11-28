@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance trial balance and statements merged; finance/feature-reports closes",
+  "capability": "finance-reports-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 58,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/58",
+    "state": "MERGED",
+    "mergedAt": "2026-11-04T02:15:31Z",
+    "base": "a757fbc0d85a2b87d84693ebd67c3c6e6b017646",
+    "head": "01d24cab8e99ec5905e2cec2079a5243e4f986f1",
+    "mergeCommit": "7f63874a2fb6cb7848819ef49f1eeda4cd7bab4f",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "finance/feature-reports",
+    "slice": "trial balance and statements",
+    "adapter": "packages/server-finance/src/adapters/finance_reports.rs",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-finance-report.ts",
+    "screen": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/reports/screen.tsx"
+  },
+  "verification": {
+    "postgres": "finance.rust-finance-report-postgres.integration 2/2",
+    "regressions": "finance.rust-finance-setup-postgres 4/4; finance.rust-invoice-read-postgres 3/3; finance.rust-sales-invoice-edit-postgres 4/4; finance.rust-sales-receipt-postgres 2/2; finance.rust-sales-defaults-postgres 3/3; finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 795 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4",
+    "browser": "Desktop/mobile Company Reports: Browser report cash 1999 debit 123456/balance 123456; revenue 4999 credit 123456/balance -123456; Assets/Equity/Revenue THB 2,434.56; native-down Temporarily unavailable; restart restored; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 22,
+    "workflowsPartial": 0,
+    "workflowsMerged": 22,
+    "workflowsTotal": 206,
+    "workflowState": "finance/feature-reports verified and merged"
+  },
+  "limits": [
+    "Statement packages, group editions and planning remain TS and belong to separate reporting concerns.",
+    "Branch/department reports fall back to the legacy read; native requires a Company assignment.",
+    "The Finance app still logs pre-existing hydration/work-source console errors; pageErrors stay 0."
+  ]
+}

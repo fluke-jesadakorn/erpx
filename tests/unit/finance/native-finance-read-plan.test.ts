@@ -1,0 +1,2626 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+vi.mock('server-only', () => ({}));
+import { ACTIVE_CHART_BASE_CURRENCY_SQL } from '../../../modules/finance/server/src/adapters/chart-base-currency-dedupe-sql';
+import { FINANCE_JOURNALS_PROJECTION_SQL } from '../../../modules/finance/server/src/adapters/finance-journals-projection-dedupe-sql';
+import { FINANCE_CHARTS_PROJECTION_SQL } from '../../../modules/finance/server/src/adapters/finance-charts-projection-dedupe-sql';
+import { finalRootOwnerProjectionSources } from '../../../modules/finance/server/src/adapters/final-root-owner-projection-sources';
+import { platformOwnerProjectionSources } from '../../../modules/finance/server/src/adapters/platform-owner-projection-sources';
+import { inventoryExecutiveOwnerProjections } from '../../../modules/finance/server/src/adapters/inventory-executive-owner-projections';
+import { commercialOwnerProjectionSources } from '../../../modules/finance/server/src/adapters/commercial-owner-projection-sources';
+import { hospitalityOwnerProjectionSources } from '../../../modules/finance/server/src/adapters/hospitality-owner-projection-sources';
+import {
+  POSTING_FINANCE_PERIODS_SQL,
+  POSTING_COMPANY_FX_RATES_SQL,
+  POSTING_COMPANY_MONEY_IMAGE_SQL,
+  POSTING_COMMAND_RECEIPT_RECORD_SQL,
+} from '../../../modules/finance/server/src/adapters/posting-prerequisites-dedupe-sql';
+import { FINANCE_ADVISORY_XACT_LOCK_SQL } from '../../../modules/finance/server/src/adapters/advisory-lock-dedupe-sql';
+import { FINANCE_RECEIPT_IMAGE_SQL, FINANCE_INVOICES_PROJECTION_SQL, FINANCE_PARTIES_PROJECTION_SQL, FINANCE_ACCOUNTS_PROJECTION_SQL } from '../../../modules/finance/server/src/adapters/finance-tail-dedupe-sql';
+import {
+  CHART_BASE_CURRENCY_BY_ID_SQL,
+  OPEN_PERIOD_LIST_SQL,
+  APPROVED_SECONDARY_CHART_RULE_SQL,
+  FINANCE_JOURNALS_JOIN_SQL,
+  COMMAND_RECEIPT_EXISTS_SQL,
+  COMMAND_RECEIPT_RECORD_IMAGE_SQL,
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r15-sql';
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql';
+import { SUPPLIER_RESERVATION_GUARD_SQL, BANK_TRANSACTION_BY_ID_SQL, DIMENSION_DEFINITIONS_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r17-sql';
+import {
+  MONEY_SETTINGS_IMAGE_SQL, MONEY_TXN_SNAPSHOT_SOURCE_SQL,
+  PAYMENT_PROJECTION_SQL, REFUND_OBLIGATION_PROJECTION_SQL,
+  ACCOUNT_CHART_ID_SQL, ALLOCATION_PROJECTION_SQL,
+  PERIOD_DATES_SQL, COLLECTIONS_TOOL_GUARD_SQL, BANK_STATEMENT_VERSION_GUARD_SQL,
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r18-sql';
+import { rootOwnerExistsSql, materializedClockCteSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r19-sql';
+import { idCompanyStatusVersionGuard, aggByCompany } from '../../../modules/finance/server/src/adapters/finance-read-tail-r20-sql';
+import { journalLineEvidenceSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r22-sql';
+import { bookRootUnionSql, peopleRunsCteSql, peoplePostingsCteSql, journalAggregateCtesSql, netPayableFactSql, payrollUnpostedFactSql, statutoryLiabilityFactSql, statutoryLateralSql, secondaryJournalFactSql } from '../../../modules/finance/server/src/adapters/finance-read-tail-r23-sql';
+import { packageObligationFactsSql, ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL, TAX_SOURCE_APPROVED_INVOICE_SQL, TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL, TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql';
+import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } from '../../../modules/finance/server/src/adapters/finance-read-tail-r30-sql';
+import { CONSOLIDATION_RUN_BY_ID_SQL, ISSUED_THAI_DOCUMENT_BY_ID_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r31-sql';
+import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r32-sql';
+import { PERIOD_BY_ID_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r33-sql';
+import {
+  OPEN_PERIOD_COVERED_SQL,
+  OPEN_PERIOD_LIST_ASC_SQL,
+  BANK_TRANSACTION_STATEMENT_SQL,
+  ACTIVE_CHART_NAV_SQL,
+  ACTIVE_ACCOUNT_CHART_ID_SQL,
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r34-sql';
+import { WORKFORCE_ACTOR_SCOPE_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r35-sql';
+import {
+  CHART_ID_BY_COMPANY_SQL,
+  CHART_EXISTS_BY_COMPANY_SQL,
+  CHART_IMAGE_BY_COMPANY_SQL,
+  PAYROLL_LINE_IMAGE_SQL,
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r36-sql';
+import { PERIOD_EXISTS_BY_ID_SQL } from '../../../modules/finance/server/src/adapters/finance-read-tail-r37-sql';
+import {
+  BILLING_RUN_CHILD_EXISTS_SQL,
+  CUSTOMER_PARTY_PROFILE_SQL,
+  BILLING_RUN_POINT_SQL,
+  DIMENSION_VALUES_ACTIVE_SQL,
+  REFUND_INSTRUCTION_POINT_SQL,
+  BUSINESS_CONTRACT_POINT_SQL,
+  ACCRUAL_SCHEDULE_POINT_SQL,
+  CALCULATION_RUN_POINT_SQL,
+  PLAN_EDITION_POINT_SQL,
+  BILLING_RUN_ROOT_WINDOW_SQL,
+  POS_CUSTOMER_PARTY_ACTIVE_SQL,
+  POS_JOURNAL_LINE_NET_SQL,
+  SUPPLIER_RECEIPT_SOURCE_SQL,
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r38-sql';
+import {
+  bankCashLinesSql,
+  ASSET_DEPRECIATIONS_SQL,
+  ASSET_DRAFT_DISPOSAL_SQL,
+  INTERCOMPANY_BY_ID_SQL,
+  openingBalanceSql,
+  documentNumberSql,
+  moneySnapshotExistsSql,
+  posDailyAccountNetSql,
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r39-sql';
+import {
+  sourcePartyIdSql,
+  commandReceiptReplayProbeSql,
+  ASSIGNMENT_VERSION_SQL,
+  POSTING_RECEIPT_IMAGE_SQL,
+  ACTIVE_ACCOUNT_CATEGORY_PROBE_SQL,
+  ownedDocumentExistsSql,
+  sourcePartyStatusSql,
+  bookAccountMappingImageSql,
+  thaiDocumentRowsSql,
+  PAYMENT_FULL_ROW_SQL,
+} from '../../../modules/finance/server/src/adapters/finance-read-tail-r40-sql';
+import { peoplePayrollFinalOwnerProjections } from '../../../modules/finance/server/src/adapters/people-payroll-final-owner-projections';
+import { workflowFinalOwnerProjections } from '../../../modules/finance/server/src/adapters/workflow-final-owner-projections';
+import {
+  nativeFinanceReadAll,
+  setNativeFinanceReadTransportForTest,
+  nativeFinanceReadFirst,
+  nativeFinanceReadScalarFirst,
+  FINANCE_RD_TAX_PENDING_CORRECTION_COUNT,
+  FINANCE_RD_ASSET_POLICY_ROW,
+  FINANCE_RD_ASSET_POLICY_RUNS,
+  FINANCE_RD_INSTRUMENT_EDITION,
+  FINANCE_RD_INSTRUMENT_RUNS,
+  FINANCE_RD_COLLECTION_CASE_ROW,
+  FINANCE_RD_BUSINESS_BILL_ROW,
+} from '../../../modules/finance/server/src/adapters/native-finance-read';
+
+const envKey = 'ERPX_NATIVE_FINANCE_READ_CONFIG';
+const original = process.env[envKey];
+beforeEach(() => { setNativeFinanceReadTransportForTest((url, init) => fetch(url, init)); });
+beforeEach(() => {
+  process.env[envKey] = JSON.stringify({
+    privateBaseUrl: 'http://127.0.0.1:44992',
+    timeoutMs: 1000,
+    holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+  });
+});
+afterEach(() => {
+  if (original === undefined) delete process.env[envKey];
+  else process.env[envKey] = original;
+  vi.unstubAllGlobals();
+});
+
+const fakeDb = () => {
+  const bound: unknown[][] = [];
+  const prepared: string[] = [];
+  const db = {
+    prepare(sql: string) {
+      prepared.push(sql);
+      return {
+        bind(...values: unknown[]) { bound.push(values); return this; },
+        async all() { return { results: [], success: true, meta: { changes: 0, duration: 0 } }; },
+        async first() { return null; },
+      };
+    },
+    async batch() { return [{ results: [{ id: 'row-1' }], success: true, meta: { changes: 0, duration: 0 } }]; },
+    async exec() { return { count: 0, duration: 0 }; },
+  };
+  return { db, bound, prepared };
+};
+
+describe('native Finance caller-unit read plan', () => {
+  it('exposes an allow-listed FINANCE_RD_* registry with no SQL on the wire', () => {
+    expect(FINANCE_RD_ASSET_POLICY_ROW).toBe('finance_rd_asset_policy_row');
+    expect(FINANCE_RD_ASSET_POLICY_RUNS).toBe('finance_rd_asset_policy_runs');
+    expect(FINANCE_RD_COLLECTION_CASE_ROW).toBe('finance_rd_collection_case_row');
+    expect(FINANCE_RD_BUSINESS_BILL_ROW).toBe('finance_rd_business_bill_row');
+    for (const kind of [
+      FINANCE_RD_ASSET_POLICY_ROW,
+      FINANCE_RD_ASSET_POLICY_RUNS,
+      FINANCE_RD_INSTRUMENT_EDITION,
+      FINANCE_RD_INSTRUMENT_RUNS,
+      FINANCE_RD_COLLECTION_CASE_ROW,
+      FINANCE_RD_BUSINESS_BILL_ROW,
+    ]) expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('plans a registered read and runs it on the caller unit with its binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS row', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const { db, bound, prepared } = fakeDb();
+
+    expect(await nativeFinanceReadFirst(FINANCE_RD_COLLECTION_CASE_ROW, ['company', 'case-1'], db as never)).toEqual({ id: 'row-1' });
+    expect(await nativeFinanceReadAll(FINANCE_RD_ASSET_POLICY_RUNS, ['company', 'policy-1'], db as never)).toMatchObject({ results: [{ id: 'row-1' }] });
+
+    expect(bodies.map((b) => b.kind)).toEqual([FINANCE_RD_COLLECTION_CASE_ROW, FINANCE_RD_ASSET_POLICY_RUNS]);
+    expect(bodies.map((b) => b.values)).toEqual([['company', 'case-1'], ['company', 'policy-1']]);
+    expect(bound).toEqual([['company', 'case-1'], ['company', 'policy-1']]);
+    expect(prepared).toEqual(['SELECT 1 AS row', 'SELECT 1 AS row']);
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as unknown as [URL, RequestInit];
+    expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/finance/command-plan');
+    expect((init.headers as Record<string, string>).origin).toBe('https://acme.example.com');
+    expect((init.headers as Record<string, string>)['x-erpx-context-company']).toBe('company');
+  });
+
+  it('plans the instrument fixed reads in Rust and runs them on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === FINANCE_RD_INSTRUMENT_EDITION
+        ? 'SELECT * FROM finance_instrument_editions WHERE company_id=? AND id=?'
+        : 'SELECT * FROM finance_instrument_runs WHERE company_id=? AND instrument_id=? ORDER BY ordinal,id';
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const { db, bound, prepared } = fakeDb();
+
+    expect(await nativeFinanceReadFirst(FINANCE_RD_INSTRUMENT_EDITION, ['company', 'edition'], db as never)).toEqual({ id: 'row-1' });
+    expect(await nativeFinanceReadAll(FINANCE_RD_INSTRUMENT_RUNS, ['company', 'edition'], db as never)).toMatchObject({ results: [{ id: 'row-1' }] });
+
+    expect(bodies.map((b) => b.kind)).toEqual([FINANCE_RD_INSTRUMENT_EDITION, FINANCE_RD_INSTRUMENT_RUNS]);
+    expect(bodies.map((b) => b.values)).toEqual([['company', 'edition'], ['company', 'edition']]);
+    expect(bound).toEqual([['company', 'edition'], ['company', 'edition']]);
+    expect(prepared).toEqual([
+      'SELECT * FROM finance_instrument_editions WHERE company_id=? AND id=?',
+      'SELECT * FROM finance_instrument_runs WHERE company_id=? AND instrument_id=? ORDER BY ordinal,id',
+    ]);
+  });
+
+  it('fails closed when configuration is missing or the plan is malformed', async () => {
+    delete process.env[envKey];
+    const { db } = fakeDb();
+    await expect(nativeFinanceReadFirst(FINANCE_RD_ASSET_POLICY_ROW, ['company', 'p'], db as never))
+      .rejects.toMatchObject({ code: 'FINANCE_NATIVE_READ_UNAVAILABLE' });
+
+    process.env[envKey] = JSON.stringify({
+      privateBaseUrl: 'http://127.0.0.1:44992', timeoutMs: 1000,
+      holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001', companyId: 'company' }],
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: {} }), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    })));
+    await expect(nativeFinanceReadFirst(FINANCE_RD_ASSET_POLICY_ROW, ['company', 'p'], db as never))
+      .rejects.toMatchObject({ code: 'FINANCE_NATIVE_READ_UNAVAILABLE' });
+  });
+});
+
+const CHART_SQL = "SELECT base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'";
+const CHART_CALL_SITES = [
+  'modules/finance/server/src/adapters/finance-planning.ts',
+  'modules/finance/server/src/adapters/accounting-profiles.ts',
+  'modules/finance/server/src/adapters/payroll-recovery-chart.ts',
+  'modules/finance/server/src/adapters/manufacturing-accounting-sources.ts',
+  'modules/finance/server/src/adapters/refunds.ts',
+];
+
+describe('finance active-chart base_currency read dedupe', () => {
+  it('keeps one byte-identical literal and adopts no share-lock variant', async () => {
+    expect(ACTIVE_CHART_BASE_CURRENCY_SQL).toBe(CHART_SQL);
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/chart-base-currency-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split(CHART_SQL).length - 1).toBe(1);
+    expect(shared).not.toContain('FOR SHARE');
+    for (const rel of CHART_CALL_SITES) {
+      const text = await readFile(new URL(`../../../${rel}`, import.meta.url), 'utf8');
+      expect(text.split(CHART_SQL).length - 1).toBe(0);
+      expect(text).toContain('ACTIVE_CHART_BASE_CURRENCY_SQL');
+      expect(text).not.toContain('FOR SHARE');
+    }
+  });
+
+  it('drives the leaf reader through the shared SQL with unchanged binds', async () => {
+    const prepares: string[] = [];
+    const binds: unknown[][] = [];
+    const db = {
+      prepare(sql: string) {
+        prepares.push(sql);
+        return { bind(...values: unknown[]) { binds.push(values); return { first: async () => ({ base_currency: 'THB' }) }; } };
+      },
+    };
+    const { payrollRecoveryChart } = await import('../../../modules/finance/server/src/adapters/payroll-recovery-chart');
+    await expect(payrollRecoveryChart(db as never).readRecognizePayrollRecoveryChart('ch-1', 'co-1'))
+      .resolves.toEqual({ base_currency: 'THB' });
+    expect(prepares).toEqual([CHART_SQL]);
+    expect(binds).toEqual([['ch-1', 'co-1']]);
+  });
+});
+
+const POSTED_CHART_SQL = "SELECT 1 FROM finance_journals WHERE chart_id=? AND status IN ('posted','reversed')";
+
+describe('finance books posted-chart existence read dedupe', () => {
+  it('keeps one byte-identical literal and two constant-backed reads', async () => {
+    const text = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-books.ts', import.meta.url), 'utf8');
+    expect(text.split(`"${POSTED_CHART_SQL}"`).length - 1).toBe(0);
+    expect(text).toContain("JOURNAL_SELECT_PREFIX + \"s WHERE chart_id=? AND status IN ('posted','reversed')\"");
+    expect(text.split('chartPostedSql,').length - 1).toBe(2);
+  });
+});
+
+const JOURNALS_CALL_SITES = [
+  'modules/finance/server/src/adapters/final-root-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/platform-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/inventory-executive-owner-projections.ts',
+  'modules/finance/server/src/adapters/hospitality-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/commercial-owner-projection-sources.ts',
+];
+
+describe('finance finance_journals projection dedupe', () => {
+  it('keeps one byte-identical literal and backs all five owner projections with it', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-journals-projection-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('FROM finance_journals').length - 1).toBe(1);
+    for (const rel of JOURNALS_CALL_SITES) {
+      const text = await readFile(new URL(`../../../${rel}`, import.meta.url), 'utf8');
+      expect(text.split('FROM finance_journals').length - 1).toBe(0);
+      expect(text).toContain('FINANCE_JOURNALS_PROJECTION_SQL');
+    }
+    expect(finalRootOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
+    expect(platformOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
+    expect(inventoryExecutiveOwnerProjections.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
+    expect(hospitalityOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
+    expect(commercialOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
+  });
+});
+
+const CHARTS_CALL_SITES = [
+  'modules/finance/server/src/adapters/platform-owner-projection-sources.ts',
+  'modules/finance/server/src/adapters/inventory-executive-owner-projections.ts',
+  'modules/finance/server/src/adapters/commercial-owner-projection-sources.ts',
+];
+
+describe('finance finance_charts projection dedupe', () => {
+  it('keeps one byte-identical literal and backs all three owner projections with it', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-charts-projection-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('FROM finance_charts').length - 1).toBe(1);
+    for (const rel of CHARTS_CALL_SITES) {
+      const text = await readFile(new URL(`../../../${rel}`, import.meta.url), 'utf8');
+      expect(text.split('FROM finance_charts').length - 1).toBe(0);
+      expect(text).toContain('FINANCE_CHARTS_PROJECTION_SQL');
+    }
+    expect(platformOwnerProjectionSources.finance_charts).toBe(FINANCE_CHARTS_PROJECTION_SQL);
+    expect(inventoryExecutiveOwnerProjections.finance_charts).toBe(FINANCE_CHARTS_PROJECTION_SQL);
+    expect(commercialOwnerProjectionSources.finance_charts).toBe(FINANCE_CHARTS_PROJECTION_SQL);
+  });
+});
+
+const POSTING_PERIODS_SQL = "SELECT p.id,p.name,p.start_date,p.end_date,p.state,p.close_version version,to_jsonb(p)::text source FROM finance_periods p WHERE p.company_id=? ORDER BY p.id";
+const POSTING_FX_SQL = "SELECT r.id,r.currency,r.effective_date,r.currency_per_usd::text,r.confirmed_at,to_jsonb(r)::text source FROM company_fx_rates r WHERE r.company_id=? ORDER BY r.id";
+const POSTING_MONEY_SQL = "SELECT 'settings' kind,to_jsonb(s)::text source FROM company_money_settings s WHERE s.company_id=? UNION ALL SELECT 'scale:'||s.currency kind,to_jsonb(s)::text source FROM company_currency_scales s WHERE s.company_id=? ORDER BY kind";
+const POSTING_RECEIPT_SQL = "SELECT record_id FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+
+const POSTING_CALL_SITES: [string, string[]][] = [
+  ['assets-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+  ['expense-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL']],
+  ['manufacturing-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+  ['payroll-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL']],
+  ['pos-startup-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+  ['sales-posting-setup.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+  ['supply-posting-prerequisites.ts', ['POSTING_FINANCE_PERIODS_SQL', 'POSTING_COMPANY_FX_RATES_SQL', 'POSTING_COMPANY_MONEY_IMAGE_SQL', 'POSTING_COMMAND_RECEIPT_RECORD_SQL']],
+];
+
+describe('finance posting-prerequisites SQL dedupe', () => {
+  it('keeps one byte-identical literal per family with unchanged text', async () => {
+    expect(POSTING_FINANCE_PERIODS_SQL).toBe(POSTING_PERIODS_SQL);
+    expect(POSTING_COMPANY_FX_RATES_SQL).toBe(POSTING_FX_SQL);
+    expect(POSTING_COMPANY_MONEY_IMAGE_SQL).toBe(POSTING_MONEY_SQL);
+    expect(POSTING_COMMAND_RECEIPT_RECORD_SQL).toBe(POSTING_RECEIPT_SQL);
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/posting-prerequisites-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split(POSTING_PERIODS_SQL).length - 1).toBe(1);
+    expect(shared.split(POSTING_FX_SQL).length - 1).toBe(1);
+    expect(shared.split(POSTING_MONEY_SQL).length - 1).toBe(1);
+    expect(shared.split(POSTING_RECEIPT_SQL).length - 1).toBe(1);
+    expect(shared.split('SELECT ').length - 1).toBe(5);
+  });
+
+  it('backs every call site with the shared constants and no inline literal', async () => {
+    for (const [file, names] of POSTING_CALL_SITES) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      for (const lit of [POSTING_PERIODS_SQL, POSTING_FX_SQL, POSTING_MONEY_SQL, POSTING_RECEIPT_SQL]) {
+        expect(text.split(lit).length - 1).toBe(0);
+      }
+      expect(text).toContain('from "./posting-prerequisites-dedupe-sql"');
+      for (const name of names) expect(text).toContain(name);
+    }
+  });
+});
+
+const ADVISORY_LOCK_SQL = 'SELECT pg_advisory_xact_lock(hashtextextended(?,0))';
+const ADVISORY_LOCK_CALL_SITES = [
+  'finance-books.ts', 'finance-planning.ts', 'finance-tax-identities.ts',
+  'finance-thai-documents.ts', 'finance-withholding-remittance.ts', 'finance-withholding.ts',
+];
+
+describe('finance advisory-lock SQL dedupe', () => {
+  it('keeps one byte-identical literal and backs every lock site', async () => {
+    expect(FINANCE_ADVISORY_XACT_LOCK_SQL).toBe(ADVISORY_LOCK_SQL);
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/advisory-lock-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split(ADVISORY_LOCK_SQL).length - 1).toBe(1);
+    for (const file of ADVISORY_LOCK_CALL_SITES) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text.split(ADVISORY_LOCK_SQL).length - 1).toBe(0);
+      expect(text).toContain('from "./advisory-lock-dedupe-sql"');
+      expect(text).toContain('FINANCE_ADVISORY_XACT_LOCK_SQL');
+    }
+  });
+});
+
+const TAIL_IMAGE_SQL = "SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?";
+const TAIL_INVOICES_SQL = "SELECT \"id\",\"company_id\",\"party_id\",\"kind\",\"invoice_number\",\"invoice_date\",\"due_date\",\"currency\",\"subtotal_minor\",\"tax_minor\",\"total_minor\",\"outstanding_minor\",\"tax_code\",\"debit_account_id\",\"credit_account_id\",\"source_type\",\"source_id\",\"status\",\"journal_id\",\"version\",\"created_by\",\"approved_by\",\"posted_at\",\"created_at\",\"updated_at\",\"tax_account_id\",\"fx_rate_micros\",\"base_total_minor\",\"base_outstanding_minor\",\"line_mode\",\"line_revision\" FROM finance_invoices";
+const TAIL_PARTIES_SQL = "SELECT \"id\",\"company_id\",\"kind\",\"code\",\"name\",\"currency\",\"tax_registration\",\"payment_terms_days\",\"credit_limit_minor\",\"status\",\"version\",\"created_at\",\"updated_at\",\"person_id\",\"notification_email\",\"notification_consent\",\"merged_into_id\",\"merged_at\",\"merged_by\",\"phone\",\"address_json\" FROM finance_parties";
+const TAIL_ACCOUNTS_SQL = "SELECT \"id\",\"chart_id\",\"company_id\",\"code\",\"name\",\"category\",\"parent_id\",\"currency\",\"is_control\",\"status\",\"version\",\"created_at\",\"updated_at\",\"control_kind\" FROM finance_accounts";
+
+describe('finance read-tail r14 group 3 receipt-image dedupe', () => {
+  it('keeps one byte-identical literal and backs all six call sites', async () => {
+    expect(FINANCE_RECEIPT_IMAGE_SQL).toBe(TAIL_IMAGE_SQL);
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tail-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split(TAIL_IMAGE_SQL).length - 1).toBe(1);
+    for (const file of ['expense-posting-prerequisites.ts', 'payroll-posting-prerequisites.ts']) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text.split(TAIL_IMAGE_SQL).length - 1).toBe(0);
+      expect(text).toContain('from "./finance-tail-dedupe-sql"');
+      expect(text).toContain('FINANCE_RECEIPT_IMAGE_SQL');
+    }
+  });
+});
+
+const TAIL_PROJECTION_CASES: [string, string, string][] = [
+  ['commercial-owner-projection-sources.ts', 'FINANCE_ACCOUNTS_PROJECTION_SQL', TAIL_ACCOUNTS_SQL],
+  ['commercial-owner-projection-sources.ts', 'FINANCE_INVOICES_PROJECTION_SQL', TAIL_INVOICES_SQL],
+  ['commercial-owner-projection-sources.ts', 'FINANCE_PARTIES_PROJECTION_SQL', TAIL_PARTIES_SQL],
+  ['final-root-owner-projection-sources.ts', 'FINANCE_INVOICES_PROJECTION_SQL', TAIL_INVOICES_SQL],
+  ['final-root-owner-projection-sources.ts', 'FINANCE_PARTIES_PROJECTION_SQL', TAIL_PARTIES_SQL],
+  ['hospitality-owner-projection-sources.ts', 'FINANCE_ACCOUNTS_PROJECTION_SQL', TAIL_ACCOUNTS_SQL],
+  ['hospitality-owner-projection-sources.ts', 'FINANCE_INVOICES_PROJECTION_SQL', TAIL_INVOICES_SQL],
+  ['hospitality-owner-projection-sources.ts', 'FINANCE_PARTIES_PROJECTION_SQL', TAIL_PARTIES_SQL],
+  ['platform-owner-projection-sources.ts', 'FINANCE_ACCOUNTS_PROJECTION_SQL', TAIL_ACCOUNTS_SQL],
+  ['platform-owner-projection-sources.ts', 'FINANCE_INVOICES_PROJECTION_SQL', TAIL_INVOICES_SQL],
+  ['platform-owner-projection-sources.ts', 'FINANCE_PARTIES_PROJECTION_SQL', TAIL_PARTIES_SQL],
+  ['inventory-executive-owner-projections.ts', 'FINANCE_ACCOUNTS_PROJECTION_SQL', TAIL_ACCOUNTS_SQL],
+];
+
+describe('finance read-tail r14 group 4 owner-projection dedupe', () => {
+  it('keeps one byte-identical literal per projection', async () => {
+    expect(FINANCE_INVOICES_PROJECTION_SQL).toBe(TAIL_INVOICES_SQL);
+    expect(FINANCE_PARTIES_PROJECTION_SQL).toBe(TAIL_PARTIES_SQL);
+    expect(FINANCE_ACCOUNTS_PROJECTION_SQL).toBe(TAIL_ACCOUNTS_SQL);
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tail-dedupe-sql.ts', import.meta.url), 'utf8');
+    for (const lit of [TAIL_INVOICES_SQL, TAIL_PARTIES_SQL, TAIL_ACCOUNTS_SQL]) {
+      expect(shared.split(lit.replace(/"/g, '\\"')).length - 1).toBe(1);
+    }
+    expect(shared.split('SELECT ').length - 1).toBe(4);
+  });
+
+  it('backs every owner projection with the shared constants and no inline literal', async () => {
+    const sources: Record<string, Record<string, unknown>> = {
+      'commercial-owner-projection-sources.ts': commercialOwnerProjectionSources as unknown as Record<string, unknown>,
+      'final-root-owner-projection-sources.ts': finalRootOwnerProjectionSources as unknown as Record<string, unknown>,
+      'hospitality-owner-projection-sources.ts': hospitalityOwnerProjectionSources as unknown as Record<string, unknown>,
+      'platform-owner-projection-sources.ts': platformOwnerProjectionSources as unknown as Record<string, unknown>,
+      'inventory-executive-owner-projections.ts': inventoryExecutiveOwnerProjections as unknown as Record<string, unknown>,
+    };
+    const expected = {
+      FINANCE_ACCOUNTS_PROJECTION_SQL: FINANCE_ACCOUNTS_PROJECTION_SQL,
+      FINANCE_INVOICES_PROJECTION_SQL: FINANCE_INVOICES_PROJECTION_SQL,
+      FINANCE_PARTIES_PROJECTION_SQL: FINANCE_PARTIES_PROJECTION_SQL,
+    } as Record<string, string>;
+    for (const [file, name, lit] of TAIL_PROJECTION_CASES) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text.split(lit).length - 1).toBe(0);
+      expect(text).toContain('from "./finance-tail-dedupe-sql"');
+      expect(text).toContain(name);
+      const key = name.replace('_PROJECTION_SQL', '').toLowerCase();
+      expect(sources[file]![key]).toBe(expected[name]);
+    }
+  });
+});
+
+const R15_CURRENCY_SQL = 'SELECT base_currency FROM finance_charts WHERE id=? AND company_id=?';
+const R15_OPEN_PERIODS_SQL = "SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC";
+const R15_APPROVED_RULE_SQL = "SELECT 1 FROM finance_book_rules WHERE company_id=? AND secondary_chart_id=? AND status='approved'";
+const R15_JOURNALS_JOIN_SQL = 'JOIN (SELECT "id","company_id","chart_id","period_id","journal_number","entry_date","currency","fx_rate_micros","source_type","source_id","memo","status","is_opening","version","created_by","posted_by","posted_at","reversed_by","reversed_at","created_at","updated_at" FROM finance_journals) j';
+const R15_RECEIPT_EXISTS_SQL = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+const R15_RECEIPT_IMAGE_SQL = "SELECT r.record_id,to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?";
+
+const R15_GROUPS: [string, string, string, string[]][] = [
+  ['CHART_BASE_CURRENCY_BY_ID_SQL', CHART_BASE_CURRENCY_BY_ID_SQL, R15_CURRENCY_SQL, ['pos-core-facts.ts', 'commerce-facts.ts', 'finance.ts', 'finance-collections.ts']],
+  ['OPEN_PERIOD_LIST_SQL', OPEN_PERIOD_LIST_SQL, R15_OPEN_PERIODS_SQL, ['payroll-owner-facts.ts', 'finance-books.ts', 'finance-business-contracts.ts', 'finance-invoice-read.ts']],
+  ['APPROVED_SECONDARY_CHART_RULE_SQL', APPROVED_SECONDARY_CHART_RULE_SQL, R15_APPROVED_RULE_SQL, ['finance-assets.ts', 'finance-business-contracts.ts', 'refund-bank-evidence.ts', 'finance-instruments.ts']],
+  ['FINANCE_JOURNALS_JOIN_SQL', FINANCE_JOURNALS_JOIN_SQL, R15_JOURNALS_JOIN_SQL, ['people-payroll-final-owner-projections.ts', 'workflow-final-owner-projections.ts']],
+  ['COMMAND_RECEIPT_EXISTS_SQL', COMMAND_RECEIPT_EXISTS_SQL, R15_RECEIPT_EXISTS_SQL, ['document-purchases.ts', 'finance-due-drafts.ts', 'purchase-boundary.ts']],
+  ['COMMAND_RECEIPT_RECORD_IMAGE_SQL', COMMAND_RECEIPT_RECORD_IMAGE_SQL, R15_RECEIPT_IMAGE_SQL, ['expense-posting-prerequisites.ts', 'payroll-posting-prerequisites.ts']],
+];
+
+describe('finance read-tail r15 byte-identical SQL dedupe', () => {
+  it('keeps one byte-identical literal per family with no inline duplicates', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(6);
+    for (const [name, actual, literal, files] of R15_GROUPS) {
+      expect(actual).toBe(literal);
+      const sourceLiteral = literal.includes('"') ? literal.replace(/"/g, '\\"') : literal;
+      expect(shared.split(sourceLiteral).length - 1).toBe(1);
+      for (const file of files) {
+        const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+        expect(text.split(literal).length - 1).toBe(0);
+        expect(text).toContain(name);
+      }
+    }
+  });
+
+  it('backs both finance_journals JOIN projections with the shared text', () => {
+    const p = peoplePayrollFinalOwnerProjections();
+    const w = workflowFinalOwnerProjections();
+    expect(p.executive_main_evidence_sources_finance_journals_j_join).toBe(FINANCE_JOURNALS_JOIN_SQL);
+    expect(p.executive_metric_projections_finance_journals_j_join).toBe(FINANCE_JOURNALS_JOIN_SQL);
+    expect(w.flow_routing_finance_journals_j_join).toBe(FINANCE_JOURNALS_JOIN_SQL);
+  });
+});
+
+const R16_GUARD_LITERAL = "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)";
+const R16_IDS_LITERAL = "SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?";
+const R16_GROUPS: [string, string, string, string[]][] = [
+  ['OPEN_PERIOD_GUARD_SQL', OPEN_PERIOD_GUARD_SQL, R16_GUARD_LITERAL, ['journal-planning.ts', 'commerce-facts.ts', 'finance-owned-reversal.ts', 'inventory-transit-sources.ts', 'finance-books.ts', 'finance.ts']],
+  ['OPEN_PERIOD_IDS_SQL', OPEN_PERIOD_IDS_SQL, R16_IDS_LITERAL, ['finance-withholding-remittance.ts', 'pms-hospitality-setup-facts.ts', 'inventory-consumption-sources.ts', 'payroll-owner-facts.ts', 'finance-accruals.ts', 'inventory-counts-sources.ts', 'inventory-landed-costs-sources.ts']],
+];
+
+describe('finance read-tail r16 byte-identical SQL dedupe', () => {
+  it('keeps one byte-identical literal per family', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(2);
+    for (const [name, actual, literal] of R16_GROUPS) {
+      expect(actual).toBe(literal);
+      expect(shared.split(literal).length - 1).toBe(1);
+      expect(typeof name).toBe('string');
+    }
+  });
+
+  it('backs all 14 call sites with the shared constants and no inline literal', async () => {
+    for (const [name, , literal, files] of R16_GROUPS) {
+      for (const file of files) {
+        const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+        expect(text.split(literal).length - 1).toBe(0);
+        expect(text).toContain("from './finance-read-tail-r16-sql'");
+        expect(text).toContain(name);
+      }
+    }
+  });
+
+  it('leaves FOR SHARE inline and delegates the ORDER BY LIMIT variant to r57', async () => {
+    const share = await readFile(new URL('../../../modules/finance/server/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    expect(share.split(`${R16_IDS_LITERAL} FOR SHARE`).length - 1).toBe(1);
+    const limit = await readFile(new URL('../../../modules/finance/server/src/adapters/manufacturing-accounting-sources.ts', import.meta.url), 'utf8');
+    expect(limit.split('finPeriodIdByCompanySql(" AND state=\'open\' AND start_date<=? AND end_date>=? ORDER BY start_date DESC,id LIMIT 1")').length - 1).toBe(1);
+    expect(limit).not.toContain(`${R16_IDS_LITERAL} ORDER BY start_date DESC,id LIMIT 1`);
+  });
+});
+
+const R17_SUPPLIER_LITERAL = "NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown'))";
+const R17_BANK_LITERAL = "SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?";
+const R17_DIMENSION_LITERAL = "SELECT id,code,name,required FROM finance_dimension_definitions WHERE company_id=? AND status='active' ORDER BY code";
+const R17_GROUPS: [string, string, string, string[]][] = [
+  ['SUPPLIER_RESERVATION_GUARD_SQL', SUPPLIER_RESERVATION_GUARD_SQL, R17_SUPPLIER_LITERAL, ['commerce-facts.ts', 'finance-withholding.ts', 'finance.ts']],
+  ['BANK_TRANSACTION_BY_ID_SQL', BANK_TRANSACTION_BY_ID_SQL, R17_BANK_LITERAL, ['finance-bank-automation.ts', 'finance.ts', 'refunds.ts']],
+  ['DIMENSION_DEFINITIONS_SQL', DIMENSION_DEFINITIONS_SQL, R17_DIMENSION_LITERAL, ['finance-assets.ts', 'ledger.ts', 'record-presentation.ts']],
+];
+
+describe('finance read-tail r17 byte-identical SQL dedupe', () => {
+  it('keeps one byte-identical literal per family', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r17-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(3);
+    for (const [name, actual, literal] of R17_GROUPS) {
+      expect(actual).toBe(literal);
+      expect(shared.split(literal).length - 1).toBe(1);
+      expect(typeof name).toBe('string');
+    }
+  });
+
+  it('backs all 9 call sites with the shared constants and no inline literal', async () => {
+    for (const [name, , literal, files] of R17_GROUPS) {
+      for (const file of files) {
+        const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+        expect(text.split(literal).length - 1).toBe(0);
+        expect(text).toContain("from './finance-read-tail-r17-sql'");
+        expect(text).toContain(name);
+      }
+    }
+  });
+
+  it('leaves the FOR UPDATE OF t variants inline', async () => {
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
+  });
+});
+
+const R18_MONEY_SETTINGS_LITERAL = "SELECT jsonb_build_object('chart',(SELECT to_jsonb(c) FROM finance_charts c WHERE c.id=? AND c.company_id=?),'settings',(SELECT to_jsonb(s) FROM company_money_settings s WHERE s.company_id=?),'scale',(SELECT to_jsonb(s) FROM company_currency_scales s WHERE s.company_id=? AND s.currency=?),'rates',COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM company_fx_rates r WHERE r.company_id=? AND r.currency=?),'[]'::jsonb))::text image";
+const R18_SNAPSHOT_LITERAL = "SELECT s.company_id,s.source_type,s.source_id,s.amount_kind,s.transaction_date::text,s.currency,s.currency_scale,s.amount_units::text,s.usd_units::text,s.fx_rate_id,s.used_latest_fallback,s.captured_at,to_jsonb(s)::text source FROM money_transaction_snapshots s WHERE s.company_id=? AND s.source_type='commerce_product_revision' AND s.source_id=? ORDER BY s.amount_kind";
+const R18_PAYMENT_LITERAL = 'SELECT "id","company_id","party_id","kind","payment_number","payment_date","currency","amount_minor","outstanding_minor","bank_account","status","journal_id","version","created_by","approved_by","released_by","created_at","updated_at","payment_slip_id","fx_rate_micros","base_amount_minor","fx_journal_id","withholding_assessment_id","withheld_minor" FROM finance_payments';
+const R18_REFUND_OBLIGATION_LITERAL = 'SELECT "id","company_id","branch_id","department_id","return_id","invoice_id","party_id","direction","currency","chart_id","balance_account_id","amount_minor","outstanding_minor","status","beneficiary_name","beneficiary_account","approval_reason","created_by","approved_by","approved_at","version","created_at","updated_at","base_amount_minor","base_outstanding_minor","source_credit_journal_id","billing_correction_id" FROM finance_refund_obligations';
+const R18_ACCOUNT_CHART_LITERAL = "SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?";
+const R18_ALLOCATION_LITERAL = 'SELECT "id","company_id","payment_id","invoice_id","amount_minor","created_by","created_at","base_invoice_minor","base_payment_minor","realized_fx_minor" FROM finance_allocations';
+const R18_PERIOD_DATES_LITERAL = "SELECT start_date,end_date FROM finance_periods WHERE id=? AND company_id=?";
+const R18_COLLECTIONS_TOOL_LITERAL = "EXISTS(SELECT 1 FROM finance_company_tools WHERE company_id=? AND tool='collections' AND enabled=1)";
+const R18_BANK_STATEMENT_VERSION_LITERAL = "EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND s.bank_account=? AND t.currency=? AND t.amount_minor=? AND t.external_id=?)";
+const R18_GROUPS: [string, string, string, string[]][] = [
+  ['MONEY_SETTINGS_IMAGE_SQL', MONEY_SETTINGS_IMAGE_SQL, R18_MONEY_SETTINGS_LITERAL, ['manufacturing-initial-physical-stock-master-sources.ts', 'pos-startup-master-sources.ts']],
+  ['MONEY_TXN_SNAPSHOT_SOURCE_SQL', MONEY_TXN_SNAPSHOT_SOURCE_SQL, R18_SNAPSHOT_LITERAL, ['manufacturing-initial-physical-stock-master-sources.ts', 'pos-startup-master-sources.ts', 'sales-service-product-sources.ts']],
+  ['PAYMENT_PROJECTION_SQL', PAYMENT_PROJECTION_SQL, R18_PAYMENT_LITERAL, ['final-root-owner-projection-sources.ts', 'hospitality-owner-projection-sources.ts']],
+  ['REFUND_OBLIGATION_PROJECTION_SQL', REFUND_OBLIGATION_PROJECTION_SQL, R18_REFUND_OBLIGATION_LITERAL, ['final-root-owner-projection-sources.ts', 'commercial-owner-projection-sources.ts']],
+  ['ACCOUNT_CHART_ID_SQL', ACCOUNT_CHART_ID_SQL, R18_ACCOUNT_CHART_LITERAL, ['record-presentation.ts', 'assets-financial-workflow.ts']],
+  ['ALLOCATION_PROJECTION_SQL', ALLOCATION_PROJECTION_SQL, R18_ALLOCATION_LITERAL, ['hospitality-owner-projection-sources.ts', 'commercial-owner-projection-sources.ts']],
+  ['PERIOD_DATES_SQL', PERIOD_DATES_SQL, R18_PERIOD_DATES_LITERAL, ['finance-invoice-read.ts']],
+  ['COLLECTIONS_TOOL_GUARD_SQL', COLLECTIONS_TOOL_GUARD_SQL, R18_COLLECTIONS_TOOL_LITERAL, ['finance-collections.ts']],
+  ['BANK_STATEMENT_VERSION_GUARD_SQL', BANK_STATEMENT_VERSION_GUARD_SQL, R18_BANK_STATEMENT_VERSION_LITERAL, ['payroll-other-remittance.ts', 'payroll-owner-facts.ts']],
+];
+
+describe('finance read-tail r18 byte-identical SQL dedupe', () => {
+  it('keeps one byte-identical literal per family with no inline duplicates', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(13);
+    for (const [name, actual, literal] of R18_GROUPS) {
+      expect(actual).toBe(literal);
+      expect(actual).not.toContain('FOR UPDATE');
+      expect(actual).not.toContain('FOR SHARE');
+      expect(shared.split(literal).length - 1).toBe(1);
+      expect(typeof name).toBe('string');
+    }
+  });
+
+  it('backs every call site with the shared constants and unchanged binds', async () => {
+    const bindFiles = new Set([
+      'manufacturing-initial-physical-stock-master-sources.ts', 'pos-startup-master-sources.ts',
+      'sales-service-product-sources.ts', 'record-presentation.ts', 'assets-financial-workflow.ts',
+      'finance-invoice-read.ts', 'records-record-details-owned-facts.ts', 'finance-collections.ts',
+      'payroll-other-remittance.ts', 'payroll-owner-facts.ts',
+    ]);
+    for (const [name, , literal, files] of R18_GROUPS) {
+      for (const file of files) {
+        const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+        expect(text.split(literal).length - 1).toBe(0);
+        expect(text).toContain(name);
+        if (bindFiles.has(file)) expect(text).toContain('.bind(');
+      }
+    }
+    const nativeRecordFacts = await readFile(new URL('../../../modules/finance/server/src/adapters/records-record-details-owned-facts.ts', import.meta.url), 'utf8');
+    expect(nativeRecordFacts.split(R18_PERIOD_DATES_LITERAL).length - 1).toBe(0);
+    expect(nativeRecordFacts).not.toContain('PERIOD_DATES_SQL');
+    expect(nativeRecordFacts).toContain('FINANCE_LANE5B_RD_PERIOD');
+  });
+
+  it('leaves every lock-taking variant inline outside the shared text', async () => {
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
+    const pms = await readFile(new URL('../../../modules/finance/server/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    expect(pms.split(`${R16_IDS_LITERAL} FOR SHARE`).length - 1).toBe(1);
+  });
+});
+
+const R19_ROOT = 'SELECT 1 FROM finance_documents';
+const R19_SRC = 'SELECT 1 FROM finance_owned';
+const R19_OWNER_JOIN = (alias: string) =>
+  `EXISTS(SELECT 1 FROM (${R19_ROOT}) root JOIN (${R19_SRC}) ${alias} ON ${alias}.id=root.id AND ${alias}.company_id=root.company_id)`;
+const R19_OWNER_FILES = [
+  'document-purchases.ts', 'pos-initial-stock-journal-sources.ts',
+  'manufacturing-initial-stock-journal-sources.ts', 'service-initial-stock-journal-sources.ts',
+];
+const R19_CLOCK_FILES = [
+  'group-purchase-sources.ts', 'sales-posting-setup.ts', 'document-purchases.ts',
+  'finance-expansion-work.ts', 'legal-setup.ts', 'ledger.ts', 'expense-posting-prerequisites.ts',
+  'finance-due-drafts.ts', 'refunds.ts', 'assets-financial-entry.ts',
+  'payroll-posting-prerequisites.ts', 'sales-customer-receipts.ts', 'calendar-purchases.ts',
+];
+
+describe('finance read-tail r19 byte-identical SQL dedupe', () => {
+  it('renders the root-to-owner existence join byte-identically for every alias', () => {
+    for (const alias of ['owner_source', 'marker', 'source']) {
+      expect(rootOwnerExistsSql(R19_ROOT, R19_SRC, alias)).toBe(R19_OWNER_JOIN(alias));
+      expect(rootOwnerExistsSql(R19_ROOT, R19_SRC, alias)).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('renders all three materialized clock CTE variants byte-identically', () => {
+    const clock = 'package_clock_sql';
+    expect(materializedClockCteSql('clean_clock', clock)).toBe(`WITH clean_clock AS MATERIALIZED(SELECT ${clock} now_ms)`);
+    expect(materializedClockCteSql('spaced_clock', clock, true)).toBe(`WITH spaced_clock AS MATERIALIZED (SELECT ${clock} now_ms)`);
+    expect(materializedClockCteSql('as_clock', clock, true, true)).toBe(`WITH as_clock AS MATERIALIZED (SELECT ${clock} AS now_ms)`);
+    expect(materializedClockCteSql('as_clock', clock, true, true)).not.toMatch(/FOR UPDATE|FOR SHARE/);
+  });
+
+  it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r19-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(2);
+  });
+
+  it('backs all 22 owner-join sites with the helper and no inline join', async () => {
+    let calls = 0;
+    for (const file of R19_OWNER_FILES) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).not.toMatch(/EXISTS\(SELECT 1 FROM \(\$\{[^}]*\}\) root JOIN \(\$\{[^}]*\}\) (owner_source|marker|source) ON \1\.id=root\.id AND \1\.company_id=root\.company_id\)/);
+      expect(text).toContain('rootOwnerExistsSql');
+      calls += (text.match(/rootOwnerExistsSql\(/g) ?? []).length;
+    }
+    expect(calls).toBe(22);
+  });
+
+  it('backs all 15 WITH-prefixed clock sites with the helper and no inline clock prefix', async () => {
+    let calls = 0;
+    for (const file of R19_CLOCK_FILES) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).not.toMatch(/WITH \w+ AS MATERIALIZED\(SELECT \$\{packageClockSql\}/);
+      expect(text).toContain('materializedClockCteSql');
+      calls += (text.match(/materializedClockCteSql\(/g) ?? []).length;
+    }
+    expect(calls).toBe(15);
+  });
+
+  it('leaves the comma-joined clock CTE and lock variants inline', async () => {
+    const doc = await readFile(new URL('../../../modules/finance/server/src/adapters/document-purchases.ts', import.meta.url), 'utf8');
+    expect(doc.split('finance_entry_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)').length - 1).toBe(1);
+    expect(doc.split('root JOIN finance_assets a ON').length - 1).toBe(1);
+    expect(doc.split('root JOIN finance_asset_disposals a ON').length - 1).toBe(1);
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos.split(`${R17_BANK_LITERAL} FOR UPDATE OF t`).length - 1).toBe(2);
+  });
+});
+
+const R20_GUARD_TEMPLATE = (table: string, status: string) =>
+  `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND status='${status}' AND version=?)`;
+const R20_AGG_TEMPLATE = (a: string, table: string, order: string) =>
+  `(SELECT jsonb_agg(to_jsonb(${a}) ORDER BY ${a}.${order}) FROM ${table} ${a} WHERE ${a}.company_id=?)`;
+const R20_GUARDS: [string, string, string][] = [
+  ['refunds.ts', 'finance_refund_obligations', 'pending'],
+  ['refunds.ts', 'finance_refund_instructions', 'prepared'],
+  ['finance.ts', 'finance_invoices', 'draft'],
+  ['finance-withholding.ts', 'finance_withholding_assessments', 'consumed'],
+  ['finance-withholding.ts', 'finance_withholding_assessments', 'draft'],
+  ['finance-withholding.ts', 'finance_payments', 'draft'],
+  ['finance-withholding-remittance.ts', 'finance_withholding_remittances', 'confirmed'],
+  ['finance-withholding-remittance.ts', 'finance_withholding_packages', 'draft'],
+  ['finance-withholding-remittance.ts', 'finance_withholding_packages', 'approved'],
+  ['finance-thai-documents.ts', 'finance_thai_document_changes', 'draft'],
+  ['finance-tax-register.ts', 'finance_vat_corrections', 'prepared'],
+  ['finance-tax-register.ts', 'finance_statutory_packages', 'prepared'],
+  ['finance-tax-register.ts', 'finance_statutory_packages', 'exported'],
+  ['finance-tax-register.ts', 'finance_statutory_packages', 'approved_for_export'],
+  ['finance-tax-identities.ts', 'finance_tax_identities', 'draft'],
+  ['finance-reporting.ts', 'finance_year_closings', 'draft'],
+  ['finance-reporting.ts', 'finance_statement_packages', 'draft'],
+  ['finance-owned-reversal.ts', 'finance_journals', 'posted'],
+  ['finance-invoice-lines.ts', 'finance_accounts', 'active'],
+  ['finance-business-contracts.ts', 'finance_recognition_runs', 'posted'],
+  ['finance-business-contracts.ts', 'finance_recognition_runs', 'draft'],
+  ['finance-business-contracts.ts', 'finance_business_contracts', 'active'],
+  ['finance-book-adjustments.ts', 'finance_book_adjustments', 'posted'],
+  ['finance-book-adjustments.ts', 'finance_book_adjustments', 'draft'],
+  ['finance-billing-corrections.ts', 'finance_billing_corrections', 'draft'],
+  ['finance-assets.ts', 'finance_asset_disposals', 'draft'],
+  ['finance-asset-policies.ts', 'finance_asset_policy_runs', 'draft'],
+  ['finance-accruals.ts', 'finance_accrual_schedules', 'active'],
+];
+const R20_AGGS: [string, string, string, string][] = [
+  ['sales-service-product-sources.ts', 'c', 'finance_charts', 'id'],
+  ['sales-service-product-sources.ts', 'a', 'finance_accounts', 'id'],
+  ['sales-service-product-sources.ts', 'd', 'finance_sales_defaults', 'id'],
+  ['sales-service-product-sources.ts', 's', 'company_currency_scales', 'currency'],
+  ['sales-service-product-sources.ts', 'r', 'company_fx_rates', 'id'],
+  ['assets-financial-sources.ts', 'c', 'finance_charts', 'id'],
+  ['assets-financial-sources.ts', 'a', 'finance_accounts', 'id'],
+  ['assets-financial-sources.ts', 'p', 'finance_periods', 'id'],
+  ['assets-financial-sources.ts', 'd', 'finance_dimension_definitions', 'id'],
+  ['assets-financial-sources.ts', 'b', 'finance_book_rules', 'id'],
+  ['assets-financial-sources.ts', 's', 'company_currency_scales', 'currency'],
+  ['assets-financial-sources.ts', 'r', 'company_fx_rates', 'id'],
+];
+
+describe('finance read-tail r20 byte-identical SQL dedupe', () => {
+  it('renders all 28 status/version guards byte-identically with no lock text', () => {
+    expect(R20_GUARDS).toHaveLength(28);
+    for (const [, table, status] of R20_GUARDS) {
+      const rendered = idCompanyStatusVersionGuard(table, status);
+      expect(rendered).toBe(R20_GUARD_TEMPLATE(table, status));
+      expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('renders all 12 company-only jsonb_agg projections byte-identically with no lock text', () => {
+    expect(R20_AGGS).toHaveLength(12);
+    for (const [, a, table, order] of R20_AGGS) {
+      const rendered = aggByCompany(a, table, order);
+      expect(rendered).toBe(R20_AGG_TEMPLATE(a, table, order));
+      expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r20-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(2);
+  });
+
+  it('backs all 28 guard sites with the helper and no inline literal', async () => {
+    let calls = 0;
+    for (const file of new Set(R20_GUARDS.map(([f]) => f))) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r20-sql'");
+      expect(text).toContain('idCompanyStatusVersionGuard');
+      for (const [f, table, status] of R20_GUARDS) {
+        if (f !== file) continue;
+        expect(text.split(R20_GUARD_TEMPLATE(table, status)).length - 1).toBe(0);
+      }
+      calls += (text.match(/idCompanyStatusVersionGuard\(/g) ?? []).length;
+    }
+    expect(calls).toBe(28);
+  });
+
+  it('backs the 12 company-only plus 3 variant jsonb_agg sites with the helper and keeps COALESCE outside', async () => {
+    let calls = 0;
+    for (const file of new Set(R20_AGGS.map(([f]) => f))) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r20-sql'");
+      expect(text).toContain('aggByCompany');
+      for (const [f, a, table, order] of R20_AGGS) {
+        if (f !== file) continue;
+        expect(text.split(R20_AGG_TEMPLATE(a, table, order)).length - 1).toBe(0);
+      }
+      calls += (text.match(/aggByCompany\(/g) ?? []).length;
+    }
+    expect(calls).toBe(15);
+    const sales = await readFile(new URL('../../../modules/finance/server/src/adapters/sales-service-product-sources.ts', import.meta.url), 'utf8');
+    expect(sales.split(`COALESCE(\${aggByCompany('c','finance_charts','id')},'[]'::jsonb)`).length - 1).toBe(1);
+    const assets = await readFile(new URL('../../../modules/finance/server/src/adapters/assets-financial-sources.ts', import.meta.url), 'utf8');
+    expect(assets.split(`COALESCE(\${aggByCompany('c','finance_charts','id')}`).length - 1).toBe(0);
+  });
+
+  it('leaves r18 predicate and lock variants inline; extra predicates now shared', async () => {
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax.split("aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')").length - 1).toBe(1);
+    expect(tax.split('t.company_id=? AND t.chart_id=? AND t.claim_month=?').length - 1).toBe(0);
+    const attach = await readFile(new URL('../../../modules/finance/server/src/adapters/commerce-attachment-sources.ts', import.meta.url), 'utf8');
+    expect(attach.split("aggByCompany('p','finance_parties','id',' AND p.id IN(' + jsonbArrayTextSql('') + ')')").length - 1).toBe(1);
+    const r18 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
+    expect(r18.split('r.currency=?)').length - 1).toBeGreaterThan(0);
+    const wh = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
+    expect(wh.split('SELECT id FROM finance_withholding_packages WHERE id=? FOR UPDATE').length - 1).toBe(1);
+  });
+});
+
+const R21_VARIANTS: [string, string, string, string[], string][] = [
+  [
+    'finance-tax-register.ts',
+    '(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND t.chart_id=? AND t.claim_month=?)',
+    "aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')",
+    ["t", "finance_current_tax_entries", "id", " AND t.chart_id=? AND t.claim_month=?"],
+    'registerJson',
+  ],
+  [
+    'commerce-attachment-sources.ts',
+    '(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM finance_parties p WHERE p.company_id=? AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb)))',
+    "aggByCompany('p','finance_parties','id',' AND p.id IN(' + jsonbArrayTextSql('') + ')')",
+    ["p", "finance_parties", "id", " AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb))"],
+    'parties',
+  ],
+  [
+    'assets-financial-sources.ts',
+    '(SELECT jsonb_agg(to_jsonb(v) ORDER BY v.dimension_id,v.code) FROM finance_dimension_values v WHERE v.company_id=?)',
+    "aggByCompany('v','finance_dimension_values','dimension_id,code')",
+    ["v", "finance_dimension_values", "dimension_id,code"],
+    'dimensionValues',
+  ],
+  [
+    'assets-financial-sources.ts',
+    '(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.rule_id,m.primary_account_id) FROM finance_book_account_mappings m JOIN finance_book_rules b ON b.id=m.rule_id WHERE b.company_id=?)',
+    "aggByCompany('m','finance_book_account_mappings','rule_id,primary_account_id','','finance_book_account_mappings m JOIN finance_book_rules b ON b.id=m.rule_id','b')",
+    ["m", "finance_book_account_mappings", "rule_id,primary_account_id", "", "finance_book_account_mappings m JOIN finance_book_rules b ON b.id=m.rule_id", "b"],
+    'bookMappings',
+  ],
+  [
+    'assets-financial-sources.ts',
+    "(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.source_type,m.source_id,m.amount_kind) FROM money_transaction_snapshots m WHERE m.company_id=? AND ((m.source_type='finance_asset' AND m.source_id=?) OR (m.source_type IN('finance_asset_revision','asset_depreciation') AND left(m.source_id,length(?)+1)=?||':') OR (m.source_type='asset_disposal' AND m.source_id IN(SELECT id FROM disposals))))",
+    "aggByCompany('m','money_transaction_snapshots','source_type,source_id,amount_kind',` AND ((m.source_type='finance_asset' AND m.source_id=?) OR (m.source_type IN('finance_asset_revision','asset_depreciation') AND left(m.source_id,length(?)+1)=?||':') OR (m.source_type='asset_disposal' AND m.source_id IN(SELECT id FROM disposals)))`)",
+    ["m", "money_transaction_snapshots", "source_type,source_id,amount_kind", " AND ((m.source_type='finance_asset' AND m.source_id=?) OR (m.source_type IN('finance_asset_revision','asset_depreciation') AND left(m.source_id,length(?)+1)=?||':') OR (m.source_type='asset_disposal' AND m.source_id IN(SELECT id FROM disposals)))"],
+    'money',
+  ],
+];
+
+describe('finance read-tail r21 byte-identical SQL variants', () => {
+  it('renders all 5 extra-predicate / multi-column-order variants byte-identically with no lock text', () => {
+    expect(R21_VARIANTS).toHaveLength(5);
+    for (const [, expected, , args] of R21_VARIANTS) {
+      const rendered = aggByCompany(...(args as [string, string, string, string, string, string]));
+      expect(rendered).toBe(expected);
+      expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('backs all 5 variant sites with the helper and no inline literal', async () => {
+    for (const file of new Set(R21_VARIANTS.map(([f]) => f))) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r20-sql'");
+      expect(text).toContain('aggByCompany');
+      for (const [f, expected, call] of R21_VARIANTS) {
+        if (f !== file) continue;
+        expect(text.split(expected).length - 1).toBe(0);
+        expect(text.split(call).length - 1).toBe(1);
+      }
+    }
+  });
+
+  it('keeps COALESCE outside the shared register projection and locks inline', async () => {
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax.split("COALESCE(${aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')},'[]'::jsonb)::text").length - 1).toBe(1);
+    const wh = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
+    expect(wh.split('SELECT id FROM finance_withholding_packages WHERE id=? FOR UPDATE').length - 1).toBe(1);
+  });
+
+  it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r20-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(2);
+  });
+});
+
+const R22_EVIDENCE_TEMPLATE = (ref: string) =>
+  `(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.ordinal) FROM finance_journal_lines line WHERE line.journal_id=${ref})`;
+const R22_EVIDENCE_SITES: [string, string][] = [
+  ['bank-statement-settlement.ts', 'journal.id'],
+  ['sales-receipt-sources.ts', 'journal.id'],
+  ['supplier-payment-correction-sources.ts', 'original.id'],
+  ['supplier-payment-correction-sources.ts', 'correction.id'],
+  ['supply-package-obligations.ts', 'journal.id'],
+];
+const R22_MONEY_EXTRA = ' AND (m.source_id IN(SELECT id FROM journals) OR m.source_id IN(SELECT id FROM owner_orders))';
+const R22_MONEY_SQL = `(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.source_type,m.source_id,m.amount_kind) FROM money_transaction_snapshots m WHERE m.company_id=?${R22_MONEY_EXTRA})`;
+
+describe('finance read-tail r22 byte-identical SQL families', () => {
+  it('renders the captured journal-line evidence projection byte-identically for every ref', () => {
+    for (const [, ref] of R22_EVIDENCE_SITES) {
+      expect(journalLineEvidenceSql(ref)).toBe(R22_EVIDENCE_TEMPLATE(ref));
+      expect(journalLineEvidenceSql(ref)).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('backs all five evidence sites with the helper and no inline literal', async () => {
+    let calls = 0;
+    for (const file of new Set(R22_EVIDENCE_SITES.map(([f]) => f))) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r22-sql'");
+      expect(text).toContain('journalLineEvidenceSql');
+      for (const [f, ref] of R22_EVIDENCE_SITES) {
+        if (f !== file) continue;
+        expect(text.split(R22_EVIDENCE_TEMPLATE(ref)).length - 1).toBe(0);
+        expect(text.split("${journalLineEvidenceSql('" + ref + "')}").length - 1).toBe(1);
+      }
+      calls += (text.match(/journalLineEvidenceSql\(/g) ?? []).length;
+    }
+    expect(calls).toBe(5);
+  });
+
+  it('keeps exactly one SELECT-bearing template in the r22 helper', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r22-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(1);
+  });
+
+  it('renders the manufacturing money extra-predicate variant byte-identically with no lock text', () => {
+    const rendered = aggByCompany('m', 'money_transaction_snapshots', 'source_type,source_id,amount_kind', R22_MONEY_EXTRA);
+    expect(rendered).toBe(R22_MONEY_SQL);
+    expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE/);
+  });
+
+  it('backs the manufacturing money site with the shared helper and no inline literal', async () => {
+    const text = await readFile(new URL('../../../modules/finance/server/src/adapters/manufacturing-existing-posting-setup.ts', import.meta.url), 'utf8');
+    expect(text).toContain("from './finance-read-tail-r20-sql'");
+    expect(text.split(R22_MONEY_SQL).length - 1).toBe(0);
+    expect(text.split("aggByCompany('m','money_transaction_snapshots','source_type,source_id,amount_kind',' AND (m.source_id IN(SELECT id FROM journals) OR m.source_id IN(SELECT id FROM owner_orders))')").length - 1).toBe(1);
+  });
+
+  it('backs the familyEvidence entries projection with the shared helper and no inline literal', async () => {
+    const text = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(text.split('(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND').length - 1).toBe(0);
+    expect(text.split("aggByCompany('t','finance_current_tax_entries','id',` AND").length - 1).toBe(1);
+  });
+});
+
+const R23_ROOT = "SELECT ${alias}.id,${alias}.company_id UNION SELECT book.primary_journal_id,${alias}.company_id FROM finance_book_postings book WHERE book.secondary_journal_id=${alias}.id AND book.company_id=${alias}.company_id";
+const R23_RUNS = "runs AS MATERIALIZED(SELECT r.* FROM (${people.runs}) r,scope WHERE r.company_id=scope.company_id),";
+const R23_POSTINGS = "postings AS MATERIALIZED(SELECT p.*,r.company_id,r.currency FROM (${people.postings}) p JOIN runs r ON r.id=p.run_id),";
+const R23_JOURNALS = "journal_ids AS MATERIALIZED(SELECT id FROM owned_journals UNION SELECT book.secondary_journal_id FROM finance_book_postings book JOIN owned_journals owned ON owned.id=book.primary_journal_id),\n journals AS MATERIALIZED(SELECT j.*,COALESCE((SELECT SUM(l.debit_minor-l.credit_minor) FROM finance_journal_lines l WHERE l.journal_id=j.id),0) imbalance,\n (SELECT COUNT(*) FROM finance_journal_lines l WHERE l.journal_id=j.id) line_count,COALESCE((SELECT SUM(l.debit_minor) FROM finance_journal_lines l WHERE l.journal_id=j.id),0) debit_total";
+const R23_NET_PAYABLE = "UNION ALL SELECT 'net-payable',r.id,r.version,r.status,to_jsonb(r),(SELECT COALESCE(SUM(i.net_minor),0) FROM (${people.items}) i WHERE i.run_id=r.id AND i.status='posted')<>COALESCE((SELECT SUM(item.amount_minor) FROM batches b JOIN (${people.batchItems}) item ON item.batch_id=b.id WHERE b.source_type='payroll' AND b.source_id=r.id AND b.status='settled' AND item.status='settled'),0) FROM runs r WHERE r.status='posted'";
+const R23_UNPOSTED = "UNION ALL SELECT 'payroll-unposted',r.id,r.version,r.status,to_jsonb(r),r.status<>'cancelled' AND (r.status<>'posted' OR NOT EXISTS(SELECT 1 FROM postings p WHERE p.run_id=r.id)) FROM runs r";
+const R23_STATUTORY = "UNION ALL SELECT 'statutory-liability',p.run_id||':'||line.description,1,line.description,jsonb_build_object('posting',to_jsonb(p),'accountId',line.account_id,'amount',line.amount),line.amount<>COALESCE((SELECT SUM(remittance.amount_minor) FROM (${people.remittances}) remittance WHERE remittance.company_id=p.company_id AND remittance.run_id=p.run_id AND remittance.kind=CASE WHEN line.description='Payroll tax' THEN 'withholding_tax' ELSE 'social_security' END),0)";
+const R23_LATERAL = "FROM postings p CROSS JOIN LATERAL(SELECT l.account_id,l.description,SUM(l.credit_minor-l.debit_minor) amount FROM finance_journal_lines l WHERE l.journal_id=p.journal_id AND l.description IN ('Payroll tax','Payroll social security') GROUP BY l.description,l.account_id) line";
+const R23_SECONDARY = "UNION ALL SELECT 'secondary-journal',book.secondary_journal_id,book.source_version,'posted',to_jsonb(book)||jsonb_build_object('journal',to_jsonb(secondary),'rule',to_jsonb(rule)),book.company_id IS DISTINCT FROM owned.company_id OR primary_journal.id IS NULL OR secondary.id IS NULL OR secondary.status<>'posted' OR secondary.imbalance<>0 OR secondary.line_count<2 OR rule.id IS NULL OR rule.company_id IS DISTINCT FROM owned.company_id OR rule.status<>'approved' OR rule.reviewed_by IS NULL OR rule.reviewed_by=rule.prepared_by OR rule.primary_chart_id IS DISTINCT FROM primary_journal.chart_id OR rule.secondary_chart_id IS DISTINCT FROM secondary.chart_id OR secondary.currency IS DISTINCT FROM primary_journal.currency FROM owned_journals owned JOIN finance_book_postings book ON book.primary_journal_id=owned.id LEFT JOIN journals primary_journal ON primary_journal.id=owned.id LEFT JOIN journals secondary ON secondary.id=book.secondary_journal_id LEFT JOIN finance_book_rules rule ON rule.id=book.rule_id";
+
+describe('finance read-tail r23 byte-identical SQL families', () => {
+  it('renders every shared fragment byte-identically and without lock text', () => {
+    const rendered = [
+      bookRootUnionSql('${alias}'),peopleRunsCteSql('${people.runs}'),peoplePostingsCteSql('${people.postings}'),
+      journalAggregateCtesSql(),netPayableFactSql('${people.items}','${people.batchItems}'),payrollUnpostedFactSql(),
+      statutoryLiabilityFactSql('${people.remittances}'),statutoryLateralSql(),secondaryJournalFactSql(),
+    ];
+    for (const sql of rendered) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    expect(rendered).toEqual([
+      R23_ROOT,R23_RUNS,R23_POSTINGS,R23_JOURNALS,R23_NET_PAYABLE,R23_UNPOSTED,R23_STATUTORY,R23_LATERAL,R23_SECONDARY,
+    ]);
+  });
+
+  it('backs all three book-root sites with the helper and no inline literal', async () => {
+    for (const file of ['pos','manufacturing','service']) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}-initial-stock-journal-sources.ts`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r23-sql'");
+      expect(text.split("const roots=").length - 1).toBe(0);
+      expect(text.split("bookRootUnionSql(alias)").length - 1).toBe(2);
+    }
+  });
+
+  it('backs both People fact families with the helpers and no inline literal', async () => {
+    for (const file of ['people-package-obligations.ts','people-addon-package-obligations.ts']) {
+      const text = await readFile(new URL(`../../../modules/finance/server/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r23-sql'");
+      for (const literal of [R23_RUNS,R23_POSTINGS,R23_NET_PAYABLE,R23_UNPOSTED,R23_STATUTORY,R23_LATERAL])
+        expect(text.split(literal).length - 1).toBe(0);
+      expect(text.split('UNION ALL SELECT \'secondary-journal\'').length - 1).toBe(file === 'people-addon-package-obligations.ts' ? 1 : 0);
+    }
+    const addon = await readFile(new URL('../../../modules/finance/server/src/adapters/people-addon-package-obligations.ts', import.meta.url), 'utf8');
+    expect(addon.split("journalAggregateCtesSql()").length - 1).toBe(2);
+    expect(addon.split("SELECT COUNT(*) FROM finance_journal_lines l WHERE l.journal_id=j.id) line_count,COALESCE").length - 1).toBe(0);
+  });
+
+  it('keeps the r23 helper SELECT count at the deduplicated total', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r23-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(19);
+  });
+});
+
+
+const R24_POS_SQL = "WITH scope AS (SELECT ?::text company_id)\n    SELECT 'invoice' kind,i.id,i.version,i.status state,i.outstanding_minor::text amount FROM finance_invoices i,scope\n      WHERE i.company_id=scope.company_id AND i.source_type='pos' AND (i.outstanding_minor<>0 OR i.status NOT IN ('paid','voided'))\n    UNION ALL SELECT 'payment',p.id,p.version,p.status,p.outstanding_minor::text FROM finance_payments p,scope\n      WHERE p.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${pos.payments}) source WHERE source.company_id=p.company_id AND source.finance_payment_id=p.id)\n        AND (p.status NOT IN ('settled','voided') OR p.outstanding_minor<>0)\n    UNION ALL SELECT 'posting',pp.source_key,COALESCE(j.version,0),COALESCE(j.status,'missing'),COALESCE(sum(l.base_debit_minor-l.base_credit_minor),0)::text\n      FROM (${pos.postings}) pp LEFT JOIN finance_journals j ON j.id=pp.journal_id AND j.company_id=pp.company_id\n      LEFT JOIN finance_journal_lines l ON l.journal_id=j.id,scope WHERE pp.company_id=scope.company_id\n      GROUP BY pp.source_key,j.id,j.version,j.status HAVING j.id IS NULL OR j.status<>'posted' OR count(l.id)<2 OR sum(l.base_debit_minor-l.base_credit_minor)<>0\n    UNION ALL SELECT 'clearing',concat(l.account_id,':',j.currency),0,'unsettled',sum(l.debit_minor-l.credit_minor)::text\n      FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id JOIN (${pos.settings}) c ON c.company_id=j.company_id,scope\n      WHERE j.company_id=scope.company_id AND j.status='posted' AND l.account_id IN (\n        c.accounts_json::jsonb->>'stripe',c.accounts_json::jsonb->>'advance',c.accounts_json::jsonb->>'refund',c.accounts_json::jsonb->>'disputes',c.accounts_json::jsonb->>'receivable')\n      GROUP BY l.account_id,j.currency HAVING sum(l.debit_minor-l.credit_minor)<>0 ORDER BY kind,id";
+const R24_PMS_SQL = "WITH scope AS (SELECT ?::text company_id)\n    SELECT 'invoice' kind,i.id,i.version,i.status state,i.outstanding_minor::text amount FROM finance_invoices i,scope\n      WHERE i.company_id=scope.company_id AND i.source_type='pms' AND (i.outstanding_minor<>0 OR i.status NOT IN ('paid','voided'))\n    UNION ALL SELECT 'payment',p.id,p.version,p.status,p.outstanding_minor::text FROM finance_payments p,scope\n      WHERE p.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${pms.payments}) source WHERE source.company_id=p.company_id AND source.finance_id=p.id)\n        AND (p.status NOT IN ('settled','voided') OR p.outstanding_minor<>0)\n    UNION ALL SELECT 'posting',concat(pp.property_id,':',pp.source_key),COALESCE(j.version,0),COALESCE(j.status,'missing'),COALESCE(sum(l.base_debit_minor-l.base_credit_minor),0)::text\n      FROM (${pms.postings}) pp LEFT JOIN finance_journals j ON j.id=pp.journal_id AND j.company_id=pp.company_id\n      LEFT JOIN finance_journal_lines l ON l.journal_id=j.id,scope WHERE pp.company_id=scope.company_id\n      GROUP BY pp.property_id,pp.source_key,j.id,j.version,j.status HAVING j.id IS NULL OR j.status<>'posted' OR count(l.id)<2 OR sum(l.base_debit_minor-l.base_credit_minor)<>0\n    UNION ALL SELECT 'clearing',concat(l.account_id,':',j.currency),0,'unsettled',sum(l.debit_minor-l.credit_minor)::text\n      FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id,scope\n      WHERE j.company_id=scope.company_id AND j.status='posted' AND EXISTS(SELECT 1 FROM (${pms.clearing}) c WHERE c.company_id=j.company_id AND c.account_id=l.account_id)\n      GROUP BY l.account_id,j.currency HAVING sum(l.debit_minor-l.credit_minor)<>0 ORDER BY kind,id";
+const R24_POS_ARGS = {
+  sourceType: 'pos', payments: '${pos.payments}', paymentFk: 'finance_payment_id',
+  postingKey: 'pp.source_key', postings: '${pos.postings}', postingGroup: 'pp.source_key',
+  clearingFrom: 'FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id JOIN (${pos.settings}) c ON c.company_id=j.company_id,scope',
+  clearingWhere: "l.account_id IN (\n        c.accounts_json::jsonb->>'stripe',c.accounts_json::jsonb->>'advance',c.accounts_json::jsonb->>'refund',c.accounts_json::jsonb->>'disputes',c.accounts_json::jsonb->>'receivable')",
+};
+const R24_PMS_ARGS = {
+  sourceType: 'pms', payments: '${pms.payments}', paymentFk: 'finance_id',
+  postingKey: "concat(pp.property_id,':',pp.source_key)", postings: '${pms.postings}', postingGroup: 'pp.property_id,pp.source_key',
+  clearingFrom: 'FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id,scope',
+  clearingWhere: 'EXISTS(SELECT 1 FROM (${pms.clearing}) c WHERE c.company_id=j.company_id AND c.account_id=l.account_id)',
+};
+const R24_RENDERED: Record<string, string> = { 'pos-package-obligations.ts': R24_POS_SQL, 'pms-package-obligations.ts': R24_PMS_SQL };
+const R24_ARGS: Record<string, Parameters<typeof packageObligationFactsSql>[0]> = { 'pos-package-obligations.ts': R24_POS_ARGS, 'pms-package-obligations.ts': R24_PMS_ARGS };
+
+describe('finance read-tail r24 byte-identical SQL families', () => {
+  it('renders pos and pms package-obligation skeletons byte-identically with no lock text', () => {
+    for (const file of Object.keys(R24_RENDERED)) {
+      const rendered = packageObligationFactsSql(R24_ARGS[file]);
+      expect(rendered).toBe(R24_RENDERED[file]);
+      expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    }
+  });
+
+  it('keeps every shared fragment byte-identical to the pre-dedupe literal', () => {
+    expect(ASSET_DEPRECIATION_COUNT_SQL).toBe("SELECT count(*) n FROM finance_asset_depreciations WHERE asset_id=?");
+    expect(ASSET_POLICY_EDITION_PENDING_SQL).toBe("SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status='draft'");
+    expect(ASSET_POLICY_RUN_PENDING_SQL).toBe("SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND status='draft'");
+    expect(TAX_SOURCE_APPROVED_INVOICE_SQL).toBe("NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=i.company_id AND t.source_type='invoice' AND t.source_id=i.id AND t.status='approved')");
+    expect(TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL).toBe("NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')");
+    expect(TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL).toBe("NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')");
+  });
+
+  it('backs every call site with the shared r24 text and no inline literal', async () => {
+    for (const file of Object.keys(R24_RENDERED)) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('from "./finance-read-tail-r24-sql"');
+      expect(text.split(R24_RENDERED[file]).length - 1).toBe(0);
+      expect(text.split('packageObligationFactsSql(').length - 1).toBe(1);
+    }
+    const asset = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-asset-policies.ts', import.meta.url), 'utf8');
+    expect(asset).toContain("from './finance-read-tail-r24-sql'");
+    for (const lit of ["SELECT count(*) n FROM finance_asset_depreciations WHERE asset_id=?", "SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status='draft'", "SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND status='draft'"]) expect(asset.split(lit).length - 1).toBe(0);
+    for (const name of ['ASSET_DEPRECIATION_COUNT_SQL', 'ASSET_POLICY_EDITION_PENDING_SQL', 'ASSET_POLICY_RUN_PENDING_SQL']) expect(asset).toContain(name);
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax).toContain("from './finance-read-tail-r24-sql'");
+    for (const lit of ["NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=i.company_id AND t.source_type='invoice' AND t.source_id=i.id AND t.status='approved')", "NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')", "NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')"]) expect(tax.split(lit).length - 1).toBe(0);
+    for (const name of ['TAX_SOURCE_APPROVED_INVOICE_SQL', 'TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL', 'TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL']) expect(tax).toContain(name);
+  });
+
+  it('keeps the transaction locks inline and the shared helper lock-free', async () => {
+    const shared = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(shared).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    for (const file of ['pos-package-obligations.ts', 'pms-package-obligations.ts']) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.split('LOCK TABLE finance_invoices,finance_payments,finance_journals,finance_journal_lines,finance_allocations IN SHARE MODE').length - 1).toBe(1);
+    }
+  });
+
+  it('retirement:ts-statements stays strictly below the tax-read-port BEFORE=2038 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(2038);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance native tax-register read-port cutover', () => {
+  const TAX_KINDS = [
+    'FINANCE_RD_TAX_PROFILE', 'FINANCE_RD_TAX_PACKAGE', 'FINANCE_RD_TAX_CORRECTION',
+    'FINANCE_RD_TAX_ENTRY', 'FINANCE_RD_TAX_PREVIOUS_ENTRY', 'FINANCE_RD_TAX_ORIGINAL_ENTRY',
+    'FINANCE_RD_TAX_PENDING_FAMILY', 'FINANCE_RD_TAX_PROFILES', 'FINANCE_RD_TAX_CHART',
+    'FINANCE_RD_TAX_CURRENT_ENTRY', 'FINANCE_RD_TAX_PENDING_CORRECTION_COUNT',
+    'FINANCE_RD_TAX_CLOSE_PROFILE',
+  ];
+
+  it('exposes every tax read kind with the exact registered discriminator', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const kind of TAX_KINDS) {
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    }
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    expect(bridge).toContain('export async function nativeFinanceReadScalarFirst');
+  });
+
+  it('switches the fixed point and count readers while keeping guards and locks in TS', async () => {
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('from "./native-finance-read"');
+    for (const kind of TAX_KINDS) expect(tax).toContain(kind);
+    expect(tax.match(/nativeFinanceReadAll</g)?.length).toBe(1);
+    expect(tax.match(/nativeFinanceReadFirst</g)?.length).toBe(10);
+    expect(tax.match(/nativeFinanceReadScalarFirst</g)?.length).toBe(2);
+    expect(tax.split("await db(actor),'count')").length - 1).toBe(2);
+    // The other count port (`missingSources`) keeps its TS `.first('count')`.
+    expect(tax.split(".first<number>('count')").length - 1).toBe(1);
+    // None of the eleven switched literals remains inline in the owner.
+    for (const literal of [
+      "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND statutory_chart_id=?",
+      "SELECT * FROM finance_statutory_packages WHERE id=? AND company_id=?",
+      "SELECT * FROM finance_vat_corrections WHERE id=? AND company_id=?",
+      "SELECT * FROM finance_tax_entries WHERE id=? AND company_id=?",
+      "SELECT * FROM finance_current_tax_entries WHERE id=? AND company_id=? AND status='approved'",
+      "SELECT * FROM finance_current_tax_entries WHERE company_id=? AND source_type='invoice' AND source_id=?",
+      ".prepare(\"SELECT 1 FROM finance_vat_corrections WHERE company_id=? AND family_source_id=? AND status='prepared'\")",
+      "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND status='approved'",
+      "SELECT 1 FROM finance_charts WHERE id=? AND company_id=?",
+      "SELECT id FROM finance_current_tax_entries WHERE company_id=? AND source_type=? AND source_id=?",
+      "SELECT id,statutory_chart_id,effective_date FROM finance_accounting_profiles",
+    ]) expect(tax.split(literal).length - 1).toBe(0);
+    // Assertion EXISTS guards and the purchased transaction boundary stay TS.
+    expect((tax.match(/assertion\(write/g) ?? []).length).toBe(22);
+    expect(tax).toContain('withFinancePurchasedCommand');
+    expect(tax).toContain('withFinancePurchasedRead');
+    expect(tax).toContain('vat-correction-volume');
+    // The retained count literal is still needed ONLY by the assertion guard;
+    // neither count caller prepares it in TypeScript any more.
+    expect(tax.split('const pendingCorrectionsSql = "SELECT COUNT(*) FROM finance_vat_corrections').length - 1).toBe(1);
+    expect(tax.split('.prepare(pendingCorrectionsSql)').length - 1).toBe(0);
+    expect(tax.split('(${pendingCorrectionsSql})=0').length - 1).toBe(1);
+  });
+});
+
+describe('native VAT pending-correction count scalar port', () => {
+  const countSql = "SELECT COUNT(*) FROM finance_vat_corrections c JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.company_id=? AND c.chart_id=? AND c.status='prepared' AND t.accounting_date<=?";
+  const values = ['company', 'chart', '2026-05-31'];
+  let bodies: { kind: string; values: unknown[] }[] = [];
+
+  beforeEach(() => {
+    bodies = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)) as { kind: string; values: unknown[] });
+      return new Response(JSON.stringify({ data: { statements: [{ sql: countSql, values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+  });
+
+  const dbWith = (rows: Record<string, unknown>[]) => {
+    const statement = { bind: (..._values: unknown[]) => statement };
+    return {
+      prepare: () => statement,
+      batch: async () => [{ results: rows, success: true, meta: { changes: 0, duration: 0 } }],
+    } as never;
+  };
+
+  it('extracts the count column for two pending corrections, not the row object', async () => {
+    const value = await nativeFinanceReadScalarFirst<number>(
+      FINANCE_RD_TAX_PENDING_CORRECTION_COUNT, values, dbWith([{ count: '2' }]), 'count',
+    );
+    // The retired `.first<number>('count')` yielded a scalar; Number({count:'2'})
+    // is NaN and would make every VAT package readiness check fail.
+    expect(value).toBe('2');
+    expect(Number(value ?? 0)).toBe(2);
+    expect(bodies[0]!.kind).toBe('finance_rd_tax_pending_correction_count');
+    expect(bodies[0]!.values).toEqual(values);
+  });
+
+  it('extracts a zero count without coercing the whole row', async () => {
+    const value = await nativeFinanceReadScalarFirst<number>(
+      FINANCE_RD_TAX_PENDING_CORRECTION_COUNT, values, dbWith([{ count: 0 }]), 'count',
+    );
+    expect(Number(value ?? 0)).toBe(0);
+  });
+
+  it('returns null for a zero-row result exactly like .first(column)', async () => {
+    const value = await nativeFinanceReadScalarFirst<number>(
+      FINANCE_RD_TAX_PENDING_CORRECTION_COUNT, values, dbWith([]), 'count',
+    );
+    expect(value).toBeNull();
+    expect(Number(value ?? 0)).toBe(0);
+  });
+});
+
+describe('finance read-tail r30 byte-identical guard-prefix families', () => {
+  const PREFIXES = {
+    ACCOUNT_SELECT_PREFIX: 'SELECT id FROM finance_accounts WHERE ',
+    INVOICE_EXISTS_PREFIX: 'EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=?',
+    JOURNAL_SELECT_PREFIX: 'SELECT 1 FROM finance_journal',
+  };
+
+  it('exposes the three exact prefixes with no lock or suffix text', () => {
+    expect(ACCOUNT_SELECT_PREFIX).toBe(PREFIXES.ACCOUNT_SELECT_PREFIX);
+    expect(INVOICE_EXISTS_PREFIX).toBe(PREFIXES.INVOICE_EXISTS_PREFIX);
+    expect(JOURNAL_SELECT_PREFIX).toBe(PREFIXES.JOURNAL_SELECT_PREFIX);
+    for (const value of Object.values(PREFIXES)) expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('leaves every row-lock suffix inline at its call site', async () => {
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos.split("AND (currency IS NULL OR currency=?) FOR SHARE").length - 1).toBe(1);
+    expect(pos.split("ORDER BY code,id FOR UPDATE").length - 1).toBe(1);
+  });
+
+  it('keeps the retained tax assertion guard pendingCorrectionsSql inline', async () => {
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('const pendingCorrectionsSql = "SELECT COUNT(*) FROM finance_vat_corrections');
+    expect(tax).toContain('`(${pendingCorrectionsSql})=0`');
+  });
+
+  it('backs every in-scope call site with a shared prefix and no inline family literal', async () => {
+    const files = [
+      'pms-command-facts.ts', 'finance-reporting.ts', 'payroll-owner-facts.ts',
+      'payroll-remittance-sources.ts', 'commerce-facts.ts', 'pos-core-facts.ts',
+      'refunds.ts', 'journal-planning.ts', 'finance.ts', 'finance-billing-corrections.ts',
+      'finance-business-contracts.ts', 'finance-invoice-lines.ts', 'finance-thai-documents.ts',
+      'hospitality-tax-documents.ts', 'invoice-payment-evidence.ts', 'service-payment-purchases.ts',
+      'document-purchases.ts', 'finance-books.ts', 'manufacturing-initial-stock-journal-sources.ts',
+      'pos-initial-stock-journal-sources.ts', 'service-initial-stock-journal-sources.ts',
+    ];
+    for (const file of files) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('from \'./finance-read-tail-r30-sql\'');
+      expect(text.split(PREFIXES.ACCOUNT_SELECT_PREFIX).length - 1).toBe(0);
+      expect(text.split(PREFIXES.INVOICE_EXISTS_PREFIX).length - 1).toBe(0);
+      // no SQL literal starts with the journal prefix; suffix text after the
+      // interpolation belongs to EXISTS(...) subqueries and stays inline.
+      expect(text).not.toMatch(/["'`]SELECT 1 FROM finance_journal/s);
+      expect(text).toMatch(/ACCOUNT_SELECT_PREFIX|INVOICE_EXISTS_PREFIX|JOURNAL_SELECT_PREFIX/);
+    }
+  });
+
+  it('retirement:ts-statements stays strictly below the r30 BEFORE=2027 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(2027);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r31 byte-identical read families', () => {
+  const LITERALS = {
+    CONSOLIDATION_RUN_BY_ID_SQL: 'SELECT * FROM finance_consolidation_runs r WHERE id=? AND holding_id=?',
+    ISSUED_THAI_DOCUMENT_BY_ID_SQL: 'SELECT * FROM finance_issued_thai_documents WHERE id=? AND company_id=?',
+  };
+
+  it('exposes the two exact literals with no row-lock text', () => {
+    expect(CONSOLIDATION_RUN_BY_ID_SQL).toBe(LITERALS.CONSOLIDATION_RUN_BY_ID_SQL);
+    expect(ISSUED_THAI_DOCUMENT_BY_ID_SQL).toBe(LITERALS.ISSUED_THAI_DOCUMENT_BY_ID_SQL);
+    for (const value of Object.values(LITERALS)) expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('removes every inline family literal from its call sites', async () => {
+    for (const [file, literal] of [
+      ['finance-consolidation.ts', LITERALS.CONSOLIDATION_RUN_BY_ID_SQL],
+      ['finance-thai-documents.ts', LITERALS.ISSUED_THAI_DOCUMENT_BY_ID_SQL],
+    ] as const) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.split(literal).length - 1).toBe(0);
+    }
+  });
+
+  it('leaves the retained tax assertion guard inline', async () => {
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('const pendingCorrectionsSql = "SELECT COUNT(*) FROM finance_vat_corrections');
+    expect(tax).toContain('`(${pendingCorrectionsSql})=0`');
+  });
+
+  it('retirement:ts-statements stays strictly below the r31 BEFORE=1989 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1989);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r32 byte-identical read families', () => {
+  // Distinct from the earlier base_currency-only dedupe: this family returns
+  // both id and base_currency from the active chart at three call sites.
+  const LITERALS = {
+    ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL: "SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'",
+  };
+
+  it('exposes the exact literal with no row-lock text', () => {
+    expect(ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).toBe(LITERALS.ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL);
+    for (const value of Object.values(LITERALS)) expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('is not the already-deduped base_currency-only literal', () => {
+    expect(ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).not.toBe(ACTIVE_CHART_BASE_CURRENCY_SQL);
+  });
+
+  it('removes every inline family literal from its call sites', async () => {
+    for (const file of ['journal-planning.ts', 'payroll-owner-facts.ts', 'finance.ts']) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.split(LITERALS.ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).length - 1).toBe(0);
+      expect(text).toContain('ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL');
+    }
+  });
+
+  it('leaves row-lock variants inline at their adapters', async () => {
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active' FOR SHARE");
+  });
+
+  it('retirement:ts-statements stays strictly below the r31 BEFORE=1985 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1985);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r33 byte-identical read families', () => {
+  // Distinct from every r15-r32 family: the bare period point read returns the
+  // full period row and is shared by three independent adapters. The longer
+  // "AND state='open'" variant stays inline at its own call site.
+  const LITERALS = {
+    PERIOD_BY_ID_SQL: 'SELECT * FROM finance_periods WHERE id=? AND company_id=?',
+  };
+
+  it('exposes the exact literal with no row-lock text', () => {
+    expect(PERIOD_BY_ID_SQL).toBe(LITERALS.PERIOD_BY_ID_SQL);
+    for (const value of Object.values(LITERALS)) expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('removes every inline family literal from its call sites', async () => {
+    for (const file of ['journal-planning.ts', 'finance-engines.ts', 'finance.ts']) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.split(`'${LITERALS.PERIOD_BY_ID_SQL}'`).length - 1).toBe(0);
+      expect(text.split(`"${LITERALS.PERIOD_BY_ID_SQL}"`).length - 1).toBe(0);
+      expect(text).toContain('PERIOD_BY_ID_SQL');
+    }
+  });
+
+  it('leaves the longer state-scoped variant and retained guards inline', async () => {
+    const finance = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
+    expect(finance).not.toContain("SELECT * FROM finance_periods WHERE id=? AND company_id=? AND state='open'");
+    expect(finance).toContain('FINANCE_RD_FIN_OPEN_PERIOD');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('pendingCorrectionsSql');
+  });
+
+  it('retirement:ts-statements stays strictly below the r32 BEFORE=1983 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1983);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r34 byte-identical read families', () => {
+  // Five families, each byte-identical at two or three independent adapters.
+  // Distinct from every r15-r33 constant: the r16 EXISTS guard, the r15 DESC
+  // period list, the r17 bank-transaction-by-id read and the r18 chart-id read
+  // (without status) all stay inline/unchanged. Lock variants stay inline too.
+  const LITERALS = {
+    OPEN_PERIOD_COVERED_SQL: 'SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state=\'open\' AND start_date<=? AND end_date>=?',
+    OPEN_PERIOD_LIST_ASC_SQL: 'SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state=\'open\' ORDER BY start_date',
+    BANK_TRANSACTION_STATEMENT_SQL: 'SELECT t.*,s.bank_account,s.statement_number FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id AND s.company_id=t.company_id WHERE t.id=? AND t.company_id=?',
+    ACTIVE_CHART_NAV_SQL: 'SELECT id,name,base_currency FROM finance_charts WHERE company_id=? AND status=\'active\' ORDER BY name',
+    ACTIVE_ACCOUNT_CHART_ID_SQL: 'SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=? AND status=\'active\'',
+  };
+  const CONSTANTS = {
+    OPEN_PERIOD_COVERED_SQL,
+    OPEN_PERIOD_LIST_ASC_SQL,
+    BANK_TRANSACTION_STATEMENT_SQL,
+    ACTIVE_CHART_NAV_SQL,
+    ACTIVE_ACCOUNT_CHART_ID_SQL,
+  };
+
+  it('exposes the exact literals with no row-lock text', () => {
+    for (const [name, value] of Object.entries(CONSTANTS)) expect(value).toBe(LITERALS[name as keyof typeof LITERALS]);
+    for (const value of Object.values(LITERALS)) expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('removes every inline family literal from all twelve call sites', async () => {
+    const sites: Record<string, string[]> = {
+      OPEN_PERIOD_COVERED_SQL: ['finance-asset-policies.ts', 'finance-billing-corrections.ts', 'finance-business-contracts.ts'],
+      OPEN_PERIOD_LIST_ASC_SQL: ['finance-asset-policies.ts', 'refunds.ts', 'finance-instruments.ts'],
+      BANK_TRANSACTION_STATEMENT_SQL: ['finance-ai-source.ts', 'finance-invoice-read.ts'],
+      ACTIVE_CHART_NAV_SQL: ['payroll-owner-facts.ts', 'finance-books.ts'],
+      ACTIVE_ACCOUNT_CHART_ID_SQL: ['commerce-goods-accounting-facts.ts', 'finance-accruals.ts'],
+    };
+    for (const [name, files] of Object.entries(sites)) {
+      const literal = LITERALS[name as keyof typeof LITERALS];
+      for (const file of files) {
+        const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+        expect(text.split(`'${literal}'`).length - 1).toBe(0);
+        expect(text.split(`"${literal}"`).length - 1).toBe(0);
+        expect(text).toContain(name);
+      }
+    }
+  });
+
+  it('leaves r15-r33 helpers and retained lock variants untouched', async () => {
+    const r15 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
+    expect(r15).toContain('ORDER BY start_date DESC');
+    const r16 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    expect(r16).toContain('EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state=\'open\' AND start_date<=? AND end_date>=?)');
+    const r17 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r17-sql.ts', import.meta.url), 'utf8');
+    expect(r17).toContain('BANK_TRANSACTION_BY_ID_SQL');
+    const r18 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
+    expect(r18).toContain('SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?"');
+    const pms = await readFile(new URL('../../../modules/finance/server/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    expect(pms).toContain('FOR SHARE');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR UPDATE');
+  });
+
+  it('retirement:ts-statements stays strictly below the r33 BEFORE=1981 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1981);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r35 parameterized workforce actor scope family', () => {
+  // One byte-identical parameterized prefix shared by three private attachment
+  // readers. The caller keeps its WHERE clause and binds; row-lock variants,
+  // tax assertion guards and every r15-r34 helper stay untouched.
+  const PREFIX = 'SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ';
+  const SITES = ['attachment-read.ts', 'supplier-bill-attachment-read.ts', 'tax-signature-attachment-read.ts'];
+
+  it('exposes the exact prefix with no row-lock or tax assertion text', () => {
+    expect(WORKFORCE_ACTOR_SCOPE_SQL).toBe(PREFIX);
+    expect(WORKFORCE_ACTOR_SCOPE_SQL).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    expect(WORKFORCE_ACTOR_SCOPE_SQL).not.toMatch(/finance_current_tax_entries/);
+  });
+
+  it('removes every inline prefix from all three call sites', async () => {
+    for (const file of SITES) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.includes(PREFIX)).toBe(false);
+      expect(text).toContain('WORKFORCE_ACTOR_SCOPE_SQL');
+      expect(text).toContain('${current.where}');
+    }
+  });
+
+  it('leaves lock variants, tax assertion guards and r15-r34 helpers untouched', async () => {
+    const r34 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
+    expect(r34).toContain('OPEN_PERIOD_COVERED_SQL');
+    const r24 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(r24).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+    const pms = await readFile(new URL('../../../modules/finance/server/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    expect(pms).toContain('FOR SHARE');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR UPDATE');
+  });
+
+  it('retirement:ts-statements stays strictly below the r34 BEFORE=1974 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1974);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
+  // Four byte-identical literals, each shared by exactly two adapter sites.
+  // Callers keep their own binds; row-lock variants and every r15-r35 helper
+  // stay untouched.
+  const FAMILIES = [
+    {
+      sql: 'SELECT id FROM finance_charts WHERE id=? AND company_id=?',
+      constant: CHART_ID_BY_COMPANY_SQL,
+      sites: ['finance-reporting.ts', 'pos-core-facts.ts'],
+    },
+    {
+      sql: 'SELECT 1 FROM finance_charts WHERE id=? AND company_id=?',
+      constant: CHART_EXISTS_BY_COMPANY_SQL,
+      sites: ['accounting-profiles.ts', 'finance-invoice-read.ts'],
+    },
+    {
+      sql: 'SELECT * FROM finance_charts WHERE id=? AND company_id=?',
+      constant: CHART_IMAGE_BY_COMPANY_SQL,
+      sites: ['record-presentation.ts', 'refund-bank-evidence.ts'],
+    },
+    {
+      sql: 'SELECT to_jsonb(l)::text image FROM finance_journal_lines l WHERE l.journal_id=? ORDER BY l.ordinal,l.id',
+      constant: PAYROLL_LINE_IMAGE_SQL,
+      sites: ['payroll-other-remittance-facts.ts'],
+    },
+  ];
+
+  it('exposes each exact literal with no row-lock text', () => {
+    for (const family of FAMILIES) {
+      expect(family.constant).toBe(family.sql);
+      expect(family.constant).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    }
+  });
+
+  it('removes every inline literal from its two sites', async () => {
+    for (const family of FAMILIES) {
+      for (const file of family.sites) {
+        const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+        expect(text.includes('"' + family.sql + '"')).toBe(false);
+        expect(text.includes("'" + family.sql + "'")).toBe(false);
+        expect(text).toContain('finance-read-tail-r36-sql');
+      }
+    }
+  });
+
+  it('leaves lock variants, tax assertion guards and r15-r35 helpers untouched', async () => {
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR SHARE');
+    expect(pos).toContain('FOR UPDATE');
+    const acct = await readFile(new URL('../../../modules/finance/server/src/adapters/accounting-profiles.ts', import.meta.url), 'utf8');
+    expect(acct).toContain('ACTIVE_THB_CHART_GUARD_SQL');
+    const r45 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r45-sql.ts', import.meta.url), 'utf8');
+    expect(r45).toContain("EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency='THB')");
+    const r35 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r35-sql.ts', import.meta.url), 'utf8');
+    expect(r35).toContain('WORKFORCE_ACTOR_SCOPE_SQL');
+    const r34 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
+    expect(r34).toContain('OPEN_PERIOD_COVERED_SQL');
+    const r24 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(r24).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r35 BEFORE=1970 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1970);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r37 exact duplicate period-exists read family', () => {
+  // One byte-identical SQL payload shared by two adapter sites: a
+  // double-quoted inline literal in finance-engines.ts and a single-quoted
+  // inline literal in finance-invoice-read.ts. Callers keep their own binds;
+  // the r16/r34 guarded variants, row locks, tax assertion guards and every
+  // r15-r36 helper stay untouched.
+  const SQL = 'SELECT 1 FROM finance_periods WHERE id=? AND company_id=?';
+  const SITES = ['finance-engines.ts', 'finance-invoice-read.ts'];
+
+  it('exposes the exact byte-identical literal with no row-lock text', () => {
+    expect(PERIOD_EXISTS_BY_ID_SQL).toBe(SQL);
+    expect(PERIOD_EXISTS_BY_ID_SQL).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('removes both inline literals from their two sites', async () => {
+    for (const file of SITES) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.includes('"' + SQL + '"')).toBe(false);
+      expect(text.includes("'" + SQL + "'")).toBe(false);
+      expect(text).toContain('finance-read-tail-r37-sql');
+    }
+  });
+
+  it('leaves r16/r34 guarded variants, locks, tax guards and r15-r36 helpers untouched', async () => {
+    const r16 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    expect(r16).toContain('OPEN_PERIOD_GUARD_SQL');
+    expect(r16).toContain("EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)");
+    const r34 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
+    expect(r34).toContain('OPEN_PERIOD_COVERED_SQL');
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR SHARE');
+    expect(pos).toContain('FOR UPDATE');
+    const r36 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r36-sql.ts', import.meta.url), 'utf8');
+    expect(r36).toContain('CHART_EXISTS_BY_COMPANY_SQL');
+    const r24 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(r24).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r36 BEFORE=1966 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1966);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r38 byte-identical read families', () => {
+  // 13 byte-identical SQL families, 27 adapter call sites. Each constant is the
+  // exact SQL payload the inline literals carried; callers keep their own binds
+  // and result types. Row locks, tax/assertion SQL and every r15-r37 helper are
+  // untouched. Verified against HEAD by reversing each substitution.
+  const FAMILIES: [string, string][] = [
+    [BILLING_RUN_CHILD_EXISTS_SQL, 'SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?'],
+    [CUSTOMER_PARTY_PROFILE_SQL, "SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND person_id IS NULL"],
+    [BILLING_RUN_POINT_SQL, 'SELECT * FROM finance_business_billing_runs WHERE id=? AND company_id=?'],
+    [DIMENSION_VALUES_ACTIVE_SQL, "SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code"],
+    [REFUND_INSTRUCTION_POINT_SQL, 'SELECT * FROM finance_refund_instructions WHERE id=? AND company_id=?'],
+    [BUSINESS_CONTRACT_POINT_SQL, 'SELECT * FROM finance_business_contracts WHERE id=? AND company_id=?'],
+    [ACCRUAL_SCHEDULE_POINT_SQL, 'SELECT * FROM finance_accrual_schedules WHERE id=? AND company_id=?'],
+    [CALCULATION_RUN_POINT_SQL, 'SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=?'],
+    [PLAN_EDITION_POINT_SQL, 'SELECT * FROM finance_plan_editions WHERE id=? AND company_id=?'],
+    [BILLING_RUN_ROOT_WINDOW_SQL, 'SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND service_to>=?'],
+    [POS_CUSTOMER_PARTY_ACTIVE_SQL, "SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active'"],
+    [POS_JOURNAL_LINE_NET_SQL, 'SELECT COALESCE(SUM(debit_minor-credit_minor),0) net FROM finance_journal_lines WHERE journal_id=? AND account_id=?'],
+    [SUPPLIER_RECEIPT_SOURCE_SQL, 'SELECT to_jsonb(r)::text source FROM command_receipts r WHERE r.command_id=?'],
+  ];
+
+  it('exposes 13 exact byte-identical SQL payloads with no row-lock text', () => {
+    expect(FAMILIES).toHaveLength(13);
+    for (const [value, sql] of FAMILIES) {
+      expect(value).toBe(sql);
+      expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    }
+  });
+
+  const SITE_LITERALS: Record<string, string[]> = {
+    'finance-billing-corrections.ts': [
+      "'SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?'",
+      "'SELECT * FROM finance_business_billing_runs WHERE id=? AND company_id=?'",
+      "'SELECT * FROM finance_business_contracts WHERE id=? AND company_id=?'",
+    ],
+    'finance-business-contracts.ts': [
+      '"SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?"',
+      '"SELECT * FROM finance_business_billing_runs WHERE id=? AND company_id=?"',
+      '"SELECT * FROM finance_business_contracts WHERE id=? AND company_id=?"',
+      '"SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND service_to>=?"',
+    ],
+    'document-posting-preview.ts': ["\"SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND person_id IS NULL\""],
+    'record-presentation.ts': ["\"SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code\""],
+    'ledger.ts': ["\"SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code\""],
+    'refunds.ts': ["'SELECT * FROM finance_refund_instructions WHERE id=? AND company_id=?'"],
+    'refund-bank-evidence.ts': ["'SELECT * FROM finance_refund_instructions WHERE id=? AND company_id=?'"],
+    'finance-accruals.ts': ['"SELECT * FROM finance_accrual_schedules WHERE id=? AND company_id=?"'],
+    'finance-engines.ts': ['"SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=?"'],
+    'finance-planning.ts': [
+      '"SELECT * FROM finance_plan_editions WHERE id=? AND company_id=?"',
+      "'SELECT * FROM finance_plan_editions WHERE id=? AND company_id=?'",
+    ],
+    'pos-core-facts.ts': [
+      "\"SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active'\"",
+      "'SELECT COALESCE(SUM(debit_minor-credit_minor),0) net FROM finance_journal_lines WHERE journal_id=? AND account_id=?'",
+    ],
+    'supplier-payment-money.ts': ["'SELECT to_jsonb(r)::text source FROM command_receipts r WHERE r.command_id=?'"],
+  };
+
+  const SITE_OCCURRENCES: Record<string, number> = {
+    'finance-billing-corrections.ts': 3,
+    'finance-business-contracts.ts': 6,
+    'document-posting-preview.ts': 1,
+    'record-presentation.ts': 1,
+    'ledger.ts': 1,
+    'refunds.ts': 1,
+    'refund-bank-evidence.ts': 1,
+    'finance-accruals.ts': 2,
+    'finance-engines.ts': 2,
+    'finance-planning.ts': 2,
+    'pos-core-facts.ts': 4,
+    'supplier-payment-money.ts': 2,
+  };
+
+  it('removes all 26 inline literals from their 12 sites', async () => {
+    expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(26);
+    for (const [file, lits] of Object.entries(SITE_LITERALS)) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('finance-read-tail-r38-sql');
+      for (const lit of lits) expect(text.includes(lit)).toBe(false);
+    }
+  });
+
+  it('leaves locks, tax/assertion SQL and r15-r37 helpers untouched', async () => {
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR SHARE');
+    expect(pos).toContain('FOR UPDATE');
+    const bc = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-business-contracts.ts', import.meta.url), 'utf8');
+    expect(bc).toContain('NOT EXISTS(SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?)');
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+    const r37 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r37-sql.ts', import.meta.url), 'utf8');
+    expect(r37).toContain('PERIOD_EXISTS_BY_ID_SQL');
+    const r16 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    expect(r16).toContain('OPEN_PERIOD_GUARD_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r37 BEFORE=1965 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1965);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r39 read families', () => {
+  // 8 families / 17 adapter call sites. Exact families share one payload;
+  // parameterized families render byte-identically for every variant. Callers
+  // keep their own binds and result types. Row locks, tax/assertion SQL and
+  // every r15-r38 helper are untouched. Verified against HEAD by reversal.
+  const EXACT: [string, string][] = [
+    [ASSET_DEPRECIATIONS_SQL, 'SELECT * FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal'],
+    [ASSET_DRAFT_DISPOSAL_SQL, "SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status='draft'"],
+    [INTERCOMPANY_BY_ID_SQL, 'SELECT * FROM finance_intercompany_transactions WHERE id=? AND holding_id=?'],
+  ];
+
+  it('exposes three exact byte-identical SQL payloads with no row-lock text', () => {
+    expect(EXACT).toHaveLength(3);
+    for (const [value, sql] of EXACT) {
+      expect(value).toBe(sql);
+      expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    }
+  });
+
+  it('renders every parameterized family byte-identically for each variant', () => {
+    expect(bankCashLinesSql('CASH')).toBe("SELECT l.id,l.account_id,l.description,l.debit_minor,l.credit_minor,j.id journal_id,j.journal_number,j.currency,j.entry_date,j.entry_date page_key\n    FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n    JOIN finance_accounts a ON a.id=l.account_id AND a.company_id=j.company_id\n    WHERE j.company_id=? AND j.status='posted' AND a.control_kind='bank' AND j.is_opening=0\n    AND (?='' OR j.chart_id=?) AND CASH");
+    expect(openingBalanceSql('\n ')).toBe('SELECT l.account_id AS "accountId",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor\n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n WHERE j.company_id=? AND j.chart_id=? AND j.status IN (\'posted\',\'reversed\') AND j.entry_date<?\n GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json');
+    expect(openingBalanceSql(' ')).toBe('SELECT l.account_id AS "accountId",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.chart_id=? AND j.status IN (\'posted\',\'reversed\') AND j.entry_date<? GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json');
+    expect(documentNumberSql('RC')).toBe("SELECT erpx_sales_document_number(?,'RC',?) number");
+    expect(documentNumberSql('INV')).toBe("SELECT erpx_sales_document_number(?,'INV',?) number");
+    expect(moneySnapshotExistsSql('finance_invoice')).toBe("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_invoice' AND source_id=? AND amount_kind=?");
+    expect(moneySnapshotExistsSql('finance_payment')).toBe("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=? AND amount_kind=?");
+    const posHead = 'SELECT COALESCE(SUM(l.debit_minor-l.credit_minor),0) n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n  SETTINGS WHERE j.company_id=? AND j.entry_date=? AND j.status=\'posted\' AND j.source_type=\'pos\'\n  AND l.dimension_json::jsonb->>\'branchId\'=? AND l.account_id=c.accounts_json::jsonb->>\'';
+    expect(posDailyAccountNetSql('cogs', 'SETTINGS')).toBe(posHead + "cogs'");
+    expect(posDailyAccountNetSql('waste', 'SETTINGS')).toBe(posHead + "waste'");
+  });
+
+  const SITE_LITERALS: Record<string, string[]> = {
+    'finance-bank-automation.ts': ["`SELECT l.id,l.account_id,l.description,l.debit_minor,l.credit_minor,j.id journal_id,j.journal_number,j.currency,j.entry_date,j.entry_date page_key\n    FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n    JOIN finance_accounts a ON a.id=l.account_id AND a.company_id=j.company_id\n    WHERE j.company_id=? AND j.status='posted' AND a.control_kind='bank' AND j.is_opening=0\n    AND (?='' OR j.chart_id=?) AND ${availableCashSource}`"],
+    'finance-assets.ts': [
+      '"SELECT * FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal"',
+      '"SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status=\'draft\'"',
+    ],
+    'finance-asset-carrying.ts': [
+      '"SELECT * FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal"',
+      "`SELECT l.account_id AS \"accountId\",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<? GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json`",
+    ],
+    'finance-asset-policies.ts': ['"SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status=\'draft\'"'],
+    'finance-intercompany.ts': ['"SELECT * FROM finance_intercompany_transactions WHERE id=? AND holding_id=?"'],
+    'finance-books.ts': ["`SELECT l.account_id AS \"accountId\",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor\n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<?\n GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json`"],
+    'customer-receipt-issue.ts': ['"SELECT erpx_sales_document_number(?,\'RC\',?) number"'],
+    'sales.ts': ['"SELECT erpx_sales_document_number(?,\'INV\',?) number"'],
+    'finance.ts': [
+      '"SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type=\'finance_invoice\' AND source_id=? AND amount_kind=?"',
+      '"SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type=\'finance_payment\' AND source_id=? AND amount_kind=?"',
+    ],
+    'pos-daily-facts.ts': [
+      "`SELECT COALESCE(SUM(l.debit_minor-l.credit_minor),0) n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n  ${posSnapshot().dailySettings} WHERE j.company_id=? AND j.entry_date=? AND j.status='posted' AND j.source_type='pos'\n  AND l.dimension_json::jsonb->>'branchId'=? AND l.account_id=c.accounts_json::jsonb->>'cogs'`",
+      "`SELECT COALESCE(SUM(l.debit_minor-l.credit_minor),0) n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n  ${posSnapshot().dailySettings} WHERE j.company_id=? AND j.entry_date=? AND j.status='posted' AND j.source_type='pos'\n  AND l.dimension_json::jsonb->>'branchId'=? AND l.account_id=c.accounts_json::jsonb->>'waste'`",
+    ],
+  };
+
+  const SITE_OCCURRENCES: Record<string, number> = {
+    'finance-bank-automation.ts': 3,
+    'finance-assets.ts': 2,
+    'finance-asset-carrying.ts': 2,
+    'finance-asset-policies.ts': 1,
+    'finance-intercompany.ts': 2,
+    'finance-books.ts': 1,
+    'customer-receipt-issue.ts': 1,
+    'sales.ts': 1,
+    'finance.ts': 2,
+    'pos-daily-facts.ts': 2,
+  };
+
+  it('removes all 17 inline literals from their 10 files', async () => {
+    expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(17);
+    for (const [file, lits] of Object.entries(SITE_LITERALS)) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('finance-read-tail-r39-sql');
+      for (const lit of lits) expect(text.includes(lit)).toBe(false);
+    }
+  });
+
+  it('leaves locks, tax/assertion SQL and r15-r38 helpers untouched', async () => {
+    const assets = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-assets.ts', import.meta.url), 'utf8');
+    expect(assets).toContain("NOT EXISTS(SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status='draft')");
+    const ic = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-intercompany.ts', import.meta.url), 'utf8');
+    expect(ic).toContain('EXISTS(SELECT 1 FROM finance_intercompany_transactions WHERE id=? AND holding_id=? AND status=? AND version=?)');
+    const carry = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-asset-carrying.ts', import.meta.url), 'utf8');
+    expect(carry).toContain("j.source_type='book_opening'");
+    const money = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
+    expect(money).not.toContain("SELECT 1 AS present FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=? AND amount_kind='settled'");
+    expect(money).toContain('FINANCE_RD_FIN2_SETTLED_MONEY');
+    const effect = await readFile(new URL('../../../modules/finance/server/src/adapters/expense-native-effects.ts', import.meta.url), 'utf8');
+    expect(effect).toContain("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type=? AND source_id=? AND amount_kind=?");
+    const pos = await readFile(new URL('../../../modules/finance/server/src/adapters/pos-daily-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain("accounts_json::jsonb->>'stripe'");
+    const tax = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+    const r38 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r38-sql.ts', import.meta.url), 'utf8');
+    expect(r38).toContain('SUPPLIER_RECEIPT_SOURCE_SQL');
+    expect(r38).toContain('POS_JOURNAL_LINE_NET_SQL');
+    const r37 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r37-sql.ts', import.meta.url), 'utf8');
+    expect(r37).toContain('PERIOD_EXISTS_BY_ID_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r38 BEFORE=1951 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1951);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance read-tail r40 read families', () => {
+  // 10 families / 23 adapter call sites. Exact families share one payload;
+  // parameterized families render byte-identically for every variant. Callers
+  // keep their own binds and result types. Row locks, tax/assertion SQL and
+  // every r15-r39 helper are untouched. Verified against HEAD by reversal.
+  const EXACT: [string, string][] = [
+    [ASSIGNMENT_VERSION_SQL, 'SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?'],
+    [POSTING_RECEIPT_IMAGE_SQL, "SELECT to_jsonb(r)::text image,r.record_id FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?"],
+    [ACTIVE_ACCOUNT_CATEGORY_PROBE_SQL, "SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status='active'"],
+    [PAYMENT_FULL_ROW_SQL, 'SELECT * FROM finance_payments WHERE id=? AND company_id=?'],
+  ];
+
+  it('exposes four exact byte-identical SQL payloads with no row-lock text', () => {
+    expect(EXACT).toHaveLength(4);
+    for (const [value, sql] of EXACT) {
+      expect(value).toBe(sql);
+      expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|pg_advisory/);
+    }
+  });
+
+  it('renders every parameterized family byte-identically for each variant', () => {
+    expect(sourcePartyIdSql('finance_payments')).toBe('SELECT party_id FROM finance_payments WHERE id=? AND company_id=?');
+    expect(sourcePartyIdSql('finance_invoices')).toBe('SELECT party_id FROM finance_invoices WHERE id=? AND company_id=?');
+    expect(commandReceiptReplayProbeSql('finance.payment.reverse')).toBe("SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.payment.reverse' AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
+    expect(commandReceiptReplayProbeSql('finance.bank.import')).toBe("SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.bank.import' AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
+    expect(commandReceiptReplayProbeSql('finance.refund.confirm')).toBe("SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.refund.confirm' AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
+    expect(ownedDocumentExistsSql('finance_invoices', 'ownerPredicate(kind,foundation,proof)')).toBe('SELECT 1 FROM finance_invoices d WHERE d.id=? AND d.company_id=? AND ownerPredicate(kind,foundation,proof)');
+    expect(sourcePartyStatusSql('finance_payments')).toBe('SELECT party_id,status FROM finance_payments WHERE id=? AND company_id=?');
+    expect(sourcePartyStatusSql('finance_invoices')).toBe('SELECT party_id,status FROM finance_invoices WHERE id=? AND company_id=?');
+    expect(bookAccountMappingImageSql('source')).toBe('SELECT to_jsonb(m)::text source FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id');
+    expect(bookAccountMappingImageSql('image')).toBe('SELECT to_jsonb(m)::text image FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id');
+    expect(thaiDocumentRowsSql('finance_thai_document_events')).toBe('SELECT * FROM finance_thai_document_events WHERE document_id=? AND company_id=? ORDER BY created_at,id');
+    expect(thaiDocumentRowsSql('finance_thai_document_changes')).toBe('SELECT * FROM finance_thai_document_changes WHERE document_id=? AND company_id=? ORDER BY created_at,id');
+  });
+
+  const SITE_LITERALS: Record<string, string[]> = {
+    'finance-thai-documents.ts': [
+      '"SELECT party_id FROM finance_payments WHERE id=? AND company_id=?"',
+      '"SELECT party_id FROM finance_invoices WHERE id=? AND company_id=?"',
+      '"SELECT party_id,status FROM finance_payments WHERE id=? AND company_id=?"',
+      '"SELECT party_id,status FROM finance_invoices WHERE id=? AND company_id=?"',
+      '"SELECT * FROM finance_thai_document_events WHERE document_id=? AND company_id=? ORDER BY created_at,id"',
+      '"SELECT * FROM finance_thai_document_changes WHERE document_id=? AND company_id=? ORDER BY created_at,id"',
+    ],
+    'sales-payment-reversal.ts': ["\"SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.payment.reverse' AND actor_id=? AND authority_json::jsonb->>'companyId'=?\""],
+    'refund-bank-evidence.ts': [
+      "\"SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.bank.import' AND actor_id=? AND authority_json::jsonb->>'companyId'=?\"",
+      "\"SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.refund.confirm' AND actor_id=? AND authority_json::jsonb->>'companyId'=?\"",
+    ],
+    'record-presentation.ts': ['"SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?"'],
+    'legal-setup.ts': ['"SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?"'],
+    'expense-posting-prerequisites.ts': ["\"SELECT to_jsonb(r)::text image,r.record_id FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?\""],
+    'payroll-posting-prerequisites.ts': ["\"SELECT to_jsonb(r)::text image,r.record_id FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?\""],
+    'commerce-goods-accounting-facts.ts': ["\"SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status='active'\""],
+    'commerce-facts.ts': ["'SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status=\\'active\\''"],
+    'document-purchases.ts': [
+      '`SELECT 1 FROM ${tables[kind]} d WHERE d.id=? AND d.company_id=? AND ${ownerPredicate(kind,foundation,proof)}`',
+      '`SELECT 1 FROM ${tables[kind]} d WHERE d.id=? AND d.company_id=? AND ${capability==="assets.parts-costs"||capability==="finance.service-invoice"?ownerPredicate(kind,capability):commerceOwnerPredicate(kind,capability,commerceProof)}`',
+    ],
+    'supplier-payment-money.ts': ["'SELECT to_jsonb(m)::text source FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id'"],
+    'payroll-other-remittance-facts.ts': ["'SELECT to_jsonb(m)::text image FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id'"],
+    'finance.ts': ['"SELECT * FROM finance_payments WHERE id=? AND company_id=?"'],
+    'finance-withholding.ts': ["'SELECT * FROM finance_payments WHERE id=? AND company_id=?'"],
+  };
+
+  const SITE_OCCURRENCES: Record<string, number> = {
+    'finance-thai-documents.ts': 8,
+    'sales-payment-reversal.ts': 1,
+    'refund-bank-evidence.ts': 2,
+    'record-presentation.ts': 1,
+    'legal-setup.ts': 1,
+    'expense-posting-prerequisites.ts': 1,
+    'payroll-posting-prerequisites.ts': 1,
+    'commerce-goods-accounting-facts.ts': 1,
+    'commerce-facts.ts': 1,
+    'document-purchases.ts': 2,
+    'supplier-payment-money.ts': 1,
+    'payroll-other-remittance-facts.ts': 1,
+    'finance.ts': 1,
+    'finance-withholding.ts': 1,
+  };
+
+  it('removes all 23 inline literals from their 14 files', async () => {
+    expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(23);
+    for (const [file, lits] of Object.entries(SITE_LITERALS)) {
+      const text = await readFile(new URL('../../../modules/finance/server/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('finance-read-tail-r40-sql');
+      for (const lit of lits) expect(text.includes(lit)).toBe(false);
+    }
+  });
+
+  it('leaves locks, tax/assertion SQL and r15-r39 helpers untouched', async () => {
+    const thai = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-thai-documents.ts', import.meta.url), 'utf8');
+    expect(thai).toContain('THAI_DOC_ACTIVE_GUARD_SQL');
+    expect(thai).toContain("from './finance-read-tail-r50-sql'");
+    expect(thai).toContain("EXISTS(SELECT 1 FROM finance_thai_document_sequences WHERE company_id=? AND document_kind=? AND fiscal_year=? AND last_number=?)");
+    const docs = await readFile(new URL('../../../modules/finance/server/src/adapters/document-purchases.ts', import.meta.url), 'utf8');
+    expect(docs).toContain('FOR SHARE');
+    expect(docs).toContain('finance-document-owner');
+    const pay = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding.ts', import.meta.url), 'utf8');
+    expect(pay).toContain("versionStatusGuardSql('finance_accounts', \"'active'\", \" AND category='liability' AND control_kind='none' AND currency='THB'\")");
+    expect(pay).not.toContain("EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status='active' AND category='liability'");
+    const r39 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r39-sql.ts', import.meta.url), 'utf8');
+    expect(r39).toContain('bankCashLinesSql');
+    const r15 = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
+    expect(r15).toContain('COMMAND_RECEIPT_EXISTS_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r39 BEFORE=1942 baseline', () => {
+    const root = resolve(__dirname, '../../../modules/finance/server/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1942);
+    expect(total).toBe(1561);
+  });
+});
+
+describe('finance native bank-automation imported-file read-port cutover', () => {
+  const KIND = 'FINANCE_RD_BANK_IMPORTED_FILE';
+  const SQL = 'SELECT s.statement_number FROM finance_bank_import_files f JOIN finance_bank_statements s ON s.id=f.statement_id AND s.company_id=f.company_id WHERE f.company_id=? AND f.bank_account_id=? AND f.file_hash=?';
+
+  it('registers the exact discriminator in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    expect(bridge).toContain(`export const ${KIND} = 'finance_rd_bank_imported_file'`);
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    expect(rust).toContain('pub const RD_BANK_IMPORTED_FILE: &str = "finance_rd_bank_imported_file"');
+    expect(rust).toContain(`const SQL_RD_BANK_IMPORTED_FILE: &str = "${SQL}"`);
+    expect(rust).toContain('READ_BANK_IMPORTED_FILE,');
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates the duplicate probe to the native plan with no TypeScript SQL', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-bank-automation.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("import { FINANCE_RD_BANK_IMPORTED_FILE, nativeFinanceReadFirst } from './native-finance-read'");
+    expect(adapter).toContain(`nativeFinanceReadFirst<{statement_number:string}>(${KIND},[actor.companyId,accountId,fileHash],write)`);
+    expect(adapter.split(SQL).length - 1).toBe(0);
+    expect(adapter.split('finance_bank_import_files').length - 1).toBe(0);
+    // The remaining bank reads and guards stay owner-local TS where their SQL
+    // is dynamic or transaction-bound; this cut is only the imported-file probe.
+    expect(adapter).toContain('tableByIdSql(\'finance_bank_match_groups\') + \' FOR UPDATE\'');
+    expect(adapter).toContain('bankTxnGuardSql(');
+  });
+});
+
+describe('finance native tax-identity read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_TAX_IDENTITY_ACTIVE_PARTY', "SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND status='active' AND person_id IS NULL"],
+    ['FINANCE_RD_TAX_IDENTITY_PREDECESSOR', "SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND party_id IS NOT DISTINCT FROM ?::text AND status='approved'"],
+    ['FINANCE_RD_TAX_IDENTITY_ROW', 'SELECT * FROM finance_tax_identities WHERE id=? AND company_id=?'],
+    ['FINANCE_RD_TAX_IDENTITY_REVIEWED', "SELECT * FROM finance_tax_identities WHERE id=? AND company_id=? AND party_id IS NOT DISTINCT FROM ?::text AND status='approved' AND effective_from<=? AND effective_to>=? AND rule_pack_version=?"],
+    ['FINANCE_RD_TAX_IDENTITY_LIST', 'SELECT id,party_id,legal_name,tax_id,address,branch_code,entity_kind,vat_registered,vat_registration_evidence,effective_from,effective_to,previous_identity_id,signer_name,signer_authority,signature_link_id,signature_sha256,rule_pack_version,evidence_ref,status,created_by,reviewed_by,version FROM finance_tax_identities WHERE company_id=? ORDER BY created_at DESC'],
+    ['FINANCE_RD_TAX_IDENTITY_PARTY_LIST', "SELECT id,name,kind FROM finance_parties WHERE company_id=? AND status='active' AND person_id IS NULL ORDER BY name"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`.replace(/'/g, '"'));
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('removes all six literals from the TS adapter while keeping its command guards', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-tax-identities.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(4);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(2);
+    for (const [, sql] of FAMILY) {
+      // One literal is shared by the retained party assertion guard; no point
+      // or list reader prepares SQL in TypeScript any more.
+      expect(adapter.split(sql).length - 1).toBeLessThanOrEqual(1);
+    }
+    expect(adapter).toContain(`assertion(write, commandId, "party", "EXISTS(${FAMILY[0]![1]})", [input.partyId, actor.companyId])`);
+    expect(adapter.match(/\.prepare\(["']SELECT/g)?.length ?? 0).toBe(0);
+    // The six EXISTS/NOT EXISTS assertion guards remain owner-local TS: they
+    // execute inside the caller's command transaction, not as HTTP reads.
+    expect(adapter.match(/assertion\(/g)?.length).toBe(6);
+    expect(adapter).toContain('FINANCE_ADVISORY_XACT_LOCK_SQL');
+    expect(adapter).toContain('thaiFinanceTaxPack.version');
+  });
+});
+
+describe('finance native assets point/list read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_ASSET_ACCOUNT_ROWS', "SELECT id,chart_id,category FROM finance_accounts WHERE company_id=? AND status='active' AND id IN (?,?,?)"],
+    ['FINANCE_RD_ASSET_EVENT_LIST', 'SELECT * FROM finance_asset_events WHERE asset_id=? ORDER BY created_at,id'],
+    ['FINANCE_RD_ASSET_DISPOSAL_LIST', 'SELECT * FROM finance_asset_disposals WHERE asset_id=? ORDER BY created_at,id'],
+    ['FINANCE_RD_ASSET_REVIEWED_POLICY', "SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status IN ('active','superseded')"],
+    ['FINANCE_RD_ASSET_DEPRECIATION_HISTORY', 'SELECT ordinal,amount_minor FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal'],
+    ['FINANCE_RD_ASSET_LATEST_DEPRECIATION', 'SELECT MAX(entry_date) date FROM finance_asset_depreciations WHERE asset_id=?'],
+    ['FINANCE_RD_ASSET_RETAINED_POLICY_HASH', 'SELECT policy_source_hash FROM finance_asset_disposals WHERE id=?'],
+    ['FINANCE_RD_ASSET_DIMENSION_VALUES', "SELECT dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadScalarFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping locks and command guards in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-assets.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(5);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(1);
+    expect(adapter.match(/nativeFinanceReadScalarFirst[<(]/g)?.length).toBe(2);
+    // Only the retained guard keeps one literal; the two prepared SELECTs are
+    // lock-bearing owner statements, not point/list reads.
+    for (const [, sql] of FAMILY) expect(adapter.split(sql).length - 1).toBeLessThanOrEqual(1);
+    expect(adapter.match(/\.prepare\(["']SELECT/g)?.length ?? 0).toBe(2);
+    expect(adapter.match(/FOR UPDATE/g)?.length).toBe(2);
+    expect(adapter.match(/assertion\(/g)?.length).toBe(4);
+    expect(adapter).toContain('nativeFinanceAssets');
+  });
+});
+
+describe('finance native reporting point/list read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_REPORT_REVISION', 'SELECT revision FROM finance_reporting_revisions WHERE chart_id=?'],
+    ['FINANCE_RD_REPORT_PROFILE', "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND statutory_chart_id=? AND status='approved' AND standard='TFRS for NPAEs' AND effective_date<=?"],
+    ['FINANCE_RD_REPORT_PACKAGE_LIST', 'SELECT id,start_date,end_date,comparative_start_date,comparative_end_date,edition,previous_package_id,status,version,prepared_by,reviewed_by,source_fingerprint,created_at FROM finance_statement_packages WHERE company_id=? AND chart_id=? ORDER BY end_date DESC,edition DESC'],
+    ['FINANCE_RD_REPORT_CLOSING_LIST', 'SELECT * FROM finance_year_closings WHERE company_id=? AND chart_id=? ORDER BY end_date DESC,created_at DESC'],
+    ['FINANCE_RD_REPORT_ACCOUNT_LIST', 'SELECT id,code,name,category,status FROM finance_accounts WHERE company_id=? AND chart_id=? ORDER BY code,id'],
+    ['FINANCE_RD_REPORT_STATEMENT_HISTORY', 'SELECT * FROM finance_statement_events WHERE package_id=? ORDER BY package_version'],
+    ['FINANCE_RD_REPORT_PREVIOUS_PACKAGE', "SELECT id FROM finance_statement_packages WHERE id=? AND company_id=? AND chart_id=? AND start_date=? AND end_date=? AND status='issued'"],
+    ['FINANCE_RD_REPORT_NEXT_EDITION', 'SELECT COALESCE(MAX(edition),0)+1 edition FROM finance_statement_packages WHERE chart_id=? AND start_date=? AND end_date=?'],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadScalarFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping locks, guards and other owners in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-reporting.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(4);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(2);
+    expect(adapter.match(/nativeFinanceReadScalarFirst[<(]/g)?.length).toBe(2);
+    for (const [, sql] of FAMILY) expect(adapter.split(sql).length - 1).toBe(0);
+    // The revision FOR UPDATE lock, nine command assertions and the larger
+    // evidence / existing-closing / period reads stay owner-local TS.
+    expect(adapter.match(/\.prepare\(["']SELECT/g)?.length ?? 0).toBe(4);
+    expect(adapter.match(/FOR UPDATE/g)?.length).toBe(1);
+    expect(adapter.match(/assertion\(/g)?.length).toBe(9);
+    expect(adapter).toContain('nativeFinanceReporting');
+  });
+});
+
+describe('finance native withholding point/list read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_WITHHOLDING_BANK_ACCOUNT', "SELECT a.id,a.version,a.chart_id,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.status='active' AND a.control_kind='bank' AND a.currency='THB'"],
+    ['FINANCE_RD_WITHHOLDING_LIABILITY_ACCOUNT', "SELECT id,version,chart_id FROM finance_accounts WHERE id=? AND company_id=? AND category='liability' AND control_kind='none' AND status='active' AND currency='THB'"],
+    ['FINANCE_RD_WITHHOLDING_INVOICE', 'SELECT i.*,j.chart_id,j.status journal_status,j.version journal_version FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id WHERE i.id=? AND i.company_id=?'],
+    ['FINANCE_RD_WITHHOLDING_CONFIGURED_OWNER', "SELECT 1 FROM finance_tax_identities WHERE company_id=? AND party_id IS NULL AND status='approved' AND effective_from<=? AND effective_to>=?"],
+    ['FINANCE_RD_WITHHOLDING_APPROVED_ASSESSMENT', "SELECT * FROM finance_withholding_assessments WHERE id=? AND company_id=? AND payment_id=? AND status='approved'"],
+    ['FINANCE_RD_WITHHOLDING_CONSUMED_ASSESSMENT', "SELECT id,version,form_kind FROM finance_withholding_assessments WHERE id=? AND company_id=? AND status='consumed'"],
+    ['FINANCE_RD_WITHHOLDING_PAYMENT_DOCUMENTS', "SELECT id FROM finance_issued_thai_documents WHERE payment_id=? AND company_id=? AND document_kind='withholding_certificate'"],
+    ['FINANCE_RD_WITHHOLDING_WORKSPACE_IDENTITIES', "SELECT id,party_id,legal_name,tax_id,status,version FROM finance_tax_identities WHERE company_id=? AND status='approved' ORDER BY legal_name"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping guards and larger projections in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(2);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(6);
+    for (const [, sql] of FAMILY) {
+      // Two literals are shared with retained assertion guards.
+      expect(adapter.split(sql).length - 1).toBeLessThanOrEqual(1);
+    }
+    expect(adapter.match(/\.prepare\(["']SELECT/g)?.length ?? 0).toBe(5);
+    expect(adapter.match(/assertion\(/g)?.length).toBe(11);
+    expect(adapter).toContain('nativeFinanceWithholding');
+  });
+});
+
+describe('finance native withholding-remittance point/list read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_WITHHOLDING_REMIT_PACKAGE', 'SELECT * FROM finance_withholding_packages WHERE id=? AND company_id=?'],
+    ['FINANCE_RD_WITHHOLDING_REMIT_DOCUMENT', 'SELECT snapshot_json,document_number,export_sha256 FROM finance_issued_thai_documents WHERE id=? AND company_id=?'],
+    ['FINANCE_RD_WITHHOLDING_REMIT_JOURNAL_VALUE', 'SELECT COALESCE(SUM(credit_minor-debit_minor),0) value FROM finance_journal_lines WHERE journal_id=? AND account_id=?'],
+    ['FINANCE_RD_WITHHOLDING_REMIT_BANK_TXN', 'SELECT t.*,s.bank_account,a.chart_id,a.version account_version,a.control_kind,a.status account_status,c.base_currency FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id JOIN finance_accounts a ON a.id=s.bank_account JOIN finance_charts c ON c.id=a.chart_id WHERE t.id=? AND t.company_id=?'],
+    ['FINANCE_RD_WITHHOLDING_REMIT_PACKAGE_EDITION', 'SELECT id,edition FROM finance_withholding_packages WHERE company_id=? AND month=? AND form_kind=? ORDER BY edition DESC LIMIT 1'],
+    ['FINANCE_RD_WITHHOLDING_REMIT_ROW', 'SELECT r.*,p.chart_id,p.month,p.form_kind,j.entry_date FROM finance_withholding_remittances r JOIN finance_withholding_packages p ON p.id=r.package_id JOIN finance_journals j ON j.id=r.journal_id WHERE r.id=? AND r.company_id=?'],
+    ['FINANCE_RD_WITHHOLDING_REMIT_PACKAGE_LIST', 'SELECT p.*,r.id remittance_id,r.version remittance_version,r.status remittance_status,r.bank_transaction_id FROM finance_withholding_packages p LEFT JOIN finance_withholding_remittances r ON r.package_id=p.id WHERE p.company_id=? ORDER BY p.month DESC,p.edition DESC'],
+    ['FINANCE_RD_WITHHOLDING_REMIT_BANK_CANDIDATES', "SELECT t.id,t.version,t.transaction_date,t.external_id,t.amount_minor,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id JOIN finance_accounts a ON a.id=s.bank_account WHERE t.company_id=? AND t.currency='THB' AND t.match_status IN ('unmatched','proposed') AND a.control_kind='bank' ORDER BY t.transaction_date DESC"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadScalarFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping assertions and row locks in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(2);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(5);
+    expect(adapter.match(/nativeFinanceReadScalarFirst[<(]/g)?.length).toBe(1);
+    for (const [, sql] of FAMILY) expect(adapter.split(sql).length - 1).toBe(0);
+    expect(adapter.match(/\.prepare\(["']SELECT/g)?.length ?? 0).toBe(3);
+    expect(adapter.match(/FOR UPDATE/g)?.length).toBe(3);
+    expect(adapter.match(/assertion\(/g)?.length).toBe(10);
+    expect(adapter).toContain('nativeFinanceWhRemittance');
+  });
+});
+
+describe('finance native planning point/list read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_PLAN_ACCOUNTS', "SELECT id,code,name,category FROM finance_accounts WHERE chart_id=? AND company_id=? AND status='active'"],
+    ['FINANCE_RD_PLAN_DIMENSION', "SELECT 1 FROM finance_dimension_definitions d JOIN finance_dimension_values v ON v.dimension_id=d.id WHERE d.company_id=? AND d.code=? AND d.status='active' AND v.code=? AND v.status='active'"],
+    ['FINANCE_RD_PLAN_BANK_ACCOUNT', "SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND control_kind='bank'"],
+    ['FINANCE_RD_PLAN_EDITIONS', 'SELECT * FROM finance_plan_editions WHERE company_id=? AND chart_id=? ORDER BY created_at DESC,id'],
+    ['FINANCE_RD_PLAN_SNAPSHOTS', 'SELECT s.id,s.definition_id,s.start_date,s.end_date,s.source_hash,s.created_at,p.name FROM finance_report_snapshots s JOIN finance_plan_editions p ON p.id=s.definition_id WHERE s.company_id=? AND p.chart_id=? ORDER BY s.created_at DESC LIMIT 200'],
+    ['FINANCE_RD_PLAN_CATEGORY', 'SELECT category FROM finance_accounts WHERE id=?'],
+    ['FINANCE_RD_PLAN_EXPORT_ROW', 'SELECT result_json,export_content,export_sha256 FROM finance_report_snapshots WHERE id=? AND company_id=?'],
+    ['FINANCE_RD_PLAN_SOURCE_SNAPSHOT', 'SELECT s.*,p.content_json,p.chart_id FROM finance_report_snapshots s JOIN finance_plan_editions p ON p.id=s.definition_id WHERE s.id=? AND s.company_id=? AND p.company_id=?'],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping dynamic ledger projections in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-planning.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain('from "./native-finance-read"');
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(3);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(5);
+    for (const [, sql] of FAMILY) expect(adapter.split(sql).length - 1).toBe(0);
+    // The residual SELECTs are dynamic ledger/journal projections built with
+    // caller-supplied fragments; they remain owner-local TypeScript.
+    expect(adapter.match(/\.prepare\(["']SELECT/g)?.length ?? 0).toBe(0);
+    expect(adapter).toContain('FINANCE_ADVISORY_XACT_LOCK_SQL');
+    expect(adapter).toContain('fiscalCloseSourceSql');
+  });
+});
+
+describe('finance native business-contracts point/list read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_CONTRACT_CUSTOMER', "SELECT id,version FROM finance_parties WHERE id=? AND company_id=? AND status='active' AND kind='customer' AND currency=? AND person_id IS NULL"],
+    ['FINANCE_RD_CONTRACT_DIMENSIONS', "SELECT id,code,required FROM finance_dimension_definitions WHERE company_id=? AND status='active' ORDER BY code"],
+    ['FINANCE_RD_CONTRACT_DIMENSION_VALUE', "SELECT 1 FROM finance_dimension_values WHERE company_id=? AND dimension_id=? AND code=? AND status='active'"],
+    ['FINANCE_RD_CONTRACT_TAX_CODE', "SELECT id,code,rate_micros,effective_from,effective_to FROM finance_tax_codes WHERE company_id=? AND status='active' AND (code=? OR id=?) AND rate_micros=70000 AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1"],
+    ['FINANCE_RD_CONTRACT_BILLING_RUN', 'SELECT b.*,i.status original_invoice_status,i.version original_invoice_version,i.journal_id original_journal_id,i.posted_at original_posted_at FROM finance_business_billing_runs b LEFT JOIN finance_invoices i ON i.id=b.invoice_id WHERE b.id=? AND b.company_id=? AND b.contract_id=?'],
+    ['FINANCE_RD_CONTRACT_BILLING_EXISTS', 'SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND billing_key=?'],
+    ['FINANCE_RD_CONTRACT_BILL_SOURCE', 'SELECT b.*,COALESCE(b.contract_content_json,c.content_json) content_json FROM finance_business_billing_runs b JOIN finance_business_contracts c ON c.id=b.contract_id WHERE b.id=? AND b.company_id=?'],
+    ['FINANCE_RD_CONTRACT_POSTED_CORRECTION', "SELECT 1 FROM finance_billing_corrections WHERE billing_run_id=? AND status='posted'"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping guards and dynamic projections in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-business-contracts.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(1);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(7);
+    for (const [, sql] of FAMILY) expect(adapter.split(sql).length - 1).toBeLessThanOrEqual(1);
+    expect(adapter.match(/\.prepare\(["']SELECT/g)?.length ?? 0).toBe(2);
+    expect(adapter.match(/assertion\(/g)?.length).toBe(8);
+    expect(adapter).toContain('childBillingRunExistsSql');
+  });
+});
+
+describe('finance native invoice-read point/list family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_INVOICE_REPORT_CHARTS', 'SELECT id FROM finance_charts WHERE company_id=?'],
+    ['FINANCE_RD_INVOICE_ACCOUNTS', 'SELECT * FROM finance_accounts WHERE company_id=? AND chart_id=? ORDER BY code'],
+    ['FINANCE_RD_INVOICE_LINE_HISTORY', 'SELECT source_version,origin_kind,COUNT(*) line_count,SUM(subtotal_minor) subtotal_minor,SUM(tax_minor) tax_minor,MIN(created_at) created_at FROM finance_invoice_line_versions WHERE invoice_id=? AND company_id=? GROUP BY source_version,origin_kind ORDER BY source_version'],
+    ['FINANCE_RD_INVOICE_THAI_DOCUMENTS', 'SELECT id,document_number,document_kind,edition,issue_date FROM finance_issued_thai_documents WHERE invoice_id=? AND company_id=? ORDER BY edition'],
+    ['FINANCE_RD_INVOICE_PAYMENT_REVERSAL', 'SELECT * FROM finance_payment_reversals WHERE payment_id=?'],
+    ['FINANCE_RD_INVOICE_OPEN_PERIODS', "SELECT * FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC"],
+    ['FINANCE_RD_INVOICE_STATEMENT_ROWS', 'SELECT * FROM finance_bank_transactions WHERE statement_id=? AND company_id=? ORDER BY transaction_date,id LIMIT 31 OFFSET ?'],
+    ['FINANCE_RD_INVOICE_OPEN_INVOICES', "SELECT id,invoice_number,kind,outstanding_minor,status,version\n      FROM finance_invoices WHERE company_id=? AND party_id=? AND currency=? AND kind=? AND status IN ('posted','partially_paid') AND outstanding_minor>0 AND source_type!='expense_claim' AND (?::text IS NULL OR id=?)\n      ORDER BY due_date,invoice_number"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql.replace(/\n/g, '\\n')}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates the remaining first-family reads while keeping field-invoice ownership reads in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-invoice-read.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(12);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(3);
+    for (const [, sql] of FAMILY) {
+      const first = sql.split('\n')[0];
+      expect(adapter.split(first).length - 1).toBeLessThanOrEqual(1);
+    }
+    expect(adapter).toContain('erpx_finance_field_invoice_owned');
+    expect(adapter).toContain('financeInvoicesPageNative');
+  });
+});
+
+describe('finance native invoice-read second point/list family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_INVOICE2_INVOICE_SNAPSHOT', 'SELECT i.*,p.code AS party_code,p.name AS party_name,\n    s.usd_units::text AS snapshot_usd_units,s.amount_units::text AS snapshot_source_units,s.fx_rate_id AS snapshot_rate_id\n    FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id\n    LEFT JOIN money_transaction_snapshots s ON s.company_id=i.company_id AND s.source_type=\'finance_invoice\' AND s.source_id=i.id AND s.amount_kind=\'total\'\n    WHERE i.id=? AND i.company_id=?'],
+    ['FINANCE_RD_INVOICE2_INVOICE_ALLOCATIONS', 'SELECT a.id,a.payment_id,a.amount_minor,a.created_at,p.payment_number,p.status,p.payment_slip_id\n    FROM finance_allocations a JOIN finance_payments p ON p.id=a.payment_id\n    WHERE a.invoice_id=? AND a.company_id=? ORDER BY a.created_at'],
+    ['FINANCE_RD_INVOICE2_PAYMENTS', 'SELECT p.id,p.payment_number,p.kind,p.payment_date,p.currency,p.amount_minor,p.outstanding_minor,p.status,f.name AS party_name\n    FROM finance_payments p LEFT JOIN finance_parties f ON f.id=p.party_id\n    WHERE p.company_id=? ORDER BY p.payment_date DESC,p.payment_number DESC LIMIT ?'],
+    ['FINANCE_RD_INVOICE2_PAYMENT_ALLOCATIONS', 'SELECT a.id,a.invoice_id,a.amount_minor,a.created_at,i.invoice_number,i.status\n    FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id\n    WHERE a.payment_id=? AND a.company_id=? ORDER BY a.created_at'],
+    ['FINANCE_RD_INVOICE2_BANK_CANDIDATES', 'SELECT t.id,t.transaction_date,t.external_id,t.description,t.amount_minor,t.currency,t.match_status,t.version,s.statement_number\n      FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id\n      WHERE t.company_id=? AND s.bank_account=? AND t.currency=? AND t.match_status IN (\'unmatched\',\'proposed\') AND t.amount_minor=? AND t.transaction_date>=?\n      ORDER BY t.transaction_date DESC,t.external_id'],
+    ['FINANCE_RD_INVOICE2_BANK_ACCOUNTS', 'SELECT a.id,a.code,a.name,a.category,a.currency,c.base_currency\n      FROM finance_accounts bank JOIN finance_charts c ON c.id=bank.chart_id JOIN finance_accounts a ON a.chart_id=c.id\n      WHERE bank.id=? AND bank.company_id=? AND a.company_id=bank.company_id AND a.status=\'active\' AND a.currency=c.base_currency AND a.category IN (\'other_income\',\'other_expense\')\n      ORDER BY a.code'],
+    ['FINANCE_RD_INVOICE2_BANK_STATEMENT', 'SELECT s.*,a.currency,a.code,a.name,c.base_currency FROM finance_bank_statements s JOIN finance_accounts a ON a.id=s.bank_account AND a.company_id=s.company_id JOIN finance_charts c ON c.id=a.chart_id AND c.company_id=s.company_id WHERE s.id=? AND s.company_id=?'],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql.replace(/\n/g, '\\n')}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates the remaining reads while keeping ownership helpers in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-invoice-read.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(12);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(3);
+    for (const [, sql] of FAMILY) {
+      const first = sql.split('\n')[0];
+      expect(adapter.split(first).length - 1).toBeLessThanOrEqual(1);
+    }
+    expect(adapter).toContain('erpx_finance_field_invoice_owned');
+    expect(adapter.match(/\.prepare\(["'`]SELECT/g)?.length ?? 0).toBe(5);
+  });
+});
+
+describe('finance native AI point/list read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_AI_POLICY', 'SELECT * FROM finance_ai_policies WHERE company_id=?'],
+    ['FINANCE_RD_AI_PROPOSAL_EXACT', 'SELECT * FROM finance_ai_proposals WHERE company_id=? AND kind=? AND source_id=? AND source_hash=? AND provider_json=? AND policy_version=?'],
+    ['FINANCE_RD_AI_CLAIMABLE', "SELECT id FROM finance_ai_proposals WHERE attempts<3 AND (state='queued' OR (state='running' AND claim_until<?)) ORDER BY created_at,id LIMIT 2"],
+    ['FINANCE_RD_AI_EVENTS', 'SELECT proposal_id,action,evidence_json,created_at FROM finance_ai_events WHERE company_id=? AND proposal_id IS NOT NULL ORDER BY created_at DESC LIMIT 120'],
+    ['FINANCE_RD_AI_DUE_POLICIES', 'SELECT * FROM finance_ai_policies WHERE enabled AND next_scan_at<=? ORDER BY next_scan_at,company_id LIMIT 3'],
+    ['FINANCE_RD_AI_BANK_CANDIDATES', "SELECT id FROM finance_bank_transactions WHERE company_id=? AND match_status<>'matched' AND NOT EXISTS(SELECT 1 FROM finance_ai_proposals p WHERE p.company_id=finance_bank_transactions.company_id AND p.source_id=finance_bank_transactions.id AND p.kind='bank_match' AND p.policy_version=? AND p.source_version=finance_bank_transactions.version) ORDER BY transaction_date,id LIMIT 20"],
+    ['FINANCE_RD_AI_REPORT_CHARTS', "SELECT id FROM finance_charts WHERE company_id=? AND NOT EXISTS(SELECT 1 FROM finance_ai_proposals p WHERE p.company_id=finance_charts.company_id AND p.source_id=finance_charts.id AND p.kind='report_explanation' AND p.policy_version=? AND p.source_query_json::jsonb->>'endDate'=?) ORDER BY id LIMIT 5"],
+    ['FINANCE_RD_AI_PROPOSAL_BY_SOURCE', "SELECT id FROM finance_ai_proposals WHERE company_id=? AND kind=? AND source_id=? AND policy_version=? AND (?::boolean OR source_version=?) AND (?::text IS NULL OR source_query_json::jsonb->>'endDate'=?) LIMIT 1"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping owner writes and quota helpers in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-ai.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(5);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(3);
+    for (const [, sql] of FAMILY) expect(adapter.split(sql).length - 1).toBe(0);
+    expect(adapter).toContain('nativeFinanceOwnerWriteSystem');
+    expect(adapter).toContain('aiRequestQuotaLock');
+    expect(adapter.match(/\.prepare\(["'`]SELECT/g)?.length ?? 0).toBe(4);
+  });
+});
+
+describe('finance native asset-policy point/list read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_ASSET_POLICY_RULE', "SELECT DISTINCT ON (secondary_chart_id) id,secondary_chart_id,effective_date FROM finance_book_rules WHERE company_id=? AND primary_chart_id=? AND status='approved' AND effective_date<=? ORDER BY secondary_chart_id,effective_date DESC"],
+    ['FINANCE_RD_ASSET_POLICY_MAPPINGS', 'SELECT primary_account_id,secondary_account_id FROM finance_book_account_mappings WHERE rule_id=? AND primary_account_id IN (?,?,?) ORDER BY primary_account_id'],
+    ['FINANCE_RD_ASSET_POLICY_POSTED_RUNS', "SELECT * FROM finance_asset_policy_runs WHERE asset_id=? AND status='posted' ORDER BY ordinal"],
+    ['FINANCE_RD_ASSET_POLICY_LEGACY', "SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND ((status='posted' AND ordinal>?) OR status='draft')"],
+    ['FINANCE_RD_ASSET_POLICY_WORKSPACE_ASSETS', "SELECT a.*,c.chart_id,(SELECT count(*) FROM finance_asset_depreciations old WHERE old.asset_id=a.id)+(SELECT count(*) FROM finance_asset_policy_runs run WHERE run.asset_id=a.id AND run.status='posted') completed_depreciation_months FROM finance_assets a JOIN finance_accounts c ON c.id=a.account_id WHERE a.company_id=? AND a.status='in_service' ORDER BY asset_number"],
+    ['FINANCE_RD_ASSET_POLICY_WORKSPACE_BOOKS', "SELECT c.id,c.name,r.primary_chart_id FROM finance_charts c LEFT JOIN (SELECT DISTINCT secondary_chart_id,primary_chart_id FROM finance_book_rules WHERE status='approved') r ON r.secondary_chart_id=c.id WHERE c.company_id=? AND c.status='active' ORDER BY c.id"],
+    ['FINANCE_RD_ASSET_POLICY_DISPOSAL', "SELECT * FROM finance_asset_policy_editions WHERE asset_id=? AND company_id=? AND status='active'"],
+    ['FINANCE_RD_ASSET_POLICY_GAIN_LOSS', 'SELECT m.primary_account_id,m.secondary_account_id,a.version,a.status FROM finance_book_account_mappings m JOIN finance_accounts a ON a.id=m.secondary_account_id WHERE m.rule_id=? AND m.primary_account_id IN (?,?) ORDER BY m.primary_account_id'],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping owner writes and guards in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance-asset-policies.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(6);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(2);
+    for (const [, sql] of FAMILY) expect(adapter.split(sql).length - 1).toBe(0);
+    expect(adapter).toContain('nativeFinanceOwnerWriteSystem');
+    expect(adapter.match(/\.prepare\(["'`]SELECT/g)?.length ?? 0).toBe(1);
+  });
+});
+
+describe('finance native finance.ts point/list read family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_FIN_COMMAND_EXISTS', 'SELECT 1 FROM finance_commands WHERE command_id=?'],
+    ['FINANCE_RD_FIN_CHART_ROW', 'SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=?'],
+    ['FINANCE_RD_FIN_ACCOUNT_ROW', 'SELECT id,status,version,is_control FROM finance_accounts WHERE id=? AND chart_id=? AND company_id=?'],
+    ['FINANCE_RD_FIN_ACCOUNT_BY_CODE', "SELECT * FROM finance_accounts WHERE chart_id=? AND company_id=? AND code=?"],
+    ['FINANCE_RD_FIN_JOURNAL_DEBIT', 'SELECT COALESCE(SUM(debit_minor),0) AS amount FROM finance_journal_lines WHERE journal_id=?'],
+    ['FINANCE_RD_FIN_JOURNAL_ROW', 'SELECT * FROM finance_journals WHERE id=? AND company_id=?'],
+    ['FINANCE_RD_FIN_JOURNAL_LINES', 'SELECT id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal'],
+    ['FINANCE_RD_FIN_OPEN_PERIOD', "SELECT * FROM finance_periods WHERE id=? AND company_id=? AND state='open'"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping owner writes and locks in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(4);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(20);
+    for (const [, sql] of FAMILY) expect(adapter.split(sql).length - 1).toBe(0);
+    expect(adapter).toContain('withFinancePurchasedCommand');
+    expect(adapter).toContain('financeTransaction');
+    expect(adapter.match(/\.prepare\(["'`]SELECT/g)?.length ?? 0).toBe(14);
+  });
+});
+
+describe('finance native finance.ts second point/list family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_FIN2_ACCOUNT_INVOICE', "SELECT 1 FROM finance_invoices WHERE company_id=? AND outstanding_minor>0 AND status IN ('draft','posted','partially_paid') AND (debit_account_id=? OR credit_account_id=?) LIMIT 1"],
+    ['FINANCE_RD_FIN2_BUSINESS_BILLED', 'SELECT 1 FROM finance_business_billing_runs WHERE invoice_id=? AND company_id=?'],
+    ['FINANCE_RD_FIN2_EDITABLE_INVOICE', "SELECT line_mode FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND version=? AND source_type='standalone'"],
+    ['FINANCE_RD_FIN2_POSTABLE_INVOICE', "SELECT * FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND source_type NOT IN ('opening_import','field_service')"],
+    ['FINANCE_RD_FIN2_INVOICE_CHART', 'SELECT a.chart_id,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=?'],
+    ['FINANCE_RD_FIN2_SETTLED_MONEY', "SELECT 1 AS present FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=? AND amount_kind='settled'"],
+    ['FINANCE_RD_FIN2_APPROVED_PAYMENT', "SELECT * FROM finance_payments WHERE id=? AND company_id=? AND status='approved'"],
+    ['FINANCE_RD_FIN2_FX_RUNS', 'SELECT r.*,c.name chart_name FROM finance_fx_revaluation_runs r JOIN finance_charts c ON c.id=r.chart_id WHERE r.company_id=? AND r.period_id=? ORDER BY r.created_at DESC'],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping owner writes and locks in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(4);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(20);
+    for (const [, sql] of FAMILY) expect(adapter.split(sql).length - 1).toBe(0);
+    expect(adapter).toContain('withFinancePurchasedCommand');
+    expect(adapter.match(/\.prepare\(["'`]SELECT/g)?.length ?? 0).toBe(14);
+  });
+});
+
+describe('finance native finance.ts third point/list family cutover', () => {
+  const FAMILY: Array<[string, string]> = [
+    ['FINANCE_RD_FIN3_BANK_ACCOUNT', "SELECT a.id,a.chart_id,a.currency,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=? AND a.category='asset' AND a.control_kind='bank' AND a.status='active'"],
+    ['FINANCE_RD_FIN3_PAID_PAYMENT', 'SELECT p.*,j.chart_id,j.status journal_status,j.journal_number,j.entry_date journal_entry_date FROM finance_payments p JOIN finance_journals j ON j.id=p.journal_id WHERE p.id=? AND p.company_id=?'],
+    ['FINANCE_RD_FIN3_PAYMENT_ALLOCATIONS', 'SELECT a.*,i.total_minor,i.outstanding_minor,i.source_type FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE a.payment_id=? AND a.company_id=? ORDER BY a.id'],
+    ['FINANCE_RD_FIN3_CORRECTION_EXISTS', "SELECT 1 FROM finance_billing_corrections c JOIN finance_allocations a ON a.invoice_id=c.invoice_id WHERE a.payment_id=? AND c.company_id=? AND c.status='posted'"],
+    ['FINANCE_RD_FIN3_FX_RUN_PERIOD', 'SELECT r.*,p.state period_state,p.end_date FROM finance_fx_revaluation_runs r JOIN finance_periods p ON p.id=r.period_id WHERE r.id=? AND r.company_id=?'],
+    ['FINANCE_RD_FIN3_PERIOD_BY_ID', 'SELECT * FROM finance_periods WHERE id=?'],
+    ['FINANCE_RD_FIN3_BOOK_MAPPING', "SELECT m.primary_account_id FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id\n      WHERE r.company_id=? AND r.status='approved' AND m.secondary_account_id=? AND r.effective_date<=? ORDER BY r.effective_date DESC LIMIT 1"],
+    ['FINANCE_RD_FIN3_OTHER_ACCOUNTS', "SELECT a.id,a.chart_id,a.code,a.name,a.category,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.status='active' AND a.currency=c.base_currency AND a.category IN ('other_income','other_expense') ORDER BY a.code"],
+  ];
+
+  it('registers every kind in the TS bridge and the Rust owner registry', async () => {
+    const bridge = await readFile(new URL('../../../modules/finance/server/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const [kind] of FAMILY)
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    const rust = await readFile(new URL('../../../modules/finance/server/src/adapters/native_finance_read_sql.rs', import.meta.url), 'utf8');
+    for (const [kind, sql] of FAMILY) {
+      const rustConst = 'RD_' + kind.slice('FINANCE_RD_'.length);
+      expect(rust).toContain(`pub const ${rustConst}: &str = "${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}"`);
+      expect(rust).toContain(`const SQL_${rustConst}: &str = "${sql.replace(/\n/g, '\\n')}"`);
+      expect(rust).toContain(`READ_${kind.slice('FINANCE_RD_'.length)},`);
+    }
+    expect(rust).toContain('assert_eq!(READS.len(), 140);');
+  });
+
+  it('delegates all eight reads while keeping owner writes and locks in TS', async () => {
+    const adapter = await readFile(new URL('../../../modules/finance/server/src/adapters/finance.ts', import.meta.url), 'utf8');
+    expect(adapter).toContain("from './native-finance-read'");
+    for (const [kind] of FAMILY) expect(adapter).toContain(kind);
+    expect(adapter.match(/nativeFinanceReadAll[<(]/g)?.length).toBe(4);
+    expect(adapter.match(/nativeFinanceReadFirst[<(]/g)?.length).toBe(20);
+    for (const [, sql] of FAMILY) {
+      expect(adapter.split(sql.split('\n')[0]).length - 1).toBeLessThanOrEqual(1);
+    }
+    expect(adapter).not.toMatch(/\w+nativeFinanceRead(?:All|First)[<(]/);
+    expect(adapter).toContain('withFinancePurchasedCommand');
+  });
+});

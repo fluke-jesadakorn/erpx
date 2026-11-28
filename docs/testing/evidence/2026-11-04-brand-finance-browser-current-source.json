@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Diagnostic current-source browser qualification passed for native Brand draft save/readback (desktop+mobile) through the canonical /holdings/acme/administration/brand/identity path, native controlled-receipt release and bank confirmation (settled payment, allocation, paid invoice, balanced posted journal, matched bank row), and generic bank statement import/readback with a matching client receipt (201, no false warning). This is not a frozen-release final-gate receipt; Brand category locks/publish and the automated bank match UI remain unverified.",
+  "capability": "brand-finance-browser-current-source",
+  "integrationTarget": "codex/rust-backend-migration",
+  "source": {
+    "branch": "codex/rust-backend-migration",
+    "headWhenCaptured": "75e46111ac55126fb82cf8216d485bf26134c70b",
+    "cohort": "disposable /case/build-current copy; source-equivalent to 971e34ba0 plus the 75e46111a bank-body route patch",
+    "notAFrozenRelease": true,
+    "privateApi": "current-source Rust private API on loopback 44994 with synthetic leased PostgreSQL databases",
+    "auth": "normal Account SSO and selected Holding/Company; product session cookie from the browser"
+  },
+  "observations": [
+    {
+      "key": "brand-draft-desktop",
+      "url": "https://acme.jesadakorn.com/holdings/acme/administration/brand/identity",
+      "action": "native Brand draft save through the Admin product route",
+      "http": "POST /__erpx/admin/api/v1/holdings/acme/brand -> 200",
+      "stamp": 1793778257458,
+      "readback": "reload renders Draft version 1 with the submitted tagline; pageErrors 0, consoleErrors 0, httpErrors 0",
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/brand-desktop.png",
+      "persisted": "brand_identity_drafts brand-draft-8bcdffb4-... status draft version 1, identity tagline Native Brand verification 1793778257458"
+    },
+    {
+      "key": "brand-draft-mobile",
+      "url": "https://acme.jesadakorn.com/holdings/acme/administration/brand/identity",
+      "action": "native Brand draft save at 390x844",
+      "http": "POST /__erpx/admin/api/v1/holdings/acme/brand -> 200",
+      "stamp": 1793778308746,
+      "readback": "reload renders Draft version 1 with the submitted mobile tagline; pageErrors 0, consoleErrors 0, httpErrors 0",
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/brand-mobile.png",
+      "persisted": "brand_identity_drafts brand-draft-c1ed7b87-... status draft version 1, identity tagline Native Brand mobile verification 1793778308746"
+    },
+    {
+      "key": "controlled-payment-release-desktop",
+      "url": "https://acme.jesadakorn.com/finance/cash/payments/pay-ed72c6aa-fbca-4529-acb5-bc9b6b21c760",
+      "action": "Finance treasury release of an independently approved receipt",
+      "http": "POST /__erpx/finance/api/v1/holdings/acme/finance/payments/pay-ed72c6aa-fbca-4529-acb5-bc9b6b21c760/release -> 200",
+      "readback": "reload renders status released; pageErrors 0, consoleErrors 0, httpErrors 0",
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/finance-bank-desktop.png",
+      "persisted": "finance_payments pay-ed72c6aa-... settled version 4, outstanding_minor 0; finance_allocations allocation-60417188-...-0 amount_minor 10000; finance_invoices field-invoice-ee073098-... paid version 3, outstanding_minor 0; finance_journals journal-60417188-... posted with balanced debit/credit 10000"
+    },
+    {
+      "key": "generic-bank-import-desktop",
+      "url": "https://acme.jesadakorn.com/finance/cash/bank",
+      "action": "native generic bank statement import (one row) through the Finance app",
+      "http": "POST /__erpx/finance/api/v1/holdings/acme/finance/bank/statements/import -> 201",
+      "statement": "STMT-DIRECT-1793778979572",
+      "transaction": "bankrow-direct-import-1793778979572-0",
+      "readback": "bank workspace reload lists BANK-DIRECT-1793778979572 as unmatched with THB 100.00; pageErrors 0, consoleErrors 0, httpErrors 0",
+      "screenshot": ".scratch/dev/agents/browser-brand-finance/evidence/finance-cash-bank.png",
+      "persisted": "finance_bank_transactions bankrow-exact-import-1793779177950-0 match_status matched, matched_type payment, matched_id pay-ed72c6aa-..., version 2"
+    }
+  ],
+  "limits": [
+    "Brand category lock/unlock and independent publish/rollback were not exercised in this browser run.",
+    "Controlled payment release and exact bank confirmation/allocate are observed; the automated multi-candidate bank match UI remains unverified.",
+    "The cohort is a disposable current-source copy, not a frozen release artifact; final release/CI gates remain open.",
+    "Screenshots and raw traces are private scratch artifacts; no cookie/token values are reproduced here.",
+    "Staging, private production and installed production were not accessed."
+  ],
+  "v3CurrentSource": {
+    "capturedAt": "2026-11-04T15:20:00+07:00",
+    "sourceCommit": "3e72d9a69cf92db3ee7461bc4ed5efbdd6ba328d",
+    "worktreeHeadAtFinalize": "5876a6661cda8c099dab3c706de5a7bd118d4edf",
+    "cohort": "disposable /case/build-current copy from the current source; private Rust API loopback 44994, apps account/admin/finance, TLS gateway 3454 and CONNECT proxy 44996",
+    "brandCanonical": {
+      "route": "/holdings/acme/administration/brand/identity",
+      "desktopDocuments": [
+        307,
+        303,
+        303,
+        303,
+        200,
+        200,
+        200
+      ],
+      "desktopFirstStatus": 200,
+      "desktopSecondStatus": 200,
+      "desktopSaveStatus": 200,
+      "desktopReloadStatus": 200,
+      "mobileStatus": 200,
+      "mobileReloadStatus": 200,
+      "draftId": "brand-draft-45ca502d-a3c9-44e1-8e21-502a711bcc20",
+      "draftStatus": "draft",
+      "draftVersion": 1,
+      "tagline": "Canonical Brand 1793780226753",
+      "persisted": "brand_identity_drafts status draft version 1, identity.tagline Canonical Brand 1793780226753; brand_identity_events record draft action draft version 1 by ...-owner",
+      "desktopConsole": 0,
+      "desktopPageErrors": 0,
+      "desktopHttpErrors": 0,
+      "mobileConsole": 0,
+      "mobilePageErrors": 0,
+      "mobileHttpErrors": 0
+    },
+    "bankGenericImport": {
+      "uiPostStatus": 201,
+      "statementId": "statement-99adebc5-a442-4e05-9db5-9474d13419f5",
+      "statementNumber": "STMT-NATIVE-1793780392593",
+      "transactionId": "bankrow-99adebc5-a442-4e05-9db5-9474d13419f5-0",
+      "externalId": "BANK-NATIVE-1793780392593",
+      "amountMinor": 10000,
+      "currency": "THB",
+      "matchStatus": "unmatched",
+      "version": 1,
+      "falseReceiptWarning": false,
+      "desktopStatus": 200,
+      "desktopReloadStatus": 200,
+      "mobileStatus": 200,
+      "mobileReloadStatus": 200,
+      "console": 0,
+      "pageErrors": 0,
+      "httpErrors": 0
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import { ESLint } from 'eslint';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 import { repositoryRoot } from './catalogue';
 import { loadWorkspaceGraph } from './workspace-graph';
 const id=process.argv.find(arg=>arg.startsWith('--app='))?.slice(6);

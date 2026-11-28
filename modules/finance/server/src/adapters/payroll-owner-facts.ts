@@ -1,0 +1,100 @@
+import { payrollPostPeriodSql } from './finance-read-tail-r42-sql';
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
+import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
+import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r32-sql';
+import { BANK_STATEMENT_VERSION_GUARD_SQL } from './finance-read-tail-r18-sql';
+import {financeSnapshotSources} from "@erpx/people-payroll-server/public/finance-snapshot-sources";
+import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
+import { ACTIVE_CHART_NAV_SQL } from './finance-read-tail-r34-sql';
+import { financePayrollOwner } from '@erpx/collaboration-server/adapters/native-finance-payroll-owner';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+export function payrollFinanceFacts(database: SqlDatabase) {
+    return { readPayrollPostingOptionsChartsperiodsmappingsgroups(companyId: string) { return database.prepare(ACTIVE_CHART_NAV_SQL).bind(companyId).all(); },
+        readPayrollPostingOptionsChartsperiodsmappingsgroups2(companyId: string) { return database.prepare(OPEN_PERIOD_LIST_SQL).bind(companyId).all(); },
+        readPayrollPostingOptionsAccounts(companyId: string, chartIds: string[]) { return database.prepare(`SELECT id,chart_id,code,name,category,currency FROM finance_accounts WHERE company_id=? AND status='active' AND chart_id IN (${chartIds.map(() => "?").join(",")}) ORDER BY code`).bind(companyId, ...chartIds).all(); },
+        readResolvePayrollPostPeriods(companyId: string, dateHint: string, dateHint2: string) {
+            return database.prepare(payrollPostPeriodSql(' AND start_date<=? AND end_date>=? ORDER BY start_date')).bind(companyId, dateHint, dateHint2).all<{
+                id: string;
+                start_date: string;
+            }>();
+        },
+        readResolvePayrollPostNext(companyId: string, period_end: string) {
+            return database.prepare(payrollPostPeriodSql(' AND start_date>? ORDER BY start_date LIMIT 1')).bind(companyId, period_end).all<{
+                id: string;
+                start_date: string;
+            }>();
+        },
+        readResolvePayrollPostEffect(companyId: string, entryDate: string, entryDate2: string) {
+            return database.prepare(payrollPostPeriodSql(' AND start_date<=? AND end_date>=?')).bind(companyId, entryDate, entryDate2).all<{
+                id: string;
+                start_date: string;
+            }>();
+        },
+        readSavePayrollAccountMappingChart(chartId: string, companyId: string) {
+            return database.prepare(ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).bind(chartId, companyId).first<{
+                id: string;
+                base_currency: string;
+            }>();
+        },
+        readSavePayrollAccountMappingAccounts(companyId: string, chartId: string, ids: string[]) {
+            return database.prepare(`SELECT id,currency,category FROM finance_accounts WHERE company_id=? AND chart_id=? AND status='active' AND id IN (${ids.map(() => "?").join(",")})`).bind(companyId, chartId, ...ids).all<{
+                id: string;
+                currency: string;
+                category: string;
+            }>();
+        },
+        readPreparePayrollAccrualValid(companyId: string, chartId: string, ids: string[]) {
+            return database.prepare(`SELECT id,category,currency FROM finance_accounts WHERE company_id=? AND chart_id=? AND status='active' AND id IN (${ids.map(() => "?").join(",")})`).bind(companyId, chartId, ...ids).all<{
+                id: string;
+                category: string;
+                currency: string;
+            }>();
+        },
+        readCreatePaymentBatchInvoice(sourceId: string, companyId: string) {
+            return database.prepare(`SELECT i.id,i.status,i.currency,i.total_minor,p.name AS legal_name
+      FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id
+      WHERE i.id=? AND i.company_id=? AND i.kind='payable' AND p.kind='supplier' AND p.person_id IS NULL AND i.source_type!='expense_claim'`).bind(sourceId, companyId).first<{
+                id: string;
+                status: string;
+                currency: string;
+                total_minor: number;
+                legal_name: string;
+            }>();
+        },
+        readCreatePaymentBatchBank(bankAccountId: string, companyId: string, currency: string) { return database.prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND category='asset' AND currency=? AND status='active'").bind(bankAccountId, companyId, currency).first(); },
+        guard185(commandId: string, value: "supplier-payment-reservation", sourceId: string) { return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown','confirmed'))", [sourceId]); },
+        stageCreatePaymentBatchEffect(now: number, sourceId: string, companyId: string) { return financePayrollOwner(database, companyId).invoiceVersion({ now, sourceId, companyId }); },
+        readConfirmPaymentBatchPosting(source_id: string, companyId: string) {
+            return database.prepare(`SELECT p.journal_id,j.chart_id,r.pay_date ${financeSnapshotSources().payrollPostingSource} JOIN finance_journals j ON j.id=p.journal_id WHERE p.run_id=? AND r.company_id=? AND j.status='posted'`).bind(source_id, companyId).first<{
+                journal_id: string;
+                chart_id: string;
+                pay_date: string;
+            }>();
+        },
+        readConfirmPaymentBatchPayables(journal_id: string) {
+            return database.prepare("SELECT DISTINCT account_id FROM finance_journal_lines WHERE journal_id=? AND description IN ('Net payroll payable','Net pay payable to employees')").bind(journal_id).all<{
+                account_id: string;
+            }>();
+        },
+        readConfirmPaymentBatchBankAccount(bank_account_id: string | null, companyId: string, chart_id: string, currency: string) { return database.prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND currency=? AND category='asset' AND status='active'").bind(bank_account_id, companyId, chart_id, currency).first(); },
+        readConfirmPaymentBatchTransaction(bankTransactionId: string, companyId: string) {
+            return database.prepare("SELECT t.id,t.version,t.amount_minor,t.currency,t.match_status,t.transaction_date,t.external_id,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?").bind(bankTransactionId, companyId).first<{
+                id: string;
+                version: number;
+                amount_minor: number;
+                currency: string;
+                match_status: string;
+                transaction_date: string;
+                external_id: string;
+                bank_account: string;
+            }>();
+        },
+        readConfirmPaymentBatchPeriods(companyId: string, transaction_date: string, transaction_date2: string) {
+            return database.prepare(OPEN_PERIOD_IDS_SQL).bind(companyId, transaction_date, transaction_date2).all<{
+                id: string;
+            }>();
+        },
+        guard216(commandId: string, value: string, id: string, companyId: string, bankVersion: number, bank_account_id: string, currency: string, value2: number, confirmationRef: string) { return assertion(database, commandId, value, BANK_STATEMENT_VERSION_GUARD_SQL, [id, companyId, bankVersion, bank_account_id, currency, value2, confirmationRef]); },
+        stageConfirmPaymentBatchEffect2(id: string, id2: string, bankVersion: number, companyId: string) { return financePayrollOwner(database, companyId).bankMatch({ id, id2, bankVersion }); } };
+}

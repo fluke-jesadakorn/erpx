@@ -1,1 +1,0 @@
-export {financeDocumentPresentationAccess,financeSourceDocumentBackdrop,financeDocumentFlow,journalRecordWorkspace,invoiceRecordWorkspace} from "@erpx/server-finance/adapters/record-presentation";

@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { localShortcutKey, parseLocalShortcuts, serializeLocalShortcuts } from "@erpx/feature-work_projection/lib/local-shortcuts";
-import { visibleQuickAccessItems } from "@erpx/feature-work_projection/lib/quick-access";
+import { localShortcutKey, parseLocalShortcuts, serializeLocalShortcuts } from "@erpx/work-projection-ui/lib/local-shortcuts";
+import { visibleQuickAccessItems } from "@erpx/work-projection-ui/lib/quick-access";
 
 it("isolates local pins by user, company and workspace scope", () => {
   const key = localShortcutKey("user-a", "company-a", "/holdings/acme");

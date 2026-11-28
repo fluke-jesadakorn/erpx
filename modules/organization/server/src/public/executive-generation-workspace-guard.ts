@@ -1,0 +1,1 @@
+export {guardExecutiveGenerationWorkspace} from '@erpx/organization-server/adapters/executive-generation-workspace-guard';

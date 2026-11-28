@@ -1,1 +1,0 @@
-export {technologyVerifiedPersonUsersProjection,technologyRestorationAssignmentProjection} from '@erpx/server-people_payroll/adapters/technology-provisioning-projection';

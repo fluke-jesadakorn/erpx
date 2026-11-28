@@ -1,9 +1,9 @@
 import {expect,it,vi} from 'vitest';
-import {attachmentPolicyRegistry} from '@erpx/server-files/domain/attachments/policy';
-import {attachmentContent} from '@erpx/server-files/public/attachments/service';
-import type {SqlDatabase,SqlStatement,FileStore} from '@erpx/server-runtime/public/runtime/types';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {bufferedAttachmentRead} from '@erpx/server-files/adapters/private-attachment-reads';
+import {attachmentPolicyRegistry} from '@erpx/files-server/domain/attachments/policy';
+import {attachmentContent} from '@erpx/files-server/public/attachments/service';
+import type {SqlDatabase,SqlStatement,FileStore} from '@erpx/platform-runtime-server/public/runtime/types';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import {bufferedAttachmentRead} from '@erpx/files-server/adapters/private-attachment-reads';
 
 const actor:WorkContext={userId:'reader',name:'Reader',email:'reader@example.test',assignmentId:'assignment',role:'employee',companyId:'company',branchId:null,departmentId:null,holdingId:'H001',holdingSlug:'example',holdingName:'Example',scope:{kind:'holding',holdingId:'H001',holdingSlug:'example',holdingName:'Example',companyId:'company'},assignmentScope:'holding',inherited:false,modules:[],assignments:[],workspaces:[]};
 const targets=[...new Map(attachmentPolicyRegistry.map(policy=>[policy.targetType,policy])).values()];
@@ -17,7 +17,7 @@ it.each(targets)('cannot claim an owner read unit from an arbitrary snapshot for
  const prepare=vi.fn((sql:string)=>{if(!sql)throw Error('QUERY_REQUIRED');return statement;}),batch=vi.fn(async()=>{throw Error('UNLEASED_MUTATION');}),exec=vi.fn(async()=>{throw Error('UNLEASED_MUTATION');}),database:SqlDatabase={prepare,batch,exec};
  const get=vi.fn(async()=>null),put=vi.fn(async()=>null),head=vi.fn(async()=>null),remove=vi.fn(async()=>{}),list=vi.fn(async()=>({objects:[],truncated:false})),files:FileStore={get,put,head,delete:remove,list};
  await expect(attachmentContent(database,files,actor,'link','original')).rejects.toMatchObject({status:503});
- expect(prepare).toHaveBeenCalledTimes(1);expect(prepare.mock.calls[0][0]).toContain('"setId"');
+ expect(prepare).toHaveBeenCalledTimes(1);expect(prepare.mock.calls[0][0]).toMatch(/^SELECT\b/);expect(prepare.mock.calls[0][0]).toContain('erpx_finance_field_payment_owned');expect(prepare.mock.calls[0][0]).not.toMatch(/\b(?:INSERT|UPDATE|DELETE)\b/);
  for(const operation of [batch,exec,get,put,head,remove,list])expect(operation).not.toHaveBeenCalled();
 });
 

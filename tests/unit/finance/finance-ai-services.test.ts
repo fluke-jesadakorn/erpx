@@ -1,11 +1,13 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceAi,type FinanceAiPorts} from "@erpx/server-finance/application/ai";
-import {createFinanceAiSource,type FinanceAiSourcePorts} from "@erpx/server-finance/application/ai-source";
-import {financeAiScope,validateFinanceAiResult,type FinanceAiSnapshot} from "@erpx/server-finance/domain/ai-source";
-import type {FinanceAiPolicy,FinanceAiProposal} from "@erpx/server-finance/domain/ai";
-import type {AiProviderSnapshot} from "@erpx/server-agent/domain/providers";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {financeAiDateAt} from "@erpx/server-finance/domain/ai-contracts";
+import {createFinanceAi,type FinanceAiPorts} from "@erpx/finance-server/application/ai";
+import {createFinanceAiSource,type FinanceAiSourcePorts} from "@erpx/finance-server/application/ai-source";
+import {financeAiScope,validateFinanceAiResult,type FinanceAiSnapshot} from "@erpx/finance-server/domain/ai-source";
+import type {FinanceAiPolicy,FinanceAiProposal} from "@erpx/finance-server/domain/ai";
+import type {AiProviderSnapshot} from "@erpx/agent-server/domain/providers";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {financeAiDateAt} from "@erpx/finance-server/domain/ai-contracts";
+import {agentFinanceDatedUsage,agentFinanceMonthlyUsage} from "@erpx/finance-server/adapters/agent-ai-usage-projection";
+import {recordsFinanceUsageSql} from "@erpx/finance-server/adapters/records-ai-usage-projection";
 it('formats the supplied Finance business date in the selected timezone',()=>{
  const now=new Date('2026-10-06T18:00:00Z');
  expect(financeAiDateAt('Asia/Bangkok',now)).toBe('2026-10-07');
@@ -63,4 +65,11 @@ describe('Finance AI bounded opted-in automatic scan and cleanup',()=>{
  it('keeps receipt candidates in owning Expense workflow with evidence and current eligibility',async()=>{const c=context({scanPolicies:async()=>[{...policy,kinds_json:'["receipt_extraction"]'}],scanExpenses:async()=>[{id:'missing'},{id:'denied'},{id:'allowed'}],expenseSource:async(_a,id)=>({evidenceCount:id==='missing'?0:1,sourceVersion:4,allowed:id==='allowed'})});await c.run.scanFinanceAi();expect(c.ports.queueExpense).toHaveBeenCalledExactlyOnceWith(actor,'allowed',4,3,'lease')});
  it('retains fifteen-minute policy retry after quota failure while skipping changed-stage candidates',async()=>{const c=context({scanInvoices:async()=>[{id:'invoice',version:2,kind:'payable',status:'draft',due_date:'2026-10-06'}],quota:async()=>({used:100,allowance:100,daily:0,monthly:0})});await c.run.scanFinanceAi();expect(c.ports.scanFailed).toHaveBeenCalledWith(policy,expect.any(String),Date.UTC(2026,9,6)+15*60000);expect(c.ports.scanSucceeded).not.toHaveBeenCalled()});
  it('runs pending lease work in order then performs native exhausted-reservation cleanup',async()=>{const claim=vi.fn(async(id:string)=>{void id;return null}),c=context({pending:async()=>[{id:'first'},{id:'second'}],claim});await c.run.drainFinanceAi();expect(claim.mock.calls.map(x=>x[0])).toEqual(['first','second']);expect(c.ports.exhausted).toHaveBeenCalledOnce()});
+});
+describe('Finance AI owner-local fixed usage source dedupe',()=>{
+ it('shares one canonical monthly usage SQL between agent and records projections',()=>{
+  expect(agentFinanceMonthlyUsage()).toBe(recordsFinanceUsageSql);
+  expect(recordsFinanceUsageSql).toBe('SELECT company_id,month FROM finance_ai_usage');
+  expect(agentFinanceDatedUsage()).toBe('SELECT company_id,created_at FROM finance_ai_usage');
+ });
 });

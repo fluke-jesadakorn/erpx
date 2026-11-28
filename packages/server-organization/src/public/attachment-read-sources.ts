@@ -1,2 +1,0 @@
-import 'server-only';
-export {isOrganizationAttachmentReadTarget,organizationAttachmentReadSourceLocks,organizationAttachmentReadSourceImage,foundationAttachmentOrganizationSourceLocks,foundationAttachmentOrganizationSourceImage} from '@erpx/server-organization/adapters/attachment-read-sources';

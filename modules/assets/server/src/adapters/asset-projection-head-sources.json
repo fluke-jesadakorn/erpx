@@ -1,0 +1,4 @@
+{
+  "selectHead": "SELECT {projection}{tail}",
+  "fromHead": " FROM{from}{tail}"
+}

@@ -1,0 +1,1 @@
+export {preservationMetadataDigest,orphanObjectReferences,verifiedPreservedDirectory,sealUnreferencedStoredObjects,preserveUnreferencedFiles} from '@erpx/files-server/adapters/attachments/orphan-preservation';

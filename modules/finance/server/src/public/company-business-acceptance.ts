@@ -1,0 +1,2 @@
+/** Historical public entry retained for callers. */
+export {companyAcceptanceSubmitSchema,companyAcceptanceDecisionSchema,companyAcceptanceRevokeSchema,companyBusinessAcceptance,submitCompanyBusinessAcceptance,decideCompanyBusinessAcceptance,revokeCompanyBusinessAcceptance,companyBusinessAcceptanceWork} from "@erpx/organization-server/public/company-business-acceptance";

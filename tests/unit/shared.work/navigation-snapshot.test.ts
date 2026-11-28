@@ -1,15 +1,15 @@
 import { expect, it, vi } from "vitest";
-import { navigationSnapshot, workspaceNavigation, restrictedWorkspaceNavigation } from "@erpx/server-work_projection/public/navigation-snapshot";
-import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { WorkSnapshot } from "@erpx/server-work_projection/public/work-items";
+import { navigationSnapshot, workspaceNavigation, restrictedWorkspaceNavigation } from "@erpx/work-projection-server/public/navigation-snapshot";
+import { businessRoles } from "@erpx/identity-access-ui/lib/business-roles";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import type { WorkSnapshot } from "@erpx/work-projection-server/public/work-items";
 
 const reads = vi.hoisted(() => ({ work: vi.fn(), unread: vi.fn(), capabilities: vi.fn(), authorize: vi.fn() }));
-vi.mock("@erpx/server-work_projection/public/work-items", () => ({ workSnapshot: reads.work }));
-vi.mock("@erpx/server-work_projection/public/navigation-counts", () => ({ unreadHomeCount: reads.unread }));
-vi.mock("@erpx/server-work_projection/public/work-capabilities", () => ({ getWorkCapabilities: reads.capabilities }));
-vi.mock("@erpx/server-runtime/public/runtime", () => ({ holdingResources: async () => ({ write: "database" }) }));
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: reads.authorize }));
+vi.mock("@erpx/work-projection-server/public/work-items", () => ({ workSnapshot: reads.work }));
+vi.mock("@erpx/work-projection-server/public/navigation-counts", () => ({ unreadHomeCount: reads.unread }));
+vi.mock("@erpx/work-projection-server/public/work-capabilities", () => ({ getWorkCapabilities: reads.capabilities }));
+vi.mock("@erpx/platform-runtime-server/public/runtime", () => ({ holdingResources: async () => ({ write: "database" }) }));
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({ requireWorkContext: reads.authorize }));
 
 const actor = { holdingId: "h001", role: "employee", scope: { kind: "holding" } } as WorkContext;
 const complete: WorkSnapshot = { items: [

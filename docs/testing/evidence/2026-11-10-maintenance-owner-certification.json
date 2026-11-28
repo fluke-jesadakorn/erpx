@@ -1,0 +1,128 @@
+{
+  "schema": "erpx.evidence/maintenance-owner-certification/v1",
+  "recorded_at": "2026-11-10T21:20:29+07:00",
+  "head": "e49e5b8784886aeb9e14545af7f938ba8972652c",
+  "owner": "maintenance",
+  "package": "erpx-server-maintenance",
+  "workflows": [
+    "maintenance/work-orders",
+    "maintenance/downtime",
+    "maintenance/feature-blocked-work",
+    "maintenance/feature-completion",
+    "maintenance/feature-maintenance-history"
+  ],
+  "workflow_counts": {
+    "total": 5,
+    "verified": 5,
+    "partial": 0,
+    "unstarted": 0
+  },
+  "scope_decision": {
+    "decision": "five registered Maintenance workflows certified on the native owner route",
+    "included": "Native workspace/detail reads, work-order create/schedule/start/block/resume/complete/cancel, downtime capture through start/complete, blocked/resume history, completion evidence/condition and immutable history.",
+    "excluded": "Preventive-plan POST writes remain on the retained TypeScript application because the native plan command composition is not mounted.",
+    "retained_consumer": "packages/feature-assets/src/routes/api/v1/holdings/[holdingSlug]/maintenance/plans/route.ts POST calls savePreventivePlan/changePreventivePlan. It is the named retained consumer outside the five registered workflows; removal condition is the native plan command composition.",
+    "follow_up": "Native preventive-plan commands are a separate Maintenance follow-up and are not counted as native evidence for the five registered workflows."
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "active",
+    "ssr": "active",
+    "jobs": "not-applicable",
+    "providers": "not-applicable"
+  },
+  "native_paths": {
+    "http": "The private Maintenance API mounts GET workspace, GET work detail, POST create/change, GET plan list/detail and the business-error contract for the configured Holding/Company target. The duplicate target push that rejected the configured target was removed in this bundle.",
+    "ssr": "The product Maintenance GET/POST route and the detail presenter read and write through the native owner transport. There is no TypeScript owner fallback: an unset or failed transport returns 503 NATIVE_MAINTENANCE_UNAVAILABLE.",
+    "commands": "Create validates the Asset version, active-work vacancy, operational owner, Commercial new-work purchase and writes the Workflow receipt/audit, create event and notification in one serializable unit. Transitions validate the current owner or eligible reviewer, the selected work role, the state and the expected version.",
+    "downtime": "Start persists downtime_started_at and complete persists downtime_ended_at on the same work order; no separate downtime UI writer exists in this scope.",
+    "authority": "Reads require records.read plus the maintenance module and enforce the current Company/branch/department scope, selected-context expiry and bounded workspace size. Commands require records.write and the native owner/reviewer eligibility."
+  },
+  "gates": [
+    {
+      "name": "maintenance.rust-work-source-postgres.integration",
+      "result": "12/12 pass in 32.91 s"
+    },
+    {
+      "name": "maintenance.rust-maintenance-http-postgres.integration",
+      "result": "1/1 pass in 10.77 s"
+    },
+    {
+      "name": "maintenance.rust-issue-part-command-postgres.integration",
+      "result": "5/5 pass in 31.92 s"
+    },
+    {
+      "name": "maintenance.rust-transitions-command-postgres.integration",
+      "result": "18/18 pass in 71.55 s"
+    },
+    {
+      "name": "maintenance.rust-maintenance-read-postgres.integration",
+      "result": "6/6 pass in 12.90 s"
+    },
+    {
+      "name": "maintenance.rust-settlement-references-postgres.integration",
+      "result": "3/3 pass in 17.20 s"
+    },
+    {
+      "name": "maintenance Rust unit suites",
+      "result": "rust-work-policy 2/2, rust-work-wire 2/2, rust-work-commands 1/1, rust-schedule-commands 1/1, rust-preventive-action-wire 2/2"
+    },
+    {
+      "name": "maintenance.native-maintenance-transport.unit",
+      "result": "17/17 pass"
+    },
+    {
+      "name": "maintenance.maintenance-preventive.integration + maintenance.maintenance-route-encoding.integration",
+      "result": "8/8 pass (6 preventive + 2 route encoding)"
+    },
+    {
+      "name": "cargo build -p erpx-service --bin erpx-server",
+      "result": "private-field-api,existing-business,legal-pdf-worker,legal-document-worker,legal-queue pass"
+    },
+    {
+      "name": "typecheck",
+      "result": "bun run typecheck exit 0"
+    },
+    {
+      "name": "structure",
+      "result": "bun run structure:check pass"
+    }
+  ],
+  "browser": {
+    "create": {
+      "result": "The native create form in the Assets & Maintenance workspace returned 200 with id maintenance-1a162f68-48d2-4441-8844-6198b7d193a0, status open, version 1; the detail page rendered the work order and its Start work / Cancel work controls.",
+      "log": ".scratch/dev/rust-migration/current/maintenance-lifecycle9.log"
+    },
+    "transitions": {
+      "result": "Against the same work order the native owner command returned start 200 v2, block 200 v3, resume 200 v4 and complete 200 v5. PostgreSQL readback: status completed, version 5, downtime_started_at and downtime_ended_at persisted, completion_evidence 'Completed native maintenance acceptance', resulting_condition good.",
+      "log": ".scratch/dev/rust-migration/current/maintenance-native-commands3.log"
+    },
+    "historical": "The register's work-orders gap records that schedule/start/block/resume/complete/cancel were already native and browser verified in the earlier native slice. The only open correction was the retained TypeScript fallback in the product route, which this bundle removes.",
+    "limitation": "Current-session re-verification of the transition drawers was not completed: the workspace work snapshot recomputes 1295 queries for field-service-enabled roles (the cache is bypassed when actor.modules includes field_service) and the page did not finish hydration within 10 minutes. The native API transitions and PostgreSQL readback above, plus the earlier browser verification recorded in the register, are used; this environment limitation is disclosed and is not presented as new UI evidence."
+  },
+  "runtime": {
+    "gateway": "http://127.0.0.1:3100",
+    "private_api": "127.0.0.1:3198/3199 private development APIs",
+    "database": "development H001 write database, acme-co",
+    "asset": "asset-acme-native-maintenance-2",
+    "work_order": "maintenance-1a162f68-48d2-4441-8844-6198b7d193a0",
+    "owner": "usr_mali (active person/engagement and records.write)"
+  },
+  "legacy": {
+    "product_route": "apps/assets/src/app/api/v1/holdings/[holdingSlug]/maintenance/route.ts re-exports the feature route, which delegates GET/POST to the native owner transport and fails closed with 503 when it is unavailable.",
+    "plans_post": "The preventive plans POST remains on the retained TypeScript application. It is outside the five registered workflows and is the named consumer for this disclosure.",
+    "preventive_tests": "maintenance.maintenance-preventive.integration exercises the retained plan write application; native plan reads are covered by the native plan detail/list transport.",
+    "no_fallback": "No silent TypeScript owner read or write fallback remains in the Maintenance product route."
+  },
+  "notes": [
+    "The duplicate maintenance target push in src/composition/src/private_development_api.rs was removed; the configured target now mounts once and the private API accepts the shared configuration.",
+    "The route-encoding suite binds the presenter's native detail boundary to the owner read over the same disposable database; native HTTP reads remain gated by maintenance.rust-maintenance-read-postgres.integration and the browser journey.",
+    "No 6-subagent roster or Common frozen-bundle coordination is present; this bundle follows the user-directed execution without claiming that process evidence."
+  ],
+  "status": "owner-complete",
+  "surfaces_scope": "The surfaces apply to the five registered Maintenance workflows. Preventive-plan POST writes are a disclosed auxiliary consumer outside this certification.",
+  "rebased_base": "619e7f95379ead8f9df6b71fde1f654dbbcc71b0",
+  "reverified_at": "2026-11-10T21:27:59+07:00",
+  "reverification": "After rebasing the bundle onto the external writer tip 619e7f953, all Maintenance unit suites (8 Rust tests + 17 transport tests), both TS integration suites (8 tests), all six Rust PostgreSQL integration suites (45 tests), typecheck and structure:check were rerun and passed."
+}

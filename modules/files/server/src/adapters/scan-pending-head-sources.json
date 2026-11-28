@@ -1,0 +1,3 @@
+{
+  "scanPending": "EXISTS(SELECT 1 FROM attachment_scan_attempts scan WHERE scan.attachment_id={attachmentRef}.id AND scan.state IN ('pending','running','error'))"
+}

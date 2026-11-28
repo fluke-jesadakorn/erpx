@@ -1,0 +1,850 @@
+//! Owner-owned caller-unit read plans for Talent. Generated from the retired
+//! TypeScript SELECT literals with the exact positional payloads; the mounted
+//! `talent/command-plan` route resolves the kind here and returns the statement
+//! for the caller to prepare and execute on its own already-open unit.
+//!
+//! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
+//! same unit as the surrounding command. No SQL is ever accepted from the wire
+//! and no TypeScript SQL remains for these kinds.
+
+/// A planned owner read. `kind` is the allow-listed discriminator, `sql` the
+/// exact statement the retired owner literal bound and `bind_count` the number
+/// of positional arguments the caller must send.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeTalentReadStatement {
+    pub kind: &'static str,
+    pub sql: &'static str,
+    pub bind_count: usize,
+}
+
+/// Native successor of the TypeScript `nativeTalentDetail` application-event
+/// history read. The caller binds `[application_id]` on its open unit.
+pub const RD_APPLICATION_EVENTS: &str = "talent_rd_application_events";
+const SQL_RD_APPLICATION_EVENTS: &str =
+    "SELECT * FROM talent_application_events WHERE application_id=? ORDER BY version";
+const READ_APPLICATION_EVENTS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_APPLICATION_EVENTS,
+    sql: SQL_RD_APPLICATION_EVENTS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `nativeTalentDetail` proposal read.
+pub const RD_PROPOSALS: &str = "talent_rd_proposals";
+const SQL_RD_PROPOSALS: &str = "SELECT * FROM talent_proposals WHERE application_id=?";
+const READ_PROPOSALS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_PROPOSALS,
+    sql: SQL_RD_PROPOSALS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `nativeTalentDetail` offer read.
+pub const RD_OFFERS: &str = "talent_rd_offers";
+const SQL_RD_OFFERS: &str = "SELECT * FROM talent_offers WHERE application_id=?";
+const READ_OFFERS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_OFFERS,
+    sql: SQL_RD_OFFERS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `nativeTalentDetail` accepted-hire
+/// handoff read.
+pub const RD_HIRE_HANDOFFS: &str = "talent_rd_hire_handoffs";
+const SQL_RD_HIRE_HANDOFFS: &str = "SELECT * FROM talent_hire_handoffs WHERE offer_id=?";
+const READ_HIRE_HANDOFFS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_HIRE_HANDOFFS,
+    sql: SQL_RD_HIRE_HANDOFFS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `candidatePrivacyWorkspace` candidate
+/// privacy-event history read. The caller binds `[candidate_id, company_id]`
+/// on its open unit.
+pub const RD_PRIVACY_HISTORY: &str = "talent_rd_privacy_history";
+const SQL_RD_PRIVACY_HISTORY: &str =
+    "SELECT id,action,candidate_version,created_at FROM talent_candidate_privacy_events WHERE candidate_id=? AND company_id=? ORDER BY candidate_version,id";
+const READ_PRIVACY_HISTORY: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_PRIVACY_HISTORY,
+    sql: SQL_RD_PRIVACY_HISTORY,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript `peopleHireHandoffFacts`
+/// hire-consumption receipt read. The caller binds `[handoff_id, company_id]`
+/// on its open unit.
+pub const RD_CONSUME_HIRE_HANDOFF_RECEIPT: &str = "talent_rd_consume_hire_handoff_receipt";
+const SQL_RD_CONSUME_HIRE_HANDOFF_RECEIPT: &str =
+    "SELECT id FROM talent_hire_consumption_receipts WHERE handoff_id=? AND company_id=?";
+const READ_CONSUME_HIRE_HANDOFF_RECEIPT: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CONSUME_HIRE_HANDOFF_RECEIPT,
+    sql: SQL_RD_CONSUME_HIRE_HANDOFF_RECEIPT,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript `peopleHireHandoffFacts` candidate
+/// privacy row read. The caller binds `[candidate_id, company_id]` on its unit.
+pub const RD_CHANGE_CANDIDATE_PRIVACY_ROW: &str = "talent_rd_change_candidate_privacy_row";
+const SQL_RD_CHANGE_CANDIDATE_PRIVACY_ROW: &str =
+    "SELECT id,status,privacy_hold,privacy_requested_by,version,retention_until FROM talent_candidates WHERE id=? AND company_id=?";
+const READ_CHANGE_CANDIDATE_PRIVACY_ROW: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CHANGE_CANDIDATE_PRIVACY_ROW,
+    sql: SQL_RD_CHANGE_CANDIDATE_PRIVACY_ROW,
+    bind_count: 2,
+};
+
+/// Native successors of the TypeScript `nativeTalentWorkspace` list reads. The
+/// caller binds `[company_id, branch_id, branch_id, department_id,
+/// department_id]` (requisitions) or `[company_id]` (candidates) on its unit.
+pub const RD_WORKSPACE_REQUISITIONS: &str = "talent_rd_workspace_requisitions";
+const SQL_RD_WORKSPACE_REQUISITIONS: &str =
+    "SELECT * FROM talent_requisitions WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY updated_at DESC";
+const READ_WORKSPACE_REQUISITIONS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_WORKSPACE_REQUISITIONS,
+    sql: SQL_RD_WORKSPACE_REQUISITIONS,
+    bind_count: 5,
+};
+
+pub const RD_WORKSPACE_CANDIDATES: &str = "talent_rd_workspace_candidates";
+const SQL_RD_WORKSPACE_CANDIDATES: &str =
+    "SELECT id,legal_name,email,phone,retention_until,status,version,updated_at FROM talent_candidates WHERE company_id=? ORDER BY updated_at DESC";
+const READ_WORKSPACE_CANDIDATES: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_WORKSPACE_CANDIDATES,
+    sql: SQL_RD_WORKSPACE_CANDIDATES,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `SensitiveAttachmentTalentFacts`
+/// offer row read. The caller binds `[offer_id, company_id]` on its unit.
+pub const RD_SENSITIVE_OFFER: &str = "talent_rd_sensitive_offer";
+const SQL_RD_SENSITIVE_OFFER: &str =
+    "SELECT o.company_id,o.version,r.branch_id,r.department_id,a.owner_id,CASE WHEN (o.status<>'accepted' OR EXISTS(SELECT 1 FROM talent_hire_handoffs handoff JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=handoff.id AND receipt.company_id=handoff.company_id AND receipt.source_offer_version=handoff.source_offer_version WHERE handoff.offer_id=o.id AND handoff.company_id=o.company_id)) THEN 0 ELSE 1 END pending_hire_delivery FROM talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id WHERE o.id=? AND o.company_id=?";
+const READ_SENSITIVE_OFFER: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_SENSITIVE_OFFER,
+    sql: SQL_RD_SENSITIVE_OFFER,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript `SensitiveAttachmentTalentFacts`
+/// application row read. The caller binds `[user_id, user_id, user_id,
+/// target_id, company_id]` on its unit.
+pub const RD_SENSITIVE_APPLICATIONS: &str = "talent_rd_sensitive_applications";
+const SQL_RD_SENSITIVE_APPLICATIONS: &str =
+    "SELECT c.company_id,c.version,min(r.branch_id) FILTER (WHERE a.owner_id=?) owner_branch_id,min(r.department_id) FILTER (WHERE a.owner_id=?) owner_department_id,CASE WHEN EXISTS(SELECT 1 FROM talent_applications owned WHERE owned.candidate_id=c.id AND owned.company_id=c.company_id AND owned.owner_id=?) THEN 1 ELSE 0 END is_owner FROM talent_candidates c LEFT JOIN talent_applications a ON a.candidate_id=c.id AND a.company_id=c.company_id LEFT JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id WHERE c.id=? AND c.company_id=? GROUP BY c.id,c.company_id,c.version";
+const READ_SENSITIVE_APPLICATIONS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_SENSITIVE_APPLICATIONS,
+    sql: SQL_RD_SENSITIVE_APPLICATIONS,
+    bind_count: 5,
+};
+
+/// Native successor of the TypeScript `peopleHireHandoffFacts` accepted hire
+/// source row read. The caller binds `[handoff_id, company_id]` on its unit.
+pub const RD_HIRE_SOURCE_ROW: &str = "talent_rd_hire_source_row";
+const SQL_RD_HIRE_SOURCE_ROW: &str =
+    "SELECT h.*,o.version offer_version,o.status offer_status,o.start_date,o.currency,o.base_amount_minor,o.accepted_evidence,r.job_title,c.version candidate_version,c.status candidate_status,c.retention_until,c.legal_name,c.email,c.phone,c.privacy_hold,c.consent_evidence FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id AND o.company_id=h.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=h.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=h.company_id AND r.branch_id=h.branch_id AND r.department_id IS NOT DISTINCT FROM h.department_id JOIN talent_candidates c ON c.id=h.candidate_id AND c.id=a.candidate_id AND c.company_id=h.company_id WHERE h.id=? AND h.company_id=?";
+const READ_HIRE_SOURCE_ROW: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_HIRE_SOURCE_ROW,
+    sql: SQL_RD_HIRE_SOURCE_ROW,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript `peopleHireHandoffFacts` hire queue read.
+/// The caller binds `[company_id]` on its unit.
+pub const RD_HIRE_HANDOFF_QUEUE: &str = "talent_rd_hire_handoff_queue";
+const SQL_RD_HIRE_HANDOFF_QUEUE: &str =
+    "SELECT h.*,o.application_id,o.currency,o.base_amount_minor,o.start_date,o.version offer_version,c.legal_name,c.version candidate_version,c.status candidate_status,r.job_title,x.id receipt_id,x.person_id,x.engagement_id FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id JOIN talent_candidates c ON c.id=h.candidate_id JOIN talent_applications a ON a.id=o.application_id JOIN talent_requisitions r ON r.id=a.requisition_id LEFT JOIN talent_hire_consumption_receipts x ON x.handoff_id=h.id WHERE h.company_id=? ORDER BY h.created_at,h.id";
+const READ_HIRE_HANDOFF_QUEUE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_HIRE_HANDOFF_QUEUE,
+    sql: SQL_RD_HIRE_HANDOFF_QUEUE,
+    bind_count: 1,
+};
+
+/// Native successors of the TypeScript `talentOwnerSourceQuery` candidate
+/// image reads in `adapters/purchases.ts`. The caller binds `[id, company_id]`
+/// on its open unit. The file variant strips the private version/updated_at
+/// columns, byte-for-byte matching the retired TS literal.
+pub const RD_CANDIDATE_SOURCE_IMAGE: &str = "talent_rd_candidate_source_image";
+const SQL_RD_CANDIDATE_SOURCE_IMAGE: &str =
+    "SELECT to_jsonb(c)::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?";
+const READ_CANDIDATE_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CANDIDATE_SOURCE_IMAGE,
+    sql: SQL_RD_CANDIDATE_SOURCE_IMAGE,
+    bind_count: 2,
+};
+
+pub const RD_CANDIDATE_SOURCE_IMAGE_FILE: &str = "talent_rd_candidate_source_image_file";
+const SQL_RD_CANDIDATE_SOURCE_IMAGE_FILE: &str =
+    "SELECT (to_jsonb(c)-'version'-'updated_at')::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?";
+const READ_CANDIDATE_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CANDIDATE_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_CANDIDATE_SOURCE_IMAGE_FILE,
+    bind_count: 2,
+};
+
+/// Native successors of the TypeScript `talentOwnerSourceQuery` requisition
+/// image reads in `adapters/purchases.ts`. The caller binds
+/// `[id, company_id, branch_id, branch_id, department_id, department_id]` on
+/// its open unit. The file variant strips version/updated_at byte-for-byte.
+pub const RD_REQUISITION_SOURCE_IMAGE: &str = "talent_rd_requisition_source_image";
+const SQL_RD_REQUISITION_SOURCE_IMAGE: &str =
+    "SELECT to_jsonb(r)::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
+const READ_REQUISITION_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_REQUISITION_SOURCE_IMAGE,
+    sql: SQL_RD_REQUISITION_SOURCE_IMAGE,
+    bind_count: 6,
+};
+
+pub const RD_REQUISITION_SOURCE_IMAGE_FILE: &str = "talent_rd_requisition_source_image_file";
+const SQL_RD_REQUISITION_SOURCE_IMAGE_FILE: &str =
+    "SELECT (to_jsonb(r)-'version'-'updated_at')::text image FROM talent_requisitions r WHERE r.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
+const READ_REQUISITION_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_REQUISITION_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_REQUISITION_SOURCE_IMAGE_FILE,
+    bind_count: 6,
+};
+
+/// Native successors of the TypeScript `talentOwnerSourceQuery` offer and
+/// hire-handoff composite image reads. The caller binds the same six
+/// positional values as every other owner-source image. The file variants
+/// strip version/updated_at from the record only, byte-for-byte matching the
+/// retired TS literals. The handoff plan retains the read-only People/Payroll
+/// consumption subquery that the retired literal embedded; the owner-unit
+/// source locks for those tables stay with the caller.
+pub const RD_OFFER_SOURCE_IMAGE: &str = "talent_rd_offer_source_image";
+const SQL_RD_OFFER_SOURCE_IMAGE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_offers t JOIN talent_applications a ON a.id=t.application_id AND a.company_id=t.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version";
+const READ_OFFER_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_OFFER_SOURCE_IMAGE,
+    sql: SQL_RD_OFFER_SOURCE_IMAGE,
+    bind_count: 6,
+};
+
+pub const RD_OFFER_SOURCE_IMAGE_FILE: &str = "talent_rd_offer_source_image_file";
+const SQL_RD_OFFER_SOURCE_IMAGE_FILE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_offers t JOIN talent_applications a ON a.id=t.application_id AND a.company_id=t.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version";
+const READ_OFFER_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_OFFER_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_OFFER_SOURCE_IMAGE_FILE,
+    bind_count: 6,
+};
+
+pub const RD_HANDOFF_SOURCE_IMAGE: &str = "talent_rd_handoff_source_image";
+const SQL_RD_HANDOFF_SOURCE_IMAGE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)),'offer',to_jsonb(o),'receipt',to_jsonb(receipt),'people',hired.image)::text image FROM talent_hire_handoffs t JOIN talent_offers o ON o.id=t.offer_id AND o.company_id=t.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id LEFT JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=t.id AND receipt.company_id=t.company_id LEFT JOIN (SELECT receipt.company_id,receipt.handoff_id,jsonb_build_object('person',to_jsonb(person),'engagement',to_jsonb(engagement),'compensation',to_jsonb(compensation),'payGroup',to_jsonb(pay_group)) image FROM talent_hire_consumption_receipts receipt JOIN hr_people person ON person.id=receipt.person_id AND person.company_id=receipt.company_id JOIN hr_engagements engagement ON engagement.id=receipt.engagement_id AND engagement.person_id=person.id AND engagement.company_id=receipt.company_id JOIN hr_compensation_revisions compensation ON compensation.id=receipt.compensation_id AND compensation.engagement_id=engagement.id JOIN hr_pay_groups pay_group ON pay_group.id=engagement.pay_group_id AND pay_group.company_id=receipt.company_id) hired ON hired.handoff_id=t.id AND hired.company_id=t.company_id WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.candidate_id=c.id AND t.branch_id=r.branch_id AND t.department_id IS NOT DISTINCT FROM r.department_id AND t.source_offer_version<=o.version";
+const READ_HANDOFF_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_HANDOFF_SOURCE_IMAGE,
+    sql: SQL_RD_HANDOFF_SOURCE_IMAGE,
+    bind_count: 6,
+};
+
+pub const RD_HANDOFF_SOURCE_IMAGE_FILE: &str = "talent_rd_handoff_source_image_file";
+const SQL_RD_HANDOFF_SOURCE_IMAGE_FILE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)),'offer',to_jsonb(o),'receipt',to_jsonb(receipt),'people',hired.image)::text image FROM talent_hire_handoffs t JOIN talent_offers o ON o.id=t.offer_id AND o.company_id=t.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id LEFT JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=t.id AND receipt.company_id=t.company_id LEFT JOIN (SELECT receipt.company_id,receipt.handoff_id,jsonb_build_object('person',to_jsonb(person),'engagement',to_jsonb(engagement),'compensation',to_jsonb(compensation),'payGroup',to_jsonb(pay_group)) image FROM talent_hire_consumption_receipts receipt JOIN hr_people person ON person.id=receipt.person_id AND person.company_id=receipt.company_id JOIN hr_engagements engagement ON engagement.id=receipt.engagement_id AND engagement.person_id=person.id AND engagement.company_id=receipt.company_id JOIN hr_compensation_revisions compensation ON compensation.id=receipt.compensation_id AND compensation.engagement_id=engagement.id JOIN hr_pay_groups pay_group ON pay_group.id=engagement.pay_group_id AND pay_group.company_id=receipt.company_id) hired ON hired.handoff_id=t.id AND hired.company_id=t.company_id WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.candidate_id=c.id AND t.branch_id=r.branch_id AND t.department_id IS NOT DISTINCT FROM r.department_id AND t.source_offer_version<=o.version";
+const READ_HANDOFF_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_HANDOFF_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_HANDOFF_SOURCE_IMAGE_FILE,
+    bind_count: 6,
+};
+
+/// Owner event-history plans for the candidate and offer read families. They
+/// mirror the existing `talent_rd_application_events` shape; the caller binds
+/// `[candidate_id]` or `[offer_id]` on its open unit. Rows are immutable and
+/// ordered by version so a read observes its own unit's uncommitted history.
+/// Native successors of the final TypeScript `talentOwnerSourceQuery`
+/// application and proposal composites. Six positional binds as for every
+/// owner-source image; file variants strip version/updated_at from the record.
+pub const RD_APPLICATION_SOURCE_IMAGE: &str = "talent_rd_application_source_image";
+const SQL_RD_APPLICATION_SOURCE_IMAGE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(t),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=t.company_id AND owner_assignment.user_id=t.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_applications t JOIN talent_requisitions r ON r.id=t.requisition_id AND r.company_id=t.company_id JOIN talent_candidates c ON c.id=t.candidate_id AND c.company_id=t.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.requisition_version<=r.version";
+const READ_APPLICATION_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_APPLICATION_SOURCE_IMAGE,
+    sql: SQL_RD_APPLICATION_SOURCE_IMAGE,
+    bind_count: 6,
+};
+
+pub const RD_APPLICATION_SOURCE_IMAGE_FILE: &str = "talent_rd_application_source_image_file";
+const SQL_RD_APPLICATION_SOURCE_IMAGE_FILE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(t),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=t.company_id AND owner_assignment.user_id=t.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_applications t JOIN talent_requisitions r ON r.id=t.requisition_id AND r.company_id=t.company_id JOIN talent_candidates c ON c.id=t.candidate_id AND c.company_id=t.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.requisition_version<=r.version";
+const READ_APPLICATION_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_APPLICATION_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_APPLICATION_SOURCE_IMAGE_FILE,
+    bind_count: 6,
+};
+
+pub const RD_PROPOSAL_SOURCE_IMAGE: &str = "talent_rd_proposal_source_image";
+const SQL_RD_PROPOSAL_SOURCE_IMAGE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t),'application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_proposals t JOIN talent_applications a ON a.id=t.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version";
+const READ_PROPOSAL_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_PROPOSAL_SOURCE_IMAGE,
+    sql: SQL_RD_PROPOSAL_SOURCE_IMAGE,
+    bind_count: 6,
+};
+
+pub const RD_PROPOSAL_SOURCE_IMAGE_FILE: &str = "talent_rd_proposal_source_image_file";
+const SQL_RD_PROPOSAL_SOURCE_IMAGE_FILE: &str =
+    "SELECT jsonb_build_object('record',to_jsonb(t)-'version'-'updated_at','application',to_jsonb(a),'requisition',to_jsonb(r),'candidate',to_jsonb(c),'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment WHERE owner_assignment.company_id=a.company_id AND owner_assignment.user_id=a.owner_id AND iam_assignment_active(owner_assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(owner_assignment.user_id,owner_assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (owner_assignment.scope_kind='holding' OR owner_assignment.scope_kind='branch' AND owner_assignment.scope_node_id=r.branch_id OR owner_assignment.scope_kind='department' AND owner_assignment.scope_node_id=r.department_id)))::text image FROM talent_proposals t JOIN talent_applications a ON a.id=t.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id  WHERE t.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) AND t.application_version<=a.version";
+const READ_PROPOSAL_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_PROPOSAL_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_PROPOSAL_SOURCE_IMAGE_FILE,
+    bind_count: 6,
+};
+
+pub const RD_CANDIDATE_EVENTS: &str = "talent_rd_candidate_events";
+const SQL_RD_CANDIDATE_EVENTS: &str =
+    "SELECT * FROM talent_candidate_events WHERE candidate_id=? ORDER BY version";
+const READ_CANDIDATE_EVENTS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CANDIDATE_EVENTS,
+    sql: SQL_RD_CANDIDATE_EVENTS,
+    bind_count: 1,
+};
+
+pub const RD_OFFER_EVENTS: &str = "talent_rd_offer_events";
+const SQL_RD_OFFER_EVENTS: &str =
+    "SELECT * FROM talent_offer_events WHERE offer_id=? ORDER BY version";
+const READ_OFFER_EVENTS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_OFFER_EVENTS,
+    sql: SQL_RD_OFFER_EVENTS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `requireTalentWorkspaceRecordRead`
+/// actual-source point read. The five Recruitment owner source rows are the
+/// exact `record-purchases.ts` `sources` union; the caller binds `[id]` on its
+/// open unit. Locks, IAM/commercial predicates and the r20-r30 helpers stay in
+/// TypeScript and are unchanged.
+pub const RD_WORKSPACE_RECORD_SOURCE: &str = "talent_rd_workspace_record_source";
+const SQL_RD_WORKSPACE_RECORD_SOURCE: &str = concat!(
+    "SELECT capability,company_id FROM (SELECT r.id,r.company_id,r.branch_id,r.department_id,'requisition' kind,'recruit.positions' capability FROM talent_requisitions r\n ",
+    "UNION ALL SELECT c.id,c.company_id,NULL,NULL,'candidate','recruit.candidates' FROM talent_candidates c\n ",
+    "UNION ALL SELECT a.id,a.company_id,r.branch_id,r.department_id,'application','recruit.applications' FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n ",
+    "UNION ALL SELECT p.id,a.company_id,r.branch_id,r.department_id,'proposal','recruit.applications' FROM talent_proposals p JOIN talent_applications a ON a.id=p.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n ",
+    "UNION ALL SELECT o.id,o.company_id,r.branch_id,r.department_id,'offer','recruit.offers' FROM talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id) actual_talent_source WHERE id=? LIMIT 1",
+);
+const READ_WORKSPACE_RECORD_SOURCE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_WORKSPACE_RECORD_SOURCE,
+    sql: SQL_RD_WORKSPACE_RECORD_SOURCE,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `candidatePrivacyWorkspace` candidate
+/// privacy workspace row read. The caller binds the Company scope, the four
+/// fixed privacy-permission assignment triplets and the candidate id on its
+/// open unit: `[company_id, (assignment_id,user_id,role) x4, candidate_id]`.
+pub const RD_CANDIDATE_PRIVACY_WORKSPACE: &str = "talent_rd_candidate_privacy_workspace";
+const SQL_RD_CANDIDATE_PRIVACY_WORKSPACE: &str =
+    "WITH privacy_viewer AS (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id)\n SELECT c.id,c.status,c.version,c.retention_until,c.privacy_hold,c.privacy_requested_by,EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=privacy_viewer.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'legal.hold')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=privacy_viewer.branch_id OR g.scope_kind='department' AND g.scope_node_id=privacy_viewer.department_id)) can_hold,EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=privacy_viewer.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'legal.hold.release')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=privacy_viewer.branch_id OR g.scope_kind='department' AND g.scope_node_id=privacy_viewer.department_id)) can_release,EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=privacy_viewer.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'legal.destroy')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=privacy_viewer.branch_id OR g.scope_kind='department' AND g.scope_node_id=privacy_viewer.department_id)) can_erase,EXISTS(SELECT 1 FROM assignments g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=privacy_viewer.company_id\n    AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)\n    AND iam_role_allows(g.role,g.company_id,'people.manage')\n    AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=privacy_viewer.branch_id OR g.scope_kind='department' AND g.scope_node_id=privacy_viewer.department_id)) can_withdraw\n FROM talent_candidates c CROSS JOIN privacy_viewer WHERE c.id=? AND c.company_id=privacy_viewer.company_id";
+const READ_CANDIDATE_PRIVACY_WORKSPACE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CANDIDATE_PRIVACY_WORKSPACE,
+    sql: SQL_RD_CANDIDATE_PRIVACY_WORKSPACE,
+    bind_count: 14,
+};
+
+const STATEMENTS: &[NativeTalentReadStatement] = &[
+    READ_APPLICATION_EVENTS,
+    READ_PROPOSALS,
+    READ_OFFERS,
+    READ_HIRE_HANDOFFS,
+    READ_PRIVACY_HISTORY,
+    READ_CONSUME_HIRE_HANDOFF_RECEIPT,
+    READ_CHANGE_CANDIDATE_PRIVACY_ROW,
+    READ_WORKSPACE_REQUISITIONS,
+    READ_WORKSPACE_CANDIDATES,
+    READ_SENSITIVE_OFFER,
+    READ_SENSITIVE_APPLICATIONS,
+    READ_HIRE_SOURCE_ROW,
+    READ_HIRE_HANDOFF_QUEUE,
+    READ_CANDIDATE_SOURCE_IMAGE,
+    READ_CANDIDATE_SOURCE_IMAGE_FILE,
+    READ_REQUISITION_SOURCE_IMAGE,
+    READ_REQUISITION_SOURCE_IMAGE_FILE,
+    READ_OFFER_SOURCE_IMAGE,
+    READ_OFFER_SOURCE_IMAGE_FILE,
+    READ_HANDOFF_SOURCE_IMAGE,
+    READ_HANDOFF_SOURCE_IMAGE_FILE,
+    READ_APPLICATION_SOURCE_IMAGE,
+    READ_APPLICATION_SOURCE_IMAGE_FILE,
+    READ_PROPOSAL_SOURCE_IMAGE,
+    READ_PROPOSAL_SOURCE_IMAGE_FILE,
+    READ_CANDIDATE_EVENTS,
+    READ_OFFER_EVENTS,
+    READ_WORKSPACE_RECORD_SOURCE,
+    READ_CANDIDATE_PRIVACY_WORKSPACE,
+];
+
+/// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
+pub fn read_statement(kind: &str) -> Option<&'static NativeTalentReadStatement> {
+    STATEMENTS.iter().find(|statement| statement.kind == kind)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detail_reads_are_owner_authored_select_only_and_single_bound() {
+        let expected = [
+            (RD_APPLICATION_EVENTS, SQL_RD_APPLICATION_EVENTS),
+            (RD_PROPOSALS, SQL_RD_PROPOSALS),
+            (RD_OFFERS, SQL_RD_OFFERS),
+            (RD_HIRE_HANDOFFS, SQL_RD_HIRE_HANDOFFS),
+        ];
+        for (kind, sql) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, 1);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            assert!(
+                sql.contains("talent_"),
+                "owner read must stay on owner-local Talent tables: {sql}"
+            );
+            assert_eq!(sql.matches('?').count(), 1);
+        }
+        assert_eq!(STATEMENTS.len(), 29);
+    }
+
+    #[test]
+    fn candidate_and_offer_read_families_are_owner_authored_select_only() {
+        let expected = [
+            (
+                RD_CANDIDATE_SOURCE_IMAGE,
+                SQL_RD_CANDIDATE_SOURCE_IMAGE,
+                2usize,
+                "talent_candidates",
+            ),
+            (
+                RD_CANDIDATE_SOURCE_IMAGE_FILE,
+                SQL_RD_CANDIDATE_SOURCE_IMAGE_FILE,
+                2usize,
+                "talent_candidates",
+            ),
+            (
+                RD_CANDIDATE_EVENTS,
+                SQL_RD_CANDIDATE_EVENTS,
+                1usize,
+                "talent_candidate_events",
+            ),
+            (
+                RD_OFFER_EVENTS,
+                SQL_RD_OFFER_EVENTS,
+                1usize,
+                "talent_offer_events",
+            ),
+        ];
+        for (kind, sql, binds, table) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, binds);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            assert!(
+                sql.contains(table),
+                "candidate/offer read must stay on owner-local Talent table {table}: {sql}"
+            );
+            assert_eq!(sql.matches('?').count(), binds);
+        }
+        // The candidate image reads are byte-exact mirrors of the two retired
+        // TypeScript `talentOwnerSourceQuery` literals (purchases.ts candidate).
+        assert_eq!(
+            SQL_RD_CANDIDATE_SOURCE_IMAGE,
+            "SELECT to_jsonb(c)::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?"
+        );
+        assert_eq!(
+            SQL_RD_CANDIDATE_SOURCE_IMAGE_FILE,
+            "SELECT (to_jsonb(c)-'version'-'updated_at')::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?"
+        );
+        assert!(read_statement("talent_rd_candidate_events").is_some());
+        assert!(read_statement("talent_rd_offer_events").is_some());
+    }
+
+    #[test]
+    fn workspace_list_reads_are_owner_authored_select_only() {
+        let expected = [
+            (RD_WORKSPACE_REQUISITIONS, SQL_RD_WORKSPACE_REQUISITIONS, 5usize),
+            (RD_WORKSPACE_CANDIDATES, SQL_RD_WORKSPACE_CANDIDATES, 1usize),
+        ];
+        for (kind, sql, binds) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, binds);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            assert!(
+                sql.contains("talent_"),
+                "owner read must stay on owner-local Talent tables: {sql}"
+            );
+            assert_eq!(sql.matches('?').count(), binds);
+        }
+    }
+
+    #[test]
+    fn sensitive_offer_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_SENSITIVE_OFFER).expect("registered owner read kind");
+        assert_eq!(statement.kind, RD_SENSITIVE_OFFER);
+        assert_eq!(statement.sql, SQL_RD_SENSITIVE_OFFER);
+        assert_eq!(statement.bind_count, 2);
+        assert!(statement.sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}", sql = statement.sql);
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!statement.sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+        }
+        for table in [
+            "talent_offers",
+            "talent_applications",
+            "talent_requisitions",
+            "talent_hire_handoffs",
+            "talent_hire_consumption_receipts",
+        ] {
+            assert!(
+                statement.sql.contains(table),
+                "sensitive offer read must stay on owner-local Talent tables: {table}"
+            );
+        }
+        assert_eq!(statement.sql.matches('?').count(), 2);
+    }
+
+    #[test]
+    fn sensitive_application_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_SENSITIVE_APPLICATIONS).expect("registered owner read kind");
+        assert_eq!(statement.kind, RD_SENSITIVE_APPLICATIONS);
+        assert_eq!(statement.sql, SQL_RD_SENSITIVE_APPLICATIONS);
+        assert_eq!(statement.bind_count, 5);
+        assert!(statement.sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}", sql = statement.sql);
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!statement.sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+        }
+        for table in [
+            "talent_candidates",
+            "talent_applications",
+            "talent_requisitions",
+        ] {
+            assert!(
+                statement.sql.contains(table),
+                "sensitive application read must stay on owner-local Talent tables: {table}"
+            );
+        }
+        assert_eq!(statement.sql.matches('?').count(), 5);
+    }
+
+    #[test]
+    fn hire_handoff_reads_are_owner_authored_select_only() {
+        let expected = [
+            (
+                RD_CONSUME_HIRE_HANDOFF_RECEIPT,
+                SQL_RD_CONSUME_HIRE_HANDOFF_RECEIPT,
+            ),
+            (
+                RD_CHANGE_CANDIDATE_PRIVACY_ROW,
+                SQL_RD_CHANGE_CANDIDATE_PRIVACY_ROW,
+            ),
+        ];
+        for (kind, sql) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, 2);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            assert!(
+                sql.contains("talent_"),
+                "owner read must stay on owner-local Talent tables: {sql}"
+            );
+            assert_eq!(sql.matches('?').count(), 2);
+        }
+        assert!(read_statement("talent_rd_consume_hire_handoff_receipt").is_some());
+        assert!(read_statement("talent_rd_change_candidate_privacy_row").is_some());
+    }
+
+    #[test]
+    fn privacy_history_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_PRIVACY_HISTORY).expect("registered owner read kind");
+        assert_eq!(statement.kind, RD_PRIVACY_HISTORY);
+        assert_eq!(statement.sql, SQL_RD_PRIVACY_HISTORY);
+        assert_eq!(statement.bind_count, 2);
+        assert!(statement.sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}", sql = statement.sql);
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!statement.sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+        }
+        assert!(
+            statement.sql.contains("talent_candidate_privacy_events"),
+            "privacy history must stay on the owner-local Talent table: {sql}",
+            sql = statement.sql
+        );
+        assert_eq!(statement.sql.matches('?').count(), 2);
+    }
+
+    #[test]
+    fn hire_handoff_fact_reads_are_owner_authored_select_only() {
+        let expected = [
+            (RD_HIRE_SOURCE_ROW, SQL_RD_HIRE_SOURCE_ROW, 2usize),
+            (RD_HIRE_HANDOFF_QUEUE, SQL_RD_HIRE_HANDOFF_QUEUE, 1usize),
+        ];
+        for (kind, sql, binds) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, binds);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            for table in [
+                "talent_hire_handoffs",
+                "talent_offers",
+                "talent_applications",
+                "talent_requisitions",
+                "talent_candidates",
+            ] {
+                assert!(sql.contains(table), "hire fact read must stay on owner-local Talent tables: {table}");
+            }
+            assert_eq!(sql.matches('?').count(), binds);
+        }
+    }
+
+    #[test]
+    fn workspace_record_source_point_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_WORKSPACE_RECORD_SOURCE)
+            .expect("registered owner read kind");
+        assert_eq!(statement.kind, RD_WORKSPACE_RECORD_SOURCE);
+        assert_eq!(statement.sql, SQL_RD_WORKSPACE_RECORD_SOURCE);
+        assert_eq!(statement.bind_count, 1);
+        assert!(
+            statement.sql.starts_with("SELECT "),
+            "point read must be SELECT-only: {sql}",
+            sql = statement.sql
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE"] {
+            assert!(!statement.sql.contains(forbidden), "point read must not mutate or lock: {forbidden}");
+        }
+        for table in [
+            "talent_requisitions",
+            "talent_candidates",
+            "talent_applications",
+            "talent_proposals",
+            "talent_offers",
+        ] {
+            assert!(
+                statement.sql.contains(table),
+                "point read must stay on owner-local Talent tables: {table}"
+            );
+        }
+        assert_eq!(statement.sql.matches('?').count(), 1);
+        // Byte-exact mirror of the retired TypeScript `record-purchases.ts`
+        // point read: the same five-row `sources` union and the same trailing
+        // `WHERE id=? LIMIT 1`, with the emitted newline/space layout.
+        assert_eq!(
+            statement.sql,
+            "SELECT capability,company_id FROM (SELECT r.id,r.company_id,r.branch_id,r.department_id,'requisition' kind,'recruit.positions' capability FROM talent_requisitions r\n UNION ALL SELECT c.id,c.company_id,NULL,NULL,'candidate','recruit.candidates' FROM talent_candidates c\n UNION ALL SELECT a.id,a.company_id,r.branch_id,r.department_id,'application','recruit.applications' FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n UNION ALL SELECT p.id,a.company_id,r.branch_id,r.department_id,'proposal','recruit.applications' FROM talent_proposals p JOIN talent_applications a ON a.id=p.application_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id\n UNION ALL SELECT o.id,o.company_id,r.branch_id,r.department_id,'offer','recruit.offers' FROM talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id) actual_talent_source WHERE id=? LIMIT 1"
+        );
+    }
+
+    #[test]
+    fn application_proposal_image_plans_are_owner_authored_select_only() {
+        let expected = [
+            (RD_APPLICATION_SOURCE_IMAGE, SQL_RD_APPLICATION_SOURCE_IMAGE),
+            (RD_APPLICATION_SOURCE_IMAGE_FILE, SQL_RD_APPLICATION_SOURCE_IMAGE_FILE),
+            (RD_PROPOSAL_SOURCE_IMAGE, SQL_RD_PROPOSAL_SOURCE_IMAGE),
+            (RD_PROPOSAL_SOURCE_IMAGE_FILE, SQL_RD_PROPOSAL_SOURCE_IMAGE_FILE),
+        ];
+        for (kind, sql) in expected {
+            let statement = read_statement(kind).expect("registered application/proposal image kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, 6);
+            assert_eq!(sql.matches('?').count(), 6);
+            assert!(sql.starts_with("SELECT "), "image read must be SELECT-only: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "image read must not mutate: {forbidden}");
+            }
+            for fragment in [
+                "jsonb_build_object('record'",
+                "owner_assignment.scope_kind='branch'",
+                "iam_assignment_active",
+                "iam_principal_active",
+                "ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment",
+            ] {
+                assert!(sql.contains(fragment), "image read must keep its witness: {fragment}");
+            }
+            assert_eq!(
+                STATEMENTS.iter().filter(|entry| entry.kind == kind).count(),
+                1,
+                "image kind must resolve once: {kind}"
+            );
+        }
+        assert!(SQL_RD_APPLICATION_SOURCE_IMAGE.contains("t.requisition_version<=r.version"));
+        assert!(SQL_RD_PROPOSAL_SOURCE_IMAGE.contains("t.application_version<=a.version"));
+        assert!(SQL_RD_APPLICATION_SOURCE_IMAGE_FILE.contains("'record',to_jsonb(t)-'version'-'updated_at'"));
+        assert!(SQL_RD_PROPOSAL_SOURCE_IMAGE_FILE.contains("'record',to_jsonb(t)-'version'-'updated_at'"));
+        assert!(read_statement("talent_rd_application_source_image_missing").is_none());
+    }
+
+    #[test]
+    fn composite_image_plans_are_owner_authored_select_only() {
+        let expected = [
+            (RD_OFFER_SOURCE_IMAGE, SQL_RD_OFFER_SOURCE_IMAGE),
+            (RD_OFFER_SOURCE_IMAGE_FILE, SQL_RD_OFFER_SOURCE_IMAGE_FILE),
+            (RD_HANDOFF_SOURCE_IMAGE, SQL_RD_HANDOFF_SOURCE_IMAGE),
+            (RD_HANDOFF_SOURCE_IMAGE_FILE, SQL_RD_HANDOFF_SOURCE_IMAGE_FILE),
+        ];
+        for (kind, sql) in expected {
+            let statement = read_statement(kind).expect("registered composite image kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, 6);
+            assert_eq!(sql.matches('?').count(), 6);
+            assert!(sql.starts_with("SELECT "), "composite image must be SELECT-only: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "composite image must not mutate: {forbidden}");
+            }
+            for fragment in [
+                "jsonb_build_object('record'",
+                "'ownerEligible',EXISTS(SELECT 1 FROM assignments owner_assignment",
+                "iam_assignment_active",
+                "iam_principal_active",
+                "owner_assignment.scope_kind='branch'",
+            ] {
+                assert!(sql.contains(fragment), "composite image must keep its projection: {fragment}");
+            }
+            assert_eq!(
+                STATEMENTS.iter().filter(|entry| entry.kind == kind).count(),
+                1,
+                "composite image kind must resolve once: {kind}"
+            );
+        }
+        assert!(SQL_RD_OFFER_SOURCE_IMAGE_FILE.contains("'record',to_jsonb(t)-'version'-'updated_at'"));
+        assert!(SQL_RD_HANDOFF_SOURCE_IMAGE_FILE.contains("'record',to_jsonb(t)-'version'-'updated_at'"));
+        assert!(SQL_RD_HANDOFF_SOURCE_IMAGE.contains("'people',hired.image"));
+        assert!(SQL_RD_HANDOFF_SOURCE_IMAGE.contains("hr_compensation_revisions"));
+        assert!(read_statement("talent_rd_offer_source_image_missing").is_none());
+    }
+
+    #[test]
+    fn requisition_image_plans_are_owner_authored_select_only() {
+        let expected = [
+            (RD_REQUISITION_SOURCE_IMAGE, SQL_RD_REQUISITION_SOURCE_IMAGE),
+            (RD_REQUISITION_SOURCE_IMAGE_FILE, SQL_RD_REQUISITION_SOURCE_IMAGE_FILE),
+        ];
+        for (kind, sql) in expected {
+            let statement = read_statement(kind).expect("registered requisition image kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, 6);
+            assert_eq!(sql.matches('?').count(), 6);
+            assert!(sql.starts_with("SELECT "), "requisition image read must be SELECT-only: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "requisition image read must not mutate: {forbidden}");
+            }
+            for table in ["talent_requisitions", "r.company_id=?", "r.branch_id=?", "r.department_id=?"] {
+                assert!(sql.contains(table), "requisition image read must stay on its owner scope: {table}");
+            }
+            assert_eq!(
+                STATEMENTS.iter().filter(|entry| entry.kind == kind).count(),
+                1,
+                "requisition image kind must resolve once: {kind}"
+            );
+        }
+        // The file variant strips exactly version and updated_at.
+        assert!(SQL_RD_REQUISITION_SOURCE_IMAGE_FILE.contains("to_jsonb(r)-'version'-'updated_at'"));
+        assert!(read_statement("talent_rd_requisition_source_image_file_missing").is_none());
+    }
+
+    #[test]
+    fn offer_candidate_cutover_kinds_are_the_owner_authority() {
+        // Exactly the four discriminators the TS command-plan client sends for
+        // the offer/candidate cutover. They must stay registered, SELECT-only
+        // and uniquely resolved; no caller-supplied SQL can impersonate them.
+        let cutover = [
+            (RD_CANDIDATE_SOURCE_IMAGE, 2usize),
+            (RD_CANDIDATE_SOURCE_IMAGE_FILE, 2usize),
+            (RD_CANDIDATE_EVENTS, 1usize),
+            (RD_OFFER_EVENTS, 1usize),
+        ];
+        for (kind, binds) in cutover {
+            let statement = read_statement(kind).expect("registered cutover kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.bind_count, binds);
+            assert_eq!(statement.sql.matches('?').count(), binds);
+            assert!(statement.sql.starts_with("SELECT "), "cutover read must be SELECT-only: {kind}");
+            assert_eq!(
+                STATEMENTS.iter().filter(|entry| entry.kind == kind).count(),
+                1,
+                "cutover kind must resolve to exactly one statement: {kind}"
+            );
+        }
+        assert_eq!(STATEMENTS.len(), 29);
+        // A SQL literal, a case variant and a truncated kind never resolve.
+        for forged in [
+            "SELECT * FROM talent_offers",
+            "TALENT_RD_OFFER_EVENTS",
+            "talent_rd_offer",
+            "talent_rd_candidate",
+        ] {
+            assert!(read_statement(forged).is_none(), "forged kind must fail closed: {forged}");
+        }
+    }
+
+    #[test]
+    fn candidate_privacy_workspace_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_CANDIDATE_PRIVACY_WORKSPACE)
+            .expect("registered candidate privacy workspace read kind");
+        assert_eq!(statement.kind, RD_CANDIDATE_PRIVACY_WORKSPACE);
+        assert_eq!(statement.sql, SQL_RD_CANDIDATE_PRIVACY_WORKSPACE);
+        assert_eq!(statement.bind_count, 14);
+        assert!(
+            statement.sql.starts_with("WITH privacy_viewer AS (SELECT "),
+            "privacy read must be SELECT-only: {sql}",
+            sql = statement.sql
+        );
+        for forbidden in [
+            "INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE", "LOCK TABLE",
+        ] {
+            assert!(
+                !statement.sql.contains(forbidden),
+                "privacy read must not mutate or lock: {forbidden}"
+            );
+        }
+        for fragment in [
+            "talent_candidates c CROSS JOIN privacy_viewer",
+            "c.id=? AND c.company_id=privacy_viewer.company_id",
+            "iam_role_allows(g.role,g.company_id,'legal.hold')",
+            "iam_role_allows(g.role,g.company_id,'legal.hold.release')",
+            "iam_role_allows(g.role,g.company_id,'legal.destroy')",
+            "iam_role_allows(g.role,g.company_id,'people.manage')",
+            "iam_assignment_active",
+            "iam_principal_active",
+        ] {
+            assert!(
+                statement.sql.contains(fragment),
+                "privacy read must keep its authority fragment: {fragment}"
+            );
+        }
+        assert_eq!(statement.sql.matches('?').count(), 14);
+        assert_eq!(statement.sql.len(), 2610);
+        assert_eq!(
+            STATEMENTS
+                .iter()
+                .filter(|entry| entry.kind == RD_CANDIDATE_PRIVACY_WORKSPACE)
+                .count(),
+            1,
+            "privacy workspace kind must resolve once"
+        );
+        assert!(read_statement("talent_rd_candidate_privacy_workspace_missing").is_none());
+    }
+
+    #[test]
+    fn unknown_and_mismatched_read_kinds_fail_closed() {
+        assert!(read_statement("SELECT * FROM talent_offers").is_none());
+        assert!(read_statement("").is_none());
+        assert!(read_statement("talent_rd_unknown").is_none());
+        let statement = read_statement(RD_PROPOSALS).expect("proposal read");
+        assert!(statement.bind_count != 2);
+    }
+}

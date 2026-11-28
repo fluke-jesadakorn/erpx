@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Bounded native Legal record slice is implemented and tested over PostgreSQL, owner-local HTTP and Next transport: contract/document register and detail reads, authored document versions, hold create/request-release/release, immutable access history and the archive transition. Commercial package/release admission and the shared composition mount remain required, so the five Legal workflows are partial and no browser verification is claimed.",
+  "capability": "legal-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "054d43ea3af50daa989599dca8f4b77bf7a840e4",
+  "scope": {
+    "workflows": [
+      "legal/contracts",
+      "legal/feature-documents",
+      "legal/feature-legal-holds",
+      "legal/feature-document-access",
+      "legal/feature-archive"
+    ],
+    "reads": "Native register (kind/search/state/page/mine, state counts, enabled, permission flags) and detail (item subtype data, documents, events, members, holds, links, comments, envelopes/signers, shares when legal.share is present, submissions, access history). Company, exact branch/department, classification membership and legal_requester own-draft visibility match the retained SQL policy. Detail records one legal_access_events record.read row in the same serializable transaction.",
+    "commands": "Native legal.document (draft authored version, SHA-256 checksum, UTF-8 bytes, next version, expected item version), legal.hold.create (hold + direct target + recursive target expansion + legal_hold_notices + Collaboration notifier port), legal.hold.request-release, legal.hold.release (release_requested state and independent same-person review) and the legal.transition archive path. Every command uses the existing instruction: replay before payload/source validation, enabled/editor/frozen checks, item FOR UPDATE, version CAS, legal_events, receipt, audit_events and outbox_events in one serializable unit. Hold release fails closed when the IAM same-person port is absent.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/legal/records, GET /api/v1/holdings/{holding_slug}/legal/records/{id} and POST /api/v1/holdings/{holding_slug}/legal/commands. Exact registered Host/Holding target, exact HTTPS Origin on commands, Idempotency-Key validation (8..180 safe characters), 512 KiB bounded JSON, private/no-store and no-referrer responses, and bounded BusinessError status mapping. The service hashes the exact raw command bytes and passes request_hash to the backend so idempotency matches the transport body. The service returns the resolved rendered context alongside data; the PostgreSQL-backed test exercises the exact mounted handler functions without adding a tower dependency or a second axum edge.",
+    "nextTransport": "packages/feature-legal/src/adapters/server/native-legal.ts validates ERPX_NATIVE_LEGAL_RECORDS_CONFIG (loopback only, no reserved ports, exact HTTPS Holding origins, unique hosts/slugs/ids), forwards the actual session cookie, Host, Origin, rendered-context and branch/department selectors, and strictly validates every register/detail/command field, context identity and response bound. The retained legal API route serves native list/detail and the selected document/hold/archive commands only when the environment config exists; an invalid configuration or configured failure maps to a bounded ApiError and never falls back. SSR list composition replaces items/total/page/counts/enabled with native data while retaining the Legal shell (permissions, people, work context and purchases); record SSR detail remains retained."
+  },
+  "files": [
+    "packages/server-legal/src/domain/legal_records.rs",
+    "packages/server-legal/src/application/legal_records.rs",
+    "packages/server-legal/src/adapters/postgres_legal_records.rs",
+    "packages/server-legal/src/adapters/legal_http.rs",
+    "packages/server-legal/src/public/legal_records.rs",
+    "packages/server-legal/src/domain/mod.rs",
+    "packages/server-legal/src/application/mod.rs",
+    "packages/server-legal/src/adapters/mod.rs",
+    "packages/server-legal/src/public/mod.rs",
+    "packages/server-legal/Cargo.toml",
+    "packages/feature-legal/src/adapters/server/native-legal.ts",
+    "packages/feature-legal/src/lib/native-legal.ts",
+    "packages/feature-legal/package.json",
+    "packages/feature-legal/src/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/legal/screen.tsx",
+    "tests/integration/legal/rust-legal-records-postgres.test.rs",
+    "tests/unit/legal/legal-application.test.ts"
+  ],
+  "tests": [
+    "cargo test -p erpx-server-legal --locked -- --test-threads=1: 54 passed, 0 failed across 10 targets (lib 17, document_extraction 7, document_processing 2, legal_records_postgres 3, processing 5, processing_maintenance_postgres 4, processing_postgres 7, record_policy 4, record_policy_postgres 5, doc-tests 0)",
+    "cargo test -p erpx-server-legal --locked --test legal_records_postgres -- --test-threads=1: 3 passed including persisted document version/receipt/audit/outbox, replay/conflict, hold target/notice/notifier and independent release, archive transition, foreign-Company 404, confidential hold-reason masking, access-event persistence, notifier-failure rollback and a real HTTP service -> PostgreSQL register/command readback with foreign-origin and foreign-Host denials",
+    "cargo test -p erpx-server-legal --locked --features pdf-verifier --test pdf_validation --test pdf_process: 12 + 23 passed (existing PDF conformance boundary unchanged)",
+    "cargo test -p erpx-server-legal --lib --locked: 17 passed (domain/application/HTTP unit cases)",
+    "cargo clippy -p erpx-server-legal --lib --locked -- -D warnings: passed",
+    "cargo clippy -p erpx-server-legal --test legal_records_postgres --locked -- -D warnings: passed",
+    "rustfmt --edition 2024 --check on changed Rust files: passed",
+    "tsc --noEmit -p packages/feature-legal/tsconfig.json: passed",
+    "tsc --noEmit -p packages/workplace/tsconfig.json: passed",
+    "tsc --noEmit -p apps/compat/tsconfig.json: passed",
+    "tsc --noEmit -p apps/legal/tsconfig.json: passed",
+    "tsc --noEmit -p tests/config/tsconfig.json: passed",
+    "vitest tests/unit/legal/legal-application.test.ts -t 'native Legal' (ERPX_SELECTED_TEST_FILES): 6 passed",
+    "vitest tests/unit/legal/legal-application.test.ts full file: 51 passed, 1 failed. The failure is pre-existing and unrelated to this slice: 'PDF trust preparation failures propagate before the provider fallback and do not leak trust bodies' expects a prepare rejection, while packages/server-legal/src/application/pdf-validation.ts catches every prepare/validate failure and returns indeterminate. No PDF source or test was changed here.",
+    "eslint on changed TypeScript files: passed (existing Pages directory warning only)",
+    "git diff --check on Legal-owned changed files: passed",
+    "Structure check via node_modules/.bin/tsx scripts/testing/layout.ts: passed (layout_status=0)"
+  ],
+  "behavior": {
+    "authorization": "legal.read is required before any register/detail query. legal.edit is required for authored document versions and archive; legal.hold for hold create/request-release; legal.hold.release for release. Editor membership is required for document/archive. Confidential/restricted records require explicit membership. legal_requester sees only its own requests. Branch/department filters are exact, matching the retained visibility SQL.",
+    "versions": "Every command requires expectedVersion and re-checks it under SELECT ... FOR UPDATE. Document versions use the next item-local version under the same lock. A changed version returns LEGAL_VERSION_CONFLICT before effects.",
+    "idempotency": "The command receipt is checked before payload validation and source visibility. Same key + same exact request hash returns the retained result; a different hash returns IDEMPOTENCY_CONFLICT. The command transaction also re-checks the receipt under the company advisory lock.",
+    "holds": "Hold creation preserves direct and recursively linked targets, writes Legal-owned notices, and requires a Collaboration notification port before commit. Release requires release_requested, forbids the creator and release requester (via IAM same-person), and leaves released holds immutable through the existing trigger. A notifier failure rolls back hold, notice, item version, receipt, audit and outbox rows.",
+    "archive": "Archive is the native transition to archived and uses the retained allowedTransitions table, including contract overrides. Approved contracts cannot jump to archived; expired/rejected/cancelled/terminated records can. The transition increments item version and writes the event.",
+    "access": "Detail insertion into legal_access_events is immutable by the existing trigger. Holds whose source record is not visible to the actor mask their reason as 'Protected by a related legal hold' while preserving direct/related state.",
+    "transactions": "All reads and commands run in the existing serializable PgUnitOfWork. Commands take the legal:{company} and legal-files advisory locks. No schema, migration, root Cargo or lockfile change was made."
+  },
+  "sharedCompositionDelta": {
+    "applied": [],
+    "required": [
+      "Mount erpx_server_legal::public::legal_records::legal_router in src/composition with one LegalHttpTarget per registered Holding. The target backend must resolve the normal Account session, current assignment/revision/company/branch/department and IAM permissions, construct LegalRecordsActor, and supply a LegalRenderedContext matching the resolved selection.",
+      "read must call read_legal_register/read_legal_detail on the Holding write pool and return LegalRegisterReply/LegalDetailReply. command must call execute_legal_command with LegalHttpCommandRequest.request_hash (the service already hashes the exact raw body bytes), the parsed CommandKey and the request Value, and return LegalCommandReply.",
+      "Supply Arc<dyn LegalIdentity> for same-person release review (the IAM iam_same_person projection or its public owner port) and Arc<dyn LegalHoldNotifier> for the Collaboration staff_notification effect. Hold creation fails closed without the notifier; release fails closed without the identity port.",
+      "Commercial package and Legal release admission remains a composition responsibility. The retained TypeScript command path uses withLegalPurchasedCommand/legalReadScope; this Rust slice enforces owner authorization only. Do not mount the native routes/commands as a replacement until the backend applies the current package/release admission in the same or an explicitly ordered owner unit.",
+      "Set ERPX_NATIVE_LEGAL_RECORDS_CONFIG to a private loopback origin and exact Holding targets. The Next route and SSR list use it only when present; a configured failure is returned without the retained fallback.",
+      "No PostgreSQL schema change is required. No Cargo dependency or lockfile change is required; server-legal already owns runtime/shared/sqlx/serde/sha2 and the HTTP service uses server-runtime's existing http_support re-exports. The package Cargo.toml only gains the legal_records_postgres test target.",
+      "Remove the retained TypeScript list/detail/selected-command branches only after the composition mount, purchase/release admission, browser acceptance and a consumer inventory prove no remaining user."
+    ],
+    "whyNotAppliedHere": "This implementation subagent is prohibited from editing src/composition/**, docs/status/**, root Cargo.toml/Cargo.lock, package lockfiles and other owners' implementation. The worktree also contains concurrent sibling changes in Assets/Maintenance/Quality that were preserved and not modified."
+  },
+  "legacy": {
+    "retained": [
+      "Contract approval routes, signing envelopes, executed-copy import/review and contract activation remain in packages/server-legal TypeScript and feature-legal.",
+      "Document upload, OCR/verify queueing, document export, external submission, shares/invitations, comments, links and retention/destruction remain TypeScript writers. Native detail only reads links/comments/envelopes/shares/submissions.",
+      "Record SSR detail (presentation.detail) remains retained; only the list projection is composed with native records.",
+      "All unselected Legal commands (settings, create, update, approve, link, member, share, retention, trust, processing, AI/law corpus, release acceptance) continue through legalCommand and the retained route.",
+      "The Next route keeps the retained path when ERPX_NATIVE_LEGAL_RECORDS_CONFIG is absent. The stock retained purchase controls are read through legalReadScope for the response shell."
+    ],
+    "removed": [
+      "No retained TypeScript Legal implementation was deleted in this bounded slice. Replacing it without the composition mount and admission port would create an unverified second writer."
+    ]
+  },
+  "limits": [
+    "No browser journey was run. Do not claim desktop/mobile or authenticated-session acceptance from this evidence.",
+    "The shared composition mount and Commercial package/release admission are not implemented; the five Legal workflows therefore remain partial, not verified.",
+    "The native detail SSR page still uses the retained TypeScript detail reader; only the register/list projection has an SSR cutover.",
+    "The HTTP service-level tests exercise the exact handler functions and transport policy but not tower Router dispatch; no tower dependency was added, preserving the frozen lockfile.",
+    "The native register/detail do not implement the retained Commercial purchase predicate or feature-release predicate. A mounted backend must add the current admission before exposing these routes.",
+    "The retained Legal-owned/pdf-validation unit test failure noted above is pre-existing and not caused by this slice.",
+    "Hosted CI, staging, installed production and Cloudflare were not accessed.",
+    "bun run docs:check was not run because Bun is unavailable in this environment (command -v bun -> none); Node 26.12.0 with tsx failed to execute the documentation script (import.meta-based path resolution under the CJS loader). This is an environment/tooling limit, not a Legal result."
+  ]
+}

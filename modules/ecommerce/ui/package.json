@@ -1,0 +1,22 @@
+{
+  "name": "@erpx/ecommerce-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/ecommerce-checkout-controls": "./src/components/ecommerce-checkout-controls.tsx",
+    "./components/ecommerce-console": "./src/components/ecommerce-console.tsx",
+    "./lib/purchase-controls": "./src/lib/purchase-controls.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/crm-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/ecommerce-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*"
+  }
+}

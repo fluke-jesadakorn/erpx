@@ -1,25 +1,27 @@
 import {afterAll,afterEach,beforeAll,expect,it,vi} from 'vitest';
 import {readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createMarketingAsset,createMarketingCandidate,changeMarketing,marketingDetail,marketingWorkspace} from "@erpx/server-marketing/public/marketing";
-import {GET,POST} from "@erpx/feature-forms/routes/api/public/marketing/[holdingSlug]/[formId]/route";
-import {marketingFormReadiness} from "@erpx/server-marketing/public/marketing-public-form";
-import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,createAttachmentPublication,approveAttachmentPublication,revokeAttachmentPublication,withdrawAttachmentLink} from "@erpx/server-files/public/attachments/service";
+import {createMarketingAsset,createMarketingCandidate,changeMarketing,marketingDetail,marketingWorkspace} from "@erpx/marketing-server/public/marketing";
+import {GET,POST} from "@erpx/product-forms-ui/routes/api/public/marketing/[holdingSlug]/[formId]/route";
+import {marketingFormReadiness} from "@erpx/marketing-server/public/marketing-public-form";
+import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,createAttachmentPublication,approveAttachmentPublication,revokeAttachmentPublication} from "@erpx/files-server/public/attachments/service";
+import {withdrawSeededAttachment} from "../../support/helpers/attachment-v2";
 import {controlAccount} from "../../support/helpers/engineering-workplace-platform-attachment-owners";
-import {getCRMLead} from "@erpx/server-crm/public/crm";
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import {getCRMLead} from "@erpx/crm-server/public/crm";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
 import {renderToStaticMarkup} from 'react-dom/server';
 import {isValidElement,type ReactNode} from 'react';
-import {PublicMarketingForm} from '@erpx/feature-marketing/components/public-marketing-form';
+import {PublicMarketingForm} from '@erpx/marketing-ui/components/public-marketing-form';
 
 let marketingDatabase:SqlDatabase|undefined;
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:marketingDatabase??env.H001_DB,files:env.H001_FILES}),holdingBindingBySlug:async()=>({id:'H001'}),runtimeEnv:async()=>env}));
-vi.mock("@erpx/server-pms/public/feature-availability",()=>({assertProductionModuleEnabled:async()=>{}}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:marketingDatabase??env.H001_DB,files:env.H001_FILES}),holdingBindingBySlug:async()=>({id:'H001'}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/pms-server/public/feature-availability",()=>({assertProductionModuleEnabled:async()=>{}}));
 // Declared scanner adapter for integration only; preview bytes, private storage,
 // native owner binding, approval and revocation are real. Compiled browser UAT
 // uses the separately required actual release scanner.
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared clean integration scanner',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared clean integration scanner',definitionUpdatedAt:Date.now()})}));
+vi.mock("@erpx/files-server/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared clean integration scanner',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared clean integration scanner',definitionUpdatedAt:Date.now()})}));
 const previousGate=process.env.ERPX_ATTACHMENTS_V2;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);process.env.ERPX_ATTACHMENTS_V2='true';});
 afterAll(()=>{if(previousGate===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previousGate;});
@@ -27,7 +29,7 @@ afterEach(()=>vi.unstubAllEnvs());
 
 it('waits for the actual original form retirement before exposing its anonymous presentation without retrying a stale snapshot',async()=>{
  const {f,reviewer,form}=await reviewedPresentation();await publicMarketingPurchase(f.company,'sales');await publicMarketingPurchase(f.company,'sales-marketing');
- const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
+ const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/platform-runtime-server/public/runtime/read-metrics');
  // A real compatibility-mode owner command commits while the migrated public
  // reader waits. No fabricated form status or activation event is inserted.
  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','disabled');
@@ -38,19 +40,19 @@ it('waits for the actual original form retirement before exposing its anonymous 
 
 it('renders the actual tenant Forms page with initial approved content and a native consent form while keeping source metadata private',async()=>{
  const {f,form,publication}=await reviewedPresentation();await publicMarketingPurchase(f.company,'sales');await publicMarketingPurchase(f.company,'sales-marketing');vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');
- const {default:FormsPage}=await import('@erpx/feature-forms/routes/forms/[holdingSlug]/[formId]/page'),tree=await FormsPage({params:Promise.resolve({holdingSlug:'hotel',formId:String(form.id)})}),markup=renderToStaticMarkup(tree);
+ const {default:FormsPage}=await import('@erpx/product-forms-ui/routes/forms/[holdingSlug]/[formId]/page'),tree=await FormsPage({params:Promise.resolve({holdingSlug:'hotel',formId:String(form.id)})}),markup=renderToStaticMarkup(tree);
  const versions=(node:ReactNode):number[]=>Array.isArray(node)?node.flatMap(versions):isValidElement<{children?:ReactNode;formVersion?:number}>(node)?node.type===PublicMarketingForm?[Number(node.props.formVersion)]:versions(node.props.children):[];expect(versions(tree)).toEqual([2]);
  expect(markup).toContain('Fictional reviewed public inquiry');expect(markup).toContain('Fictional equipment inquiry');expect(markup).toContain('Only the independently reviewed revision is public.');expect(markup).toContain('<form');for(const name of ['name','detail','brief','consent'])expect(markup).toContain(`name="${name}"`);expect(markup).toContain('Send request');expect(markup).not.toContain(publication.source_link_id);expect(markup).not.toContain(publication.derivative_object_key);expect(markup).not.toContain('configuration_json');expect(markup).not.toContain('FORM_READ_CHANGED');
 });
 
 it.each(['disabled','enforced'] as const)('keeps the public Forms read source stable after deferred effects and rejects arbitrary parent transactions with purchase mode %s',async mode=>{
  const {f,form}=await reviewedPresentation();if(mode==='enforced'){await publicMarketingPurchase(f.company,'sales');await publicMarketingPurchase(f.company,'sales-marketing');}vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT',mode);
- const {loadPublicMarketingForm}=await import('@erpx/server-marketing/public/marketing-public-form'),{withPublicMarketingFormRead}=await import('@erpx/server-marketing/adapters/public-form-read');
- await expect(db.transaction(transaction=>loadPublicMarketingForm(transaction,String(form.id)))).rejects.toMatchObject({code:'FORM_READ_TRANSACTION_REQUIRED'});
+ const {loadPublicMarketingForm}=await import('@erpx/marketing-server/public/marketing-public-form'),{withPublicMarketingFormRead}=await import('@erpx/marketing-server/adapters/public-form-read');
+ await expect(db.transaction(transaction=>loadPublicMarketingForm(transaction,'hotel',String(form.id)))).rejects.toMatchObject({code:'FORM_READ_TRANSACTION_REQUIRED'});
  const effect=`form_read_${key().replaceAll('-','')}`,before=await db.prepare('SELECT to_jsonb(form)::text image FROM marketing_assets form WHERE id=?').bind(form.id).first('image');
  await db.exec(`CREATE TABLE ${effect}(id text PRIMARY KEY);CREATE FUNCTION ${effect}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE marketing_assets SET name=name||' late anonymous presentation edit',version=version+1 WHERE id='${form.id}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${effect} AFTER INSERT ON ${effect} DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ${effect}()`);
  try{await expect(withPublicMarketingFormRead(db,String(form.id),undefined,async transaction=>{const name=await transaction.prepare('SELECT name FROM marketing_assets WHERE id=?').bind(form.id).first<string>('name');await transaction.prepare(`INSERT INTO ${effect}(id) VALUES(?)`).bind('actual-deferred-source-effect').run();return {name};})).rejects.toMatchObject({code:'FORM_READ_CHANGED'});expect(await db.prepare('SELECT to_jsonb(form)::text image FROM marketing_assets form WHERE id=?').bind(form.id).first('image')).toBe(before);expect(await db.prepare(`SELECT count(*)::int n FROM ${effect}`).first('n')).toBe(0);}finally{await db.exec(`DROP TABLE ${effect};DROP FUNCTION ${effect}()`);}
- const loaded=await loadPublicMarketingForm(db,String(form.id));expect(loaded.name).toBe('Fictional reviewed public inquiry');expect(loaded.presentation.ready).toBe(true);
+ const loaded=await loadPublicMarketingForm(db,'hotel',String(form.id));expect(loaded.name).toBe('Fictional reviewed public inquiry');expect(loaded.presentation.ready).toBe(true);
 });
 
 it('requires the rendered version for a new Forms-host submission while retaining exact legacy receipts and current publication authority',async()=>{
@@ -69,7 +71,7 @@ async function reviewedPresentation(){
  const publication=await createAttachmentPublication(db,env.H001_FILES,creator,{sourceLinkId:reservation.attachmentLinkId,targetType:'marketing_asset',targetId:String(content.id),altText:'Declared fictional inquiry icon',ordinal:0},key());expect(publication).toMatchObject({state:'draft'});
  const configuration={consentRequired:true,contentAssetId:String(content.id),contentVersion:3,mediaPublicationId:String(publication!.id)},form=await createMarketingAsset(creator,{kind:'form',name:'Fictional reviewed public inquiry',configuration,preview:{headline:'A real native form with declared fictional contacts'}},key());
  await expect(changeMarketing(reviewer,'asset',String(form.id),{action:'activate',expectedVersion:1,reason:'Unreviewed content and public creative cannot activate'},key())).rejects.toMatchObject({code:'MARKETING_FORM_NOT_READY'});
- expect(await marketingFormReadiness(db,f.company,configuration)).toMatchObject({ready:false,blockers:['reviewed_content_unavailable','approved_creative_unavailable'],content:null,media:null});
+ expect(await marketingFormReadiness(db,'hotel',f.company,configuration)).toMatchObject({ready:false,blockers:['reviewed_content_unavailable','approved_creative_unavailable'],content:null,media:null});
  await expect(approveAttachmentPublication(db,creator,String(publication!.id),key())).rejects.toMatchObject({code:'INDEPENDENT_PUBLICATION_REVIEW'});await approveAttachmentPublication(db,reviewer,String(publication!.id),key());await changeMarketing(reviewer,'asset',String(content.id),{action:'activate',expectedVersion:2,reason:'Independent exact content and sanitized creative review'},key());await changeMarketing(reviewer,'asset',String(form.id),{action:'activate',expectedVersion:1,reason:'Independent form consent and exact published presentation review'},key());
  return {f,creator,reviewer,content,publication:publication!,form,configuration};
 }
@@ -89,6 +91,28 @@ it('accepts a consented public form once and binds its retry key to the form',as
  expect(await db.prepare("SELECT count(*) n FROM marketing_lead_candidates WHERE id=? AND status='pending'").bind(result.data.id).first('n')).toBe(1);
 });
 
+it('returns 429 from the seventh public submission of a fresh form without resetting unrelated submissions',async()=>{
+ // A newly reviewed form owns a distinct rate key (hash(formId:ip)), so this
+ // case never clears or reuses another form's public submission bucket.
+ const {f,form}=await reviewedPresentation();
+ await publicMarketingPurchase(f.company,'sales');
+ await publicMarketingPurchase(f.company,'sales-marketing');
+ vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');
+ const context={params:Promise.resolve({holdingSlug:'hotel',formId:String(form.id)})},url=`http://localhost:3100/api/public/marketing/hotel/${form.id}`;
+ const body={contactName:'Fictional rate visitor',contactDetail:'rate@simulation.test',brief:'One more bounded inquiry',consentAccepted:true,source:'Declared rate fixture'};
+ const submit=(suffix:string)=>POST(new Request(url,{method:'POST',headers:{host:'localhost:3100',origin:'http://localhost:3100','Content-Type':'application/json','Idempotency-Key':key()},body:JSON.stringify({...body,contactDetail:`${suffix}@simulation.test`})}),context);
+ const candidates=async()=>Number((await db.prepare('SELECT count(*)::int n FROM marketing_lead_candidates WHERE form_id=?').bind(form.id).first<number>('n'))??0);
+ const before=await candidates();
+ for(let i=1;i<=5;i++)expect((await submit(`accepted-${i}`)).status).toBe(201);
+ const sixth=await submit('sixth');expect(sixth.status).toBe(429);expect((await sixth.json()).error.code).toBe('FORM_RATE_LIMIT');
+ const seventh=await submit('seventh');expect(seventh.status).toBe(429);expect((await seventh.json()).error.code).toBe('FORM_RATE_LIMIT');
+ expect(await candidates()).toBe(before+5);
+ // The RETURNING count must reach the limiter and the rejected charge must roll
+ // back, so the bucket holds exactly the five accepted submissions.
+ const rateKey=createHash('sha256').update(`${form.id}:local`).digest('hex');
+ expect(await db.prepare('SELECT count FROM marketing_public_limits WHERE key=?').bind(rateKey).first('count')).toBe(5);
+});
+
 it('publishes only exact independently reviewed form content and native sanitized media then captures and hands off the original consent once',async()=>{
  const {f,creator,reviewer,content,publication,form}=await reviewedPresentation(),context={params:Promise.resolve({holdingSlug:'hotel',formId:String(form.id)})},url=`http://localhost:3100/api/public/marketing/hotel/${form.id}`,page=await GET(new Request(url),context),display=await page.json();expect(page.status).toBe(200);expect(display.data.presentation).toMatchObject({ready:true,content:{id:content.id,version:3,headline:'Fictional equipment inquiry'},media:{id:publication.id,altText:'Declared fictional inquiry icon',revision:1,mediaType:'image/webp'}});expect(JSON.stringify(display)).not.toContain(publication.source_link_id);expect(JSON.stringify(display)).not.toContain(publication.derivative_object_key);
  const requestKey=key(),body={contactName:'Fictional consented buyer',contactDetail:'fictional-equipment@simulation.test',brief:'Two fictional equipment sets',consentAccepted:true,source:'Declared fictional public form'},request=(consentAccepted=true)=>new Request(url,{method:'POST',headers:{host:'localhost:3100',origin:'http://localhost:3100','Idempotency-Key':requestKey,'Content-Type':'application/json'},body:JSON.stringify({...body,consentAccepted})});expect((await POST(request(false),context)).status).toBe(422);
@@ -105,7 +129,7 @@ it('withdraws a public form after creative revocation and preserves previously c
 it('refuses cross-company, stale and incomplete public presentation references at activation without exposing content',async()=>{
  const {f,creator,reviewer,content,publication}=await reviewedPresentation(),foreign=await expenseFixture();
  for(const configuration of [{consentRequired:true,contentAssetId:content.id,contentVersion:2,mediaPublicationId:publication.id},{consentRequired:true,contentAssetId:content.id,contentVersion:3,mediaPublicationId:key()}]){const draft=await createMarketingAsset(creator,{kind:'form',name:'Blocked stale presentation',configuration,preview:{headline:'Unavailable content stays private'}},key());await expect(changeMarketing(reviewer,'asset',String(draft.id),{action:'activate',expectedVersion:1,reason:'Changed or unknown exact presentation refuses publication'},key())).rejects.toMatchObject({code:'MARKETING_FORM_NOT_READY'});}
- const foreignForm=await createMarketingAsset({...foreign.owner,modules:['marketing']},{kind:'form',name:'Cross Company presentation denied',configuration:{consentRequired:true,contentAssetId:content.id,contentVersion:3,mediaPublicationId:publication.id},preview:{headline:'Must not expose another Company content'}},key()),foreignReviewer={...await foreign.member('foreign-marketing-review','holding_owner',10),modules:['marketing']};await expect(changeMarketing(foreignReviewer,'asset',String(foreignForm.id),{action:'activate',expectedVersion:1,reason:'Cross Company presentation remains unavailable'},key())).rejects.toMatchObject({code:'MARKETING_FORM_NOT_READY'});expect(await marketingFormReadiness(db,foreign.company,{contentAssetId:content.id,contentVersion:3,mediaPublicationId:publication.id})).toMatchObject({ready:false,content:null,media:null});
+ const foreignForm=await createMarketingAsset({...foreign.owner,modules:['marketing']},{kind:'form',name:'Cross Company presentation denied',configuration:{consentRequired:true,contentAssetId:content.id,contentVersion:3,mediaPublicationId:publication.id},preview:{headline:'Must not expose another Company content'}},key()),foreignReviewer={...await foreign.member('foreign-marketing-review','holding_owner',10),modules:['marketing']};await expect(changeMarketing(foreignReviewer,'asset',String(foreignForm.id),{action:'activate',expectedVersion:1,reason:'Cross Company presentation remains unavailable'},key())).rejects.toMatchObject({code:'MARKETING_FORM_NOT_READY'});expect(await marketingFormReadiness(db,'hotel',foreign.company,{contentAssetId:content.id,contentVersion:3,mediaPublicationId:publication.id})).toMatchObject({ready:false,content:null,media:null});
  await expect(createMarketingAsset(creator,{kind:'form',name:'Incomplete exact reference',configuration:{consentRequired:true,contentAssetId:content.id},preview:{}},key())).rejects.toMatchObject({code:'MARKETING_PRESENTATION_INVALID'});await changeMarketing(reviewer,'asset',String(content.id),{action:'retire',expectedVersion:3,reason:'Reviewed supporting content retired'},key());expect((await marketingWorkspace(creator)).formReadiness.every(row=>!row.ready)).toBe(true);expect(f.company).toBe(creator.companyId);
 });
 
@@ -121,7 +145,7 @@ it('rolls back public candidate, consent history, rate charge and receipt on a l
 });
 
 async function publicMarketingPurchase(companyId:string,packageId:'sales'|'sales-marketing',state:'active'|'draining'='active',endsAt:number|null=null){
- const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),prior=(await readCompanyPackageGrants(db,companyId)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'isolated-public-marketing-provider'}),obligations:async()=>{throw Error('PUBLIC_MARKETING_FIXTURE_CANNOT_INACTIVATE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId,packageId,packageVersion:1,state,startsAt:0,endsAt,version:(prior?.version??0)+1,reason:'Isolated public Marketing capability fixture',evidence:'test:public-marketing-purchase'}});
+ const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/commercial-server/public/package-grants'),prior=(await readCompanyPackageGrants(db,companyId)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'isolated-public-marketing-provider'}),obligations:async()=>{throw Error('PUBLIC_MARKETING_FIXTURE_CANNOT_INACTIVATE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId,packageId,packageVersion:1,state,startsAt:0,endsAt,version:(prior?.version??0)+1,reason:'Isolated public Marketing capability fixture',evidence:'test:public-marketing-purchase'}});
 }
 it('accepts new public Marketing only with the actual addon and retains exact receipt retries during draining while keeping publication guards',async()=>{
  const {f,reviewer,form}=await reviewedPresentation(),context={params:Promise.resolve({holdingSlug:'hotel',formId:String(form.id)})},url=`http://localhost:3100/api/public/marketing/hotel/${form.id}`,command=key(),body={contactName:'Purchased fictional visitor',contactDetail:'purchased@simulation.test',brief:'Retain this exact original consented inquiry',consentAccepted:true,source:'Declared purchased public source'},request=(id=command,payload=body)=>new Request(url,{method:'POST',headers:{host:'localhost:3100',origin:'http://localhost:3100','Idempotency-Key':id,'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -138,7 +162,7 @@ it('rolls back public consent rate charge candidate event and exact receipt afte
  await publicMarketingPurchase(f.company,'sales-marketing');const response=await POST(request(),context);expect(response.status).toBe(201);const receipt=(await response.json()).data;expect((await (await POST(request(),context)).json()).data).toEqual(receipt);expect(await db.prepare('SELECT count(*)::int count FROM marketing_engagement_events WHERE candidate_id=?').bind(receipt.id).first('count')).toBe(1);
 });
 it('observes a committed form withdrawal while the public submission waits for its actual source lease without retrying a stale snapshot',async()=>{
- const {f,form}=await reviewedPresentation();vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await publicMarketingPurchase(f.company,'sales');await publicMarketingPurchase(f.company,'sales-marketing');const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),url=`http://localhost:3100/api/public/marketing/hotel/${form.id}`,command=key(),body={contactName:'Fictional concurrent visitor',contactDetail:'source-writer@simulation.test',brief:'Never capture consent against a withdrawn native source',consentAccepted:true,source:'Declared concurrent source fixture'};
+ const {f,form}=await reviewedPresentation();vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await publicMarketingPurchase(f.company,'sales');await publicMarketingPurchase(f.company,'sales-marketing');const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/platform-runtime-server/public/runtime/read-metrics'),url=`http://localhost:3100/api/public/marketing/hotel/${form.id}`,command=key(),body={contactName:'Fictional concurrent visitor',contactDetail:'source-writer@simulation.test',brief:'Never capture consent against a withdrawn native source',consentAccepted:true,source:'Declared concurrent source fixture'};
  const observed=await committedSourceVisibility(db,tx=>tx.prepare("UPDATE marketing_assets SET status='retired',version=version+1 WHERE id=?").bind(form.id).run(),()=>measureReads(()=>POST(new Request(url,{method:'POST',headers:{host:'localhost:3100',origin:'http://localhost:3100','Idempotency-Key':command,'Content-Type':'application/json'},body:JSON.stringify(body)}),{params:Promise.resolve({holdingSlug:'hotel',formId:String(form.id)})})));
  expect(observed.result.status).toBe(409);expect((await observed.result.json()).error.code).toBe('FORM_CHANGED');expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);expect(await db.prepare('SELECT 1 FROM marketing_public_receipts WHERE key=?').bind(command).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM marketing_lead_candidates WHERE form_id=?').bind(form.id).first()).toBeNull();
 });
@@ -148,8 +172,8 @@ it('withdraws original staged creative and revokes reviewed public media during 
  const {f,creator,reviewer,content,publication,configuration}=await reviewedPresentation(),staged=await createAttachmentSet(db,creator,{targetType:'marketing_asset',targetId:String(content.id),purposeKey:'creative',componentKind:'record',expectedTargetVersion:3},key()),file=await reserveAttachmentFile(db,creator,staged.id,{filename:'withdraw-original.png',mediaType:'image/png',bytes:32},key());
  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await publicMarketingPurchase(f.company,'sales');await publicMarketingPurchase(f.company,'sales-marketing');await publicMarketingPurchase(f.company,'sales-marketing','draining');
  await expect(createAttachmentSet(db,creator,{targetType:'marketing_asset',targetId:String(content.id),purposeKey:'creative',componentKind:'record',expectedTargetVersion:3},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
- const withdrawal=key(),withdrawReason='Withdraw the original unbound creative during package closure';expect(await withdrawAttachmentLink(db,creator,file.attachmentLinkId,withdrawReason,withdrawal)).toEqual({id:file.attachmentLinkId,state:'withdrawn'});expect(await withdrawAttachmentLink(db,creator,file.attachmentLinkId,withdrawReason,withdrawal)).toEqual({id:file.attachmentLinkId,state:'withdrawn'});
- const command=key(),reason='Revoke previously reviewed public creative during package closure',revoked=await revokeAttachmentPublication(db,reviewer,String(publication.id),reason,command);expect(revoked).toMatchObject({id:publication.id,state:'revoked',revoked_by:reviewer.userId,revocation_reason:reason});expect(await revokeAttachmentPublication(db,reviewer,String(publication.id),reason,command)).toEqual(revoked);expect(await marketingFormReadiness(db,f.company,configuration)).toMatchObject({ready:false,blockers:['approved_creative_unavailable'],media:null});
+ const withdrawal=key(),withdrawReason='Withdraw the original unbound creative during package closure';expect(await withdrawSeededAttachment(db,creator,file.attachmentLinkId,withdrawReason,withdrawal)).toEqual({id:file.attachmentLinkId,state:'withdrawn'});expect(await withdrawSeededAttachment(db,creator,file.attachmentLinkId,withdrawReason,withdrawal)).toEqual({id:file.attachmentLinkId,state:'withdrawn'});
+ const command=key(),reason='Revoke previously reviewed public creative during package closure',revoked=await revokeAttachmentPublication(db,reviewer,String(publication.id),reason,command);expect(revoked).toMatchObject({id:publication.id,state:'revoked',revoked_by:reviewer.userId,revocation_reason:reason});expect(await revokeAttachmentPublication(db,reviewer,String(publication.id),reason,command)).toEqual(revoked);expect(await marketingFormReadiness(db,'hotel',f.company,configuration)).toMatchObject({ready:false,blockers:['approved_creative_unavailable'],media:null});
  expect(await db.prepare("SELECT count(*)::int n FROM attachment_events WHERE company_id=? AND action='publication.revoked' AND details_json::jsonb->>'publicationId'=?").bind(f.company,publication.id).first('n')).toBe(1);
 });
 
@@ -174,7 +198,7 @@ it('rolls back corrective Marketing revocation when the original reviewer loses 
 it('accepts a Forms-host Thai submission at the displayed field limits without truncating consent or duplicating its exact receipt',async()=>{
  const {f,reviewer,form}=await reviewedPresentation();await publicMarketingPurchase(f.company,'sales');await publicMarketingPurchase(f.company,'sales-marketing');vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');for(const [name,value] of Object.entries({ERPX_ENVIRONMENT:'local',ERPX_PRODUCT_ENVIRONMENT:'development',ERPX_PRODUCT_ROUTING:'enabled',ERPX_PRODUCT_SSO:'enabled'}))vi.stubEnv(name,value);
  const host='forms-dev-erpx.jesadakorn.com',url=`https://${host}/api/public/marketing/hotel/${form.id}`,context={params:Promise.resolve({holdingSlug:'hotel',formId:String(form.id)})},command=key(),body={formVersion:2,contactName:'ก'.repeat(160),contactDetail:'ข'.repeat(2000),brief:'ค'.repeat(3000),consentAccepted:true,source:'ง'.repeat(120)},encoded=JSON.stringify(body),request=()=>new Request(url,{method:'POST',headers:{host,origin:`https://${host}`,'Content-Type':'application/json','Idempotency-Key':command},body:encoded});
- const {publicMarketingSubmissionSchema}=await import('@erpx/server-marketing/public/public-submission');expect(publicMarketingSubmissionSchema.parse(body)).toEqual(body);expect(Buffer.byteLength(encoded)).toBeGreaterThan(12000);expect(Buffer.byteLength(encoded)).toBeLessThan(32*1024);
+ const {publicMarketingSubmissionSchema}=await import('@erpx/marketing-server/public/public-submission');expect(publicMarketingSubmissionSchema.parse(body)).toEqual(body);expect(Buffer.byteLength(encoded)).toBeGreaterThan(12000);expect(Buffer.byteLength(encoded)).toBeLessThan(32*1024);
  // Every bounded text field can expand to six JSON bytes per UTF-16 unit.
  // Include all keys, the version, and a normal native campaign identifier.
  const escaped={...body,contactName:'\u0001'.repeat(160),contactDetail:'\u0001'.repeat(2000),brief:'\u0001'.repeat(3000),source:'\u0001'.repeat(120),campaignId:key(),formVersion:Number.MAX_SAFE_INTEGER};expect(publicMarketingSubmissionSchema.parse(escaped)).toEqual(escaped);expect(Buffer.byteLength(JSON.stringify(escaped))).toBeLessThanOrEqual(32*1024);

@@ -1,0 +1,45 @@
+import 'server-only';
+import { nativeClearCommandAssertions } from '@erpx/collaboration-server/adapters/native-command-assertions';
+import {randomUUID} from 'node:crypto';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import type {AttachmentOperation} from '@erpx/files-server/public/attachments/types';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import {iamMutationGuards} from '@erpx/identity-access-server/public/iam-store';
+import {assignmentReadSql} from '@erpx/identity-access-server/public/record-source-authority';
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+import {workContextGuards} from '@erpx/workflow-server/public/command-guards';
+import {financeDeferredEffectStatements} from '@erpx/finance-server/public/finance-transactions';
+import {legalPackageEnforcementMode,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,observePurchaseResults} from '@erpx/commercial-server/public/purchase-command-boundary';
+import type {CapabilityPurpose} from '@erpx/commercial-server/public/rules/packages';
+import {legalKindCapability,type LegalPurchaseCapability} from '@erpx/legal-server/domain/purchases';
+import type {LegalKind} from '@erpx/legal-server/domain/model';
+import {legalOwnedAttachmentPurpose} from '@erpx/legal-server/adapters/purchases';
+import {legalMembersAggSql} from './legal-read-tail-r9-sources';
+import {legalMemberEditPointSql} from './legal-read-tail-r38-sources';
+import {legalItemsByIdCompanyHead} from './legal-read-tail-r45-sources';
+export type LegalAttachmentPurchase={companyId:string;targetId:string;actor:WorkContext;purpose:CapabilityPurpose;capabilities:LegalPurchaseCapability[];witness:string};
+const source=legalItemsByIdCompanyHead(`i.*,jsonb_build_object('item',to_jsonb(i)-'version'-'updated_at','members',${legalMembersAggSql})::text image`);
+export async function legalAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,type:string,id:string):Promise<LegalAttachmentPurchase|null>{
+ if(type!=='legal_item'||await legalPackageEnforcementMode()==='disabled')return null;
+ const row=await database.prepare(source).bind(id,actor.companyId).first<{kind:LegalKind;image:string}>();if(!row)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The original Legal file source is unavailable.');
+ return {companyId:actor.companyId,targetId:id,actor,purpose:legalOwnedAttachmentPurpose(database,actor,id)??'new-work',capabilities:[legalKindCapability(row.kind),'legal.documents'],witness:row.image};
+}
+export async function authorizeLegalAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation:AttachmentOperation){
+ const scope=await legalAttachmentPurchaseScope(database,actor,type,id);if(!scope)return;const key=`legal-file-read:${randomUUID()}`;await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);for(const capability of scope.capabilities)await checkPurchasedCapability(database,await legalPackageEnforcementMode(),{companyId:scope.companyId,capability,purpose:operation==='read'?'history':scope.purpose});
+}
+export async function legalAttachmentSourceReadLocks(database:SqlDatabase,scopes:readonly LegalAttachmentPurchase[]){
+ if(!scopes.length||await legalPackageEnforcementMode()==='disabled')return [];
+ const locks=[...new Set(scopes.map(scope=>scope.companyId))].sort().map(companyId=>companyPurchaseReadLocks(database,companyId));
+ // Source table leases precede the first MVCC snapshot; the original global
+ // legal-files lock remains owned by preservation/destruction, without a new
+ // shared-advisory upgrade path in File commands.
+ return [...locks.map(items=>items[0]),database.prepare('LOCK TABLE legal_items,legal_members,legal_documents IN SHARE ROW EXCLUSIVE MODE'),...locks.flatMap(items=>items.slice(1))];
+}
+export async function legalAttachmentCommandBoundary(database:SqlDatabase,scopes:readonly LegalAttachmentPurchase[]){
+ const mode=await legalPackageEnforcementMode();if(!scopes.length||mode==='disabled')return;
+ const unique=[...new Map(scopes.map(scope=>[`${scope.companyId}:${scope.targetId}:${scope.purpose}`,scope])).values()],boundaries=unique.flatMap(scope=>scope.capabilities.map(capability=>{const key=`legal-file-purchase:${randomUUID()}`;return {key,companyId:scope.companyId,boundary:purchaseCommandBoundary(database,mode,key,{companyId:scope.companyId,capability,purpose:scope.purpose})!};}));
+ const guards=async (phase:string)=>(await Promise.all(unique.map(async scope=>{const a=scope.actor,key=`legal-file-${phase}:${randomUUID()}`;return [...workContextGuards(database,a,key),...iamMutationGuards(database,a,key),assertion(database,key,'legal-file-source',`EXISTS(SELECT 1 FROM (${source}) legal_file_source WHERE image=? AND ${assignmentReadSql('legal_file_source','legal.edit')} AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) AND EXISTS(${legalMemberEditPointSql('legal_file_source.id')}))`,[scope.targetId,scope.companyId,scope.witness,a.assignmentId,a.userId,a.role,a.branchId,a.branchId,a.departmentId,a.departmentId,a.userId]),await nativeClearCommandAssertions(database, a.companyId, key)];}))).flat();
+ return {before:[...await guards('before'),...boundaries.flatMap(item=>item.boundary.before)],after:[...financeDeferredEffectStatements(database),...await guards('after'),...(await Promise.all(boundaries.map(async item=>[...item.boundary.after, await nativeClearCommandAssertions(database, item.companyId, item.key)]))).flat()],observe:observePurchaseResults};
+}
+export function legalAttachmentFailure(error:unknown){let current=error;for(let index=0;index<5&&current&&typeof current==='object';index++){const value=current as {code?:string;detail?:string;cause?:unknown};if(value.code==='23514'&&value.detail?.includes('legal-file-'))return new ApiError(409,'LEGAL_ATTACHMENT_CHANGED','The original Legal file source or current authority changed.');current=value.cause;}return null;}

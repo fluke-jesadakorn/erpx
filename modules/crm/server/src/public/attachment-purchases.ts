@@ -1,0 +1,1 @@
+export {crmAttachmentPurchaseScope,authorizeCRMAttachmentPurchase,crmAttachmentSourceReadLocks,crmAttachmentCommandBoundary,crmAttachmentFailure,type CRMAttachmentPurchase} from "@erpx/crm-server/adapters/attachment-purchases";

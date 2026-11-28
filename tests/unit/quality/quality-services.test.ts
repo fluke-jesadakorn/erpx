@@ -1,54 +1,36 @@
 import {describe,expect,test} from 'vitest';
-import {createQualityApplication,type QualityMutation,type QualityRepository} from "@erpx/server-quality/application/quality";
-import {createQualityAlertApplication,sweepQualityAlerts,type QualityAlertRepository,type QualityAlertSweepRepository} from "@erpx/server-quality/application/alerts";
-import type {QualityRow} from "@erpx/server-quality/domain/quality";
-import type {QualityAlert} from "@erpx/server-quality/domain/alerts";
+import {createQualityApplication,type QualityRepository} from "@erpx/quality-server/application/quality";
+import {createQualityAlertApplication,type QualityAlertRepository} from "@erpx/quality-server/application/alerts";
+import type {QualityRow} from "@erpx/quality-server/domain/quality";
+import type {QualityAlert} from "@erpx/quality-server/domain/alerts";
 
-const baseHold:QualityRow={id:'hold',status:'held',created_by:'creator',last_inspector:'inspector',last_result:null,held_quantity_milli:2000,warehouse_id:'warehouse',product_id:'product',branch_id:'branch',version:1,spec_id:null,updated_at:42,due_date:'2026-10-06',eligible_count:1};
-const specInput={productId:'product',name:'Approved package limits',metrics:[{code:'weight',label:'Package weight',unit:'kg',minimum:'9.9',maximum:'10.1'}]};
 function fixture(overrides:Partial<QualityRepository<string[]>>={}){
- const mutations:QualityMutation<string[]>[]=[],calls:string[]=[];
+ const calls:string[]=[];
  const repository:QualityRepository<string[]>={
-  async holds(){return [baseHold];},async workspace(){return {stock:[],lots:[],products:[],specifications:[],specMetrics:[]};},async detail(){return {inspections:[],cancellations:[],dispositions:[],specMetrics:[],measurements:[],attachments:[]};},async replay(){calls.push('receipt');return null;},async product(){return {id:'product',version:4};},async spec(){return {id:'spec',status:'draft',product_id:'product',version:2,created_by:'creator'};},async metricCount(){return 1;},async activeSpec(){return {id:'spec',version:2};},async holdStock(){return {quantity_milli:2000,version:4,branch_id:'branch'};},async holdLot(){return {id:'lot',quantity_milli:2000,version:3};},async metrics(){return [];},async inspectionFiles(_id,ids){return ids.map(id=>({id}));},async scrapStock(){return {quantity_milli:2000,value_minor:1200,tracking_mode:'none'};},async scrapLots(){return [];},async prepareEvidence(){calls.push('evidence');return {guards:['evidence-fence'],steps:['evidence-binding']};},evidenceVersionGuard:()=>['version-fence'],receiptHold(input,spec,now){return [JSON.stringify({input,spec,now})];},async commit(mutation){mutations.push(mutation);return {id:mutation.id,version:1};},...overrides,
+  async receiptHold(input,now){return [JSON.stringify({input,now})];},...overrides,
  };
  const ports={departmentScope:false,companyScope:true,userId:'manager',authorize(permission:string){calls.push(permission);},can:(permission:string)=>Boolean(permission),samePerson:(id:string|number|null)=>id==='manager',clock:{now:()=>42},hash:async()=> '1234567890abcdef',async repository(){return repository;}};
- return {ports,repository,mutations,calls,app:createQualityApplication(ports)};
+ return {ports,repository,calls,app:createQualityApplication(ports)};
 }
-describe('Quality specifications and source snapshots',()=>{
- test('Department scope is rejected before reading workspace facts',async()=>{const f=fixture({async workspace(){throw new Error('private stock must remain unread');}});f.ports.departmentScope=true;await expect(f.app.qualityWorkspace()).rejects.toMatchObject({code:'QUALITY_SCOPE_REQUIRED'});expect(f.calls).toEqual(['quality.read']);});
- test('duplicate codes and missing numeric limits are rejected before receipt lookup',async()=>{const f=fixture();await expect(f.app.saveQualitySpec(null,{...specInput,metrics:[specInput.metrics[0],{...specInput.metrics[0],code:'WEIGHT'}]},'key')).rejects.toMatchObject({code:'QUALITY_METRIC_DUPLICATE'});await expect(f.app.saveQualitySpec(null,{...specInput,metrics:[{...specInput.metrics[0],minimum:'',maximum:''}]},'key')).rejects.toMatchObject({code:'QUALITY_LIMIT_REQUIRED'});expect(f.calls).not.toContain('receipt');expect(f.mutations).toEqual([]);});
- test('receipt replay succeeds without rereading an inactive product',async()=>{const f=fixture({async replay(){return {id:'saved',version:1};},async product(){throw new Error('inactive product must not be read');}});expect(await f.app.saveQualitySpec(null,specInput,'key')).toEqual({id:'saved',version:1});expect(f.mutations).toEqual([]);});
- test('a current activated specification cannot be rewritten',async()=>{const f=fixture({async spec(){return {status:'active',version:2,product_id:'product'};}});await expect(f.app.saveQualitySpec('spec',{...specInput,expectedVersion:2},'key')).rejects.toMatchObject({code:'QUALITY_SPEC_LOCKED'});expect(f.mutations).toEqual([]);});
- test('independent person approval and complete metrics govern specification activation',async()=>{const f=fixture({async spec(){return {status:'draft',created_by:'manager'};}});await expect(f.app.transitionQualitySpec('spec',{expectedVersion:1,action:'activate',reason:'Verified the acceptance limits'},'key')).rejects.toMatchObject({code:'INDEPENDENT_SPEC_APPROVAL_REQUIRED'});f.repository.spec=async()=>({status:'draft',created_by:'another-person'});f.repository.metricCount=async()=>0;await expect(f.app.transitionQualitySpec('spec',{expectedVersion:1,action:'cancel',reason:'Withdraw this incomplete plan'},'other')).rejects.toMatchObject({code:'QUALITY_METRICS_REQUIRED'});expect(f.mutations).toEqual([]);});
- test('a changed lot prevents quarantine and a valid hold captures active specification facts',async()=>{const f=fixture();const input={warehouseId:'warehouse',productId:'product',lotId:'lot',expectedStockVersion:4,expectedLotVersion:2,dueDate:'2026-10-07',reason:'Inspect the received product'};await expect(f.app.createQualityHold(input,'key')).rejects.toMatchObject({code:'QUALITY_LOT_CHANGED'});await f.app.createQualityHold({...input,expectedLotVersion:3},'other');expect(f.mutations[0]).toMatchObject({action:'hold',stock:{version:4},lot:{version:3},spec:{id:'spec',version:2},now:42});});
- test('receipt-created partial quarantine stages on the supplied repository without a second receipt',async()=>{const f=fixture(),input={id:'hold',key:'key',branchId:'branch',warehouseId:'warehouse',productId:'product',quantityMilli:1000,reason:'Received product needs inspection',dueDate:'2026-10-07',sourceId:'receipt',sourceType:'customer_return' as const};expect(JSON.parse((await f.app.receiptQualityHoldSteps(input))[0])).toEqual({input,spec:{id:'spec',version:2},now:42});expect(f.calls).toEqual([]);expect(f.mutations).toEqual([]);});
+describe('Quality receipt-sourced quarantine',()=>{
+ test('receipt-created partial quarantine stages on the supplied repository without a second receipt',async()=>{const f=fixture(),input={id:'hold',key:'key',branchId:'branch',warehouseId:'warehouse',productId:'product',quantityMilli:1000,reason:'Received product needs inspection',dueDate:'2026-10-07',sourceId:'receipt',sourceType:'customer_return' as const};expect(JSON.parse((await f.app.receiptQualityHoldSteps(input))[0])).toEqual({input,now:42});expect(f.calls).toEqual([]);});
 });
-describe('Quality independent actions and controlled scrap',()=>{
- test('the hold creator cannot inspect or stage inspection evidence',async()=>{const f=fixture({async holds(){return [{...baseHold,created_by:'manager'}];}});await expect(f.app.inspectQualityHold('hold',{expectedVersion:1,result:'pass',evidence:'Self inspection attempt'},'key')).rejects.toMatchObject({code:'INDEPENDENT_INSPECTOR_REQUIRED'});await expect(f.app.qualityEvidenceGuard('hold',1,'key')).rejects.toMatchObject({code:'INDEPENDENT_INSPECTOR_REQUIRED'});expect(f.calls).not.toContain('evidence');expect(f.mutations).toEqual([]);});
- test('measurement limits determine the result and its immutable measurement snapshot',async()=>{const metric={id:'weight',minimum_value:'9.9',maximum_value:'10.1',code:'weight',label:'Weight',unit:'kg',ordinal:0};const f=fixture({async holds(){return [{...baseHold,spec_id:'spec',spec_version:2}];},async metrics(){return [metric];}});await expect(f.app.inspectQualityHold('hold',{expectedVersion:1,result:'pass',evidence:'Weight is beyond the acceptance limit',measurements:[{metricId:'weight',value:'10.2'}]},'key')).rejects.toMatchObject({code:'QUALITY_RESULT_DERIVED'});await f.app.inspectQualityHold('hold',{expectedVersion:1,evidence:'Weight is beyond the acceptance limit',measurements:[{metricId:'weight',value:'10.2'}]},'other');expect(f.mutations[0]).toMatchObject({action:'inspect',result:'fail',status:'held',measurements:[{metric,value:'10.2',passed:false}],attachmentBinding:{guards:['evidence-fence'],steps:['evidence-binding']}});});
- test('duplicate or no-longer-unbound evidence fails before preparing a binding',async()=>{const f=fixture({async inspectionFiles(){return [];}}),input={expectedVersion:1,result:'pass',evidence:'Independent inspection confirms safety'};await expect(f.app.inspectQualityHold('hold',{...input,attachmentIds:['file','file']},'key')).rejects.toMatchObject({code:'QUALITY_ATTACHMENT_DUPLICATE'});await expect(f.app.inspectQualityHold('hold',{...input,attachmentIds:['file']},'other')).rejects.toMatchObject({code:'QUALITY_ATTACHMENT_INVALID'});expect(f.calls).not.toContain('evidence');expect(f.mutations).toEqual([]);});
- test('release needs a third person and a currently passing inspection',async()=>{const f=fixture({async holds(){return [{...baseHold,status:'awaiting_release',last_result:'pass',last_inspector:'manager'}];}});await expect(f.app.releaseQualityHold('hold',{expectedVersion:2,reason:'Reviewer cannot also release'},'key')).rejects.toMatchObject({code:'INDEPENDENT_RELEASE_REQUIRED'});f.repository.holds=async()=>[{...baseHold,last_result:'fail'}];await expect(f.app.releaseQualityHold('hold',{expectedVersion:2,reason:'Failed stock cannot be released'},'other')).rejects.toMatchObject({code:'QUALITY_PASS_REQUIRED'});expect(f.mutations).toEqual([]);});
- test('serial disposal is indivisible and lot valuation carries the exact source snapshots',async()=>{const lot={id:'lot',quantity_milli:1000,value_minor:700,balance_version:3},f=fixture({async holds(){return [{...baseHold,last_result:'fail',lot_id:'lot'}];},async scrapStock(){return {quantity_milli:2000,value_minor:1200,tracking_mode:'serial'};},async scrapLots(){return [lot,{id:'other',quantity_milli:1000,value_minor:500,balance_version:1}];}}),input={expectedVersion:2,dispositionDate:'2026-10-06',quantity:'0.5',reason:'Dispose of the independently failed serial'};await expect(f.app.createQualityScrapDisposition('hold',input,'key')).rejects.toMatchObject({code:'SERIAL_QUANTITY_INVALID'});await f.app.createQualityScrapDisposition('hold',{...input,quantity:'1'},'other');expect(f.mutations[0]).toMatchObject({action:'scrap',quantity:1000,scrapValue:700,countedQuantity:1000,countedValue:500,number:'QSCRAP-1234567890ABCD',lotAdjustments:[{lot,reduce:1000,lotValue:700},{reduce:0,lotValue:0}]});});
- test('bound evidence and Inventory staging are never committed after a preparation failure',async()=>{const f=fixture({async holds(){return [{...baseHold,last_result:'fail'}];},async prepareEvidence(){throw new Error('binding conflict');}});await expect(f.app.createQualityScrapDisposition('hold',{expectedVersion:2,dispositionDate:'2026-10-06',quantity:'1',reason:'Dispose of the damaged inventory'},'key')).rejects.toThrow('binding conflict');expect(f.mutations).toEqual([]);});
- test('the cancellation requester cannot independently approve the uninspected hold',async()=>{const f=fixture({async holds(){return [{...baseHold,status:'cancel_pending',cancel_requested_by:'manager'}];}});await expect(f.app.cancelQualityHold('hold',{expectedVersion:2,action:'approve',reason:'A separate manager must review'},'key')).rejects.toMatchObject({code:'INDEPENDENT_CANCELLATION_REQUIRED'});f.repository.holds=async()=>[{...baseHold,status:'cancel_pending',last_result:'fail'}];await expect(f.app.cancelQualityHold('hold',{expectedVersion:2,action:'reject',reason:'Inspection now prevents cancellation'},'other')).rejects.toMatchObject({code:'UNINSPECTED_HOLD_REQUIRED'});expect(f.mutations).toEqual([]);});
- test('revoked independent recipients leave work waiting with an actionable blocker',async()=>{const f=fixture({async holds(){return [{...baseHold,eligible_count:0}];}});f.ports.can=()=>false;expect(await f.app.qualityWork()).toEqual([]);f.ports.can=permission=>permission==='quality.read';expect(await f.app.qualityWork()).toEqual([expect.objectContaining({queue:'waiting',canAct:false,blocker:'No eligible independent recipient; Company administrator must assign quality authority'})]);});
-});
+// The independent-inspector and active-status evidence assertions formerly in
+// this block are covered by the native Quality owner decisions
+// (tests/unit/quality/rust-quality-decisions.test.rs), not by a TS read branch.
 const alert:QualityAlert={id:'alert',hold_id:'hold',phase:'overdue',source_version:1,hold_version:2,due_date:'2026-10-06',detected_at:42,version:1,acknowledged_by:null,acknowledged_at:null,reason:null,company_id:'company',branch_id:'branch',status:'held',product_name:'Product',warehouse_name:'Warehouse',can_ack:1,recipients:1};
 describe('Quality alert recovery',()=>{
- test('sweep ordering and UTC dates remain deterministic across recovery',async()=>{const calls:unknown[][]=[],repository:QualityAlertSweepRepository={async dueSoon(...args){calls.push(['due',...args]);return 2;},async overdue(...args){calls.push(['overdue',...args]);return 3;},async notify(...args){calls.push(['route',...args]);}};const now=Date.UTC(2026,9,6,23,30);expect(await sweepQualityAlerts(repository,now,86400000)).toEqual({dueSoon:2,overdue:3});expect(calls).toEqual([['due',now,'2026-10-06','2026-10-07'],['overdue',now,'2026-10-06'],['route',now]]);});
- test('a partially failed sweep stops and a restarted sweep continues all three stages',async()=>{const calls:string[]=[],repository:QualityAlertSweepRepository={async dueSoon(){calls.push('due');return 0;},async overdue(){calls.push('overdue');throw new Error('database interruption');},async notify(){calls.push('route');}};await expect(sweepQualityAlerts(repository,42,86400000)).rejects.toThrow('database interruption');expect(calls).toEqual(['due','overdue']);repository.overdue=async()=>{calls.push('overdue');return 1;};expect(await sweepQualityAlerts(repository,42,86400000)).toEqual({dueSoon:0,overdue:1});expect(calls.slice(2)).toEqual(['due','overdue','route']);});
- test('revoked acknowledgement authority is checked before replay',async()=>{const repository:QualityAlertRepository={async alerts(){return [alert];},async replay(){throw new Error('must not replay');},async acknowledge(){throw new Error('must not mutate');}};const app=createQualityAlertApplication({departmentScope:false,userId:'user',authorizeRead(){},can:()=>false,clock:{now:()=>42},async repository(){return repository;}});await expect(app.acknowledgeQualityAlert('alert',{expectedVersion:1,reason:'Take responsibility'},'key')).rejects.toMatchObject({code:'QUALITY_ALERT_PERMISSION_REQUIRED'});});
- test('completed and recipient-revoked escalations retain their source but cannot act',async()=>{const repository:QualityAlertRepository={async alerts(){return [{...alert,can_ack:0,recipients:0},{...alert,id:'released',status:'released'}];},async replay(){return null;},async acknowledge(){throw new Error('must not mutate');}};const app=createQualityAlertApplication({departmentScope:false,userId:'user',authorizeRead(){},can:()=>true,clock:{now:()=>42},async repository(){return repository;}});expect(await app.qualityAlertWork()).toEqual([expect.objectContaining({queue:'waiting',canAct:false,blocker:expect.stringContaining('No eligible Quality recipient'),source:expect.objectContaining({id:'hold',version:2})}),expect.objectContaining({queue:'completed',canAct:false,status:'acknowledged'})]);});
+ test('completed and recipient-revoked escalations retain their source but cannot act',async()=>{const repository:QualityAlertRepository={async alerts(){return [{...alert,can_ack:0,recipients:0},{...alert,id:'released',status:'released'}];}};const app=createQualityAlertApplication({departmentScope:false,authorizeRead(){},can:()=>true,async repository(){return repository;}});expect(await app.qualityAlertWork()).toEqual([expect.objectContaining({queue:'waiting',canAct:false,blocker:expect.stringContaining('No eligible Quality recipient'),source:expect.objectContaining({id:'hold',version:2})}),expect.objectContaining({queue:'completed',canAct:false,status:'acknowledged'})]);});
 });
 
 import {afterEach,vi} from 'vitest';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {qualityCommandAllowed,type QualityPurchaseControls} from '@erpx/feature-quality/lib/quality-purchase-controls';
-import {createQualityCommandFetch,qualityFormUnchanged,validQualityAcknowledgement} from '@erpx/feature-quality/lib/quality-command-fetch';
-import {createQualityCommandAttempt,type QualityCommandAttempt} from '@erpx/feature-quality/lib/quality-command-attempt';
-import {QualityPurchaseProvider} from '@erpx/feature-quality/components/quality-purchase-context';
-import {QualityConsole} from '@erpx/feature-quality/components/quality-console';
+import {qualityCommandAllowed,type QualityPurchaseControls} from '@erpx/quality-ui/lib/quality-purchase-controls';
+import {createQualityCommandFetch,qualityFormUnchanged,validQualityAcknowledgement} from '@erpx/quality-ui/lib/quality-command-fetch';
+import {createQualityCommandAttempt,type QualityCommandAttempt} from '@erpx/quality-ui/lib/quality-command-attempt';
+import {QualityPurchaseProvider} from '@erpx/quality-ui/components/quality-purchase-context';
+import {QualityConsole} from '@erpx/quality-ui/components/quality-console';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/acme/quality',useSearchParams:()=>new URLSearchParams()}));
 afterEach(()=>vi.unstubAllGlobals());
 const activeQuality:QualityPurchaseControls={newWork:true,settleExisting:true,history:true,revision:'opaque'},drainingQuality={...activeQuality,newWork:false},historyQuality={...drainingQuality,settleExisting:false};
@@ -71,21 +53,302 @@ test('Quality unknown physical outcome blocks newer drafts and reuses the origin
 test('Quality parsed acknowledgement leaves newer measurements or evidence dirty',async()=>{
  const form={isConnected:true,getAttribute:()=> 'later-measurement'} as unknown as HTMLFormElement,completion={form,formEditVersion:'submitted'},events:Event[]=[];vi.stubGlobal('window',{dispatchEvent:(event:Event)=>{events.push(event);return true;}});await createQualityCommandFetch(async()=>Response.json({data:{id:'hold',version:2}}))('/inspect',{body:'original'},completion);const saved=events.find(event=>event.type==='erpx:record-command-saved') as CustomEvent;expect(saved.detail.qualityAcknowledged).toBe(true);expect(saved.detail.formEditVersion).toBe('submitted');expect(qualityFormUnchanged(saved.detail)).toBe(false);for(const value of [null,[],{id:''},{id:'hold'},{id:'hold',version:0},{id:'hold',version:1.5}])expect(validQualityAcknowledgement(value)).toBe(false);
 });
+const uiDecision={canInspect:true,canRelease:false,canCancel:true,canReviewCancellation:false,canDisposition:false};
+const uiHold={id:'hold',companyId:'company',branchId:'branch',warehouseId:'warehouse',productId:'product',lotId:null,
+ reason:'Independent review of the received stock',dueDate:'2026-10-06',status:'held',createdBy:'creator',
+ lastInspector:null,lastResult:null,releasedBy:null,releaseReason:null,releasedAt:null,version:1,createdAt:1,
+ updatedAt:1,specId:null,specVersion:null,quantityScope:'partial',heldQuantityMilli:2000,sourceType:'manual',
+ sourceId:null,cancelRequestedBy:null,cancelReason:null,cancelledBy:null,cancelledAt:null,dispositionKind:null,
+ dispositionReason:null,dispositionRequestedBy:null,dispositionCountId:null,dispositionQuantityMilli:null,
+ disposedBy:null,disposedAt:null,inspectionCount:0,productName:'Product',productUnit:'unit',trackingMode:'none',
+ warehouseName:'Warehouse',lotCode:null,serialNumber:null,expiryDate:null,eligibleCount:1,decision:uiDecision,
+ nextAction:'Record an independent inspection'};
 const uiWorkspace={holds:[],stock:[],lots:[],products:[],specifications:[],specMetrics:[],canHold:true,canManageSpecs:true};
-const uiDetail={hold:baseHold,inspections:[],cancellations:[],dispositions:[],specMetrics:[],measurements:[],attachments:[],canCancel:true,canReviewCancellation:false,canInspect:true,canRelease:false,canDisposition:false};
+const uiDetail={hold:uiHold,inspections:[],dispositions:[],specMetrics:[],measurements:[],alerts:[],cancellationHistory:'paged' as const};
 function renderQuality(props:Parameters<typeof QualityConsole>[0],purchase?:QualityPurchaseControls){return renderToStaticMarkup(createElement(QualityPurchaseProvider,{purchase},createElement(QualityConsole,props)));}
 test('Quality current-page long manual/spec/inspection editors disclose guarded drawers with no initial inline fields',()=>{
  const workspace=renderQuality({base:'/holdings/acme',data:uiWorkspace},activeQuality);expect(workspace).toContain('Quarantine stock');expect(workspace).toContain('Prepare product inspection specification');expect(workspace).not.toContain('name="metrics"');expect(workspace).not.toContain('name="dueDate"');const source=renderQuality({base:'/holdings/acme',detail:uiDetail},drainingQuality);expect(source).toContain('Record inspection');expect(source).toContain('Request cancellation');expect(source).not.toContain('name="evidence"');
 });
 test('Quality retained history suppresses mutation tools while original independent role flags still decide eligible source actions',()=>{
- expect(renderQuality({base:'/holdings/acme',data:uiWorkspace},drainingQuality)).not.toContain('Quarantine stock');const history=renderQuality({base:'/holdings/acme',detail:uiDetail},historyQuality);expect(history).not.toContain('Record inspection');expect(history).not.toContain('Request cancellation');expect(renderQuality({base:'/holdings/acme',detail:{...uiDetail,canInspect:false,canCancel:false}},activeQuality)).not.toContain('Record inspection');for(const secret of ['company_package_grants','assignment_permissions','source_witness'])expect(history).not.toContain(secret);
+ expect(renderQuality({base:'/holdings/acme',data:uiWorkspace},drainingQuality)).not.toContain('Quarantine stock');const history=renderQuality({base:'/holdings/acme',detail:uiDetail},historyQuality);expect(history).not.toContain('Record inspection');expect(history).not.toContain('Request cancellation');expect(renderQuality({base:'/holdings/acme',detail:{...uiDetail,hold:{...uiHold,decision:{...uiDecision,canInspect:false,canCancel:false}}}},activeQuality)).not.toContain('Record inspection');for(const secret of ['company_package_grants','assignment_permissions','source_witness'])expect(history).not.toContain(secret);
 });
 
-import {qualitySourceEntry} from "@erpx/server-quality/public/rules/product-entry";
+import {qualitySourceEntry} from "@erpx/quality-server/public/rules/product-entry";
 describe('existing Quality/Count product source destinations',()=>{
  test('parses only canonical exact source detail identities',()=>{
   expect(qualitySourceEntry('inventory-quality/quality/quality-return-123-0')).toEqual({kind:'hold',id:'quality-return-123-0'});
   expect(qualitySourceEntry('inventory-quality/counts/quality-scrap-123/overview')).toEqual({kind:'count',id:'quality-scrap-123'});
   for(const path of ['inventory-quality/quality','inventory-quality/counts','inventory-quality/counts/new','inventory-quality/quality/..','inventory-quality/quality/id/edit','inventory-quality/quality/id?companyId=other','inventory-quality/quality/id#extra','inventory-quality/quality/id\\escape','inventory-quality/quality/id\u0000','quality/id','inventory-quality/transfers/id'])expect(qualitySourceEntry(path)).toBeNull();
+ });
+});
+
+import {existsSync,readFileSync,readdirSync,statSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+describe('retired Quality stock new-work read branch',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('the quality-stock adapter, barrel and Commerce package exports are absent',()=>{
+  expect(existsSync(source('modules/commerce/server/src/adapters/quality-stock.ts'))).toBe(false);
+  expect(existsSync(source('modules/commerce/server/src/public/quality-stock.ts'))).toBe(false);
+  expect(readFileSync(source('modules/commerce/server/package.json'),'utf8')).not.toContain('quality-stock');
+ });
+ test('the unreachable new-work branch and its Commerce read imports are gone from Quality purchases',()=>{
+  const purchases=readFileSync(source('modules/quality/server/src/adapters/purchases.ts'),'utf8');
+  expect(purchases).not.toContain('qualityStockFacts');
+  expect(purchases).not.toContain('qualityProductFacts');
+  expect(purchases).not.toContain('new-work');
+  expect(purchases).not.toContain('current warehouse policy changed');
+ });
+});
+describe('quality metric branch-label dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('one fixed Organization node label SELECT guards both metric breakdowns',async()=>{
+  const {qualityBranchDisplayLabelSql,readExecutiveMetricProjection}=await import('@erpx/quality-server/adapters/executive-metric-projections');
+  expect(qualityBranchDisplayLabelSql.match(/SELECT n\.display_name/g)).toHaveLength(1);
+  expect(qualityBranchDisplayLabelSql).toContain('organization_nodes');
+  const text=readFileSync(source('modules/quality/server/src/adapters/executive-metric-projections.ts'),'utf8');
+  expect(text.match(/SELECT n\.display_name/g)??[]).toHaveLength(0);
+  expect(text).toContain('import { scopeSql } from "./quality-scope-sql";');
+  expect(text).toContain('COALESCE(${scopeSql(`n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=h.branch_id AND n.company_id=h.company_id`)},\'Company-wide\')');
+  expect(text.match(/qualityBranchDisplayLabelSql/g)??[]).toHaveLength(3);
+  const sql:string[]=[],db={prepare(statement:string){sql.push(statement);return {bind(){return {all:()=>({results:[]})};}};}};
+  const actor={companyId:'company',branchId:'branch'} as never,filters={from:'2026-01-01',to:'2026-01-31'} as never;
+  await readExecutiveMetricProjection(db as never,actor,'quality-holds',filters,'branch');
+  await readExecutiveMetricProjection(db as never,actor,'inspection-pass-rate',filters,'branch');
+  expect(sql).toHaveLength(2);
+  for(const statement of sql){expect(statement).toContain(qualityBranchDisplayLabelSql);expect(statement.match(/SELECT n\.display_name/g)?.length).toBe(1);}
+ });
+});
+describe('quality attachment owner version-guard dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('both CAS guards are closed native kinds with byte-exact three-bind SQL',async()=>{
+  const plans=readFileSync(source('modules/quality/server/src/adapters/native_quality_read_sql.rs'),'utf8');
+  for(const [kind,sql] of [
+   ['quality_rd_attach_hold_cas','EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=?)'],
+   ['quality_rd_attach_spec_cas','EXISTS(SELECT 1 FROM inventory_quality_specs WHERE id=? AND company_id=? AND version=?)'],
+  ] as const){
+   expect(plans).toContain(`"${kind}"`);
+   expect(plans).toContain(`"${sql}"`);
+   expect(sql.match(/\?/g)).toHaveLength(3);
+   expect(sql.startsWith('EXISTS(SELECT 1 FROM ')).toBe(true);
+  }
+  expect(plans).toContain('RD_ATTACH_HOLD_CAS => Some(&READ_ATTACH_HOLD_CAS)');
+  expect(plans).toContain('RD_ATTACH_SPEC_CAS => Some(&READ_ATTACH_SPEC_CAS)');
+ });
+ test('both attachment owner facts delegate to the native guard bridge',()=>{
+  const service=readFileSync(source('modules/quality/server/src/adapters/attachments-service-facts.ts'),'utf8');
+  const operational=readFileSync(source('modules/quality/server/src/adapters/attachments-operational-facts.ts'),'utf8');
+  const bridge=readFileSync(source('modules/quality/server/src/adapters/native-quality-read.ts'),'utf8');
+  const inline=/EXISTS\(SELECT 1 FROM \$\{[^}]+\} WHERE id=\? AND company_id=\? AND version=\?/g;
+  expect(service.match(inline)??[]).toHaveLength(0);
+  expect(operational.match(inline)??[]).toHaveLength(0);
+  expect(service).not.toContain('qualityAttachmentVersionGuardSql');
+  expect(operational).not.toContain('qualityAttachmentVersionGuardSql');
+  expect(service).toContain('nativeQualityGuardAssertion(db, commandId, `attachment-owner-${index}`, RD_ATTACH_HOLD_CAS, [targetId, companyId, version])');
+  expect(operational).toContain('RD_ATTACH_SPEC_CAS');
+  expect(operational).toContain('nativeQualityGuardAssertion(');
+  expect(bridge).toContain('export async function nativeQualityReadSql(');
+  expect(bridge).toContain('export function nativeQualityGuardAssertion(');
+  expect(bridge).toContain('const guard=assertion(db,commandId,step,statement.sql,statement.values as (string|number|null)[]);');
+  expect(bridge).toContain('return (context?guard.withContext(context):guard).run();');
+ });
+});
+describe('retired Quality dead read branch',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('the active-spec and evidence-version reads are gone from the Quality application, adapter and public layers',()=>{
+  for(const path of ['modules/quality/server/src/application/quality.ts','modules/quality/server/src/adapters/quality.ts','modules/quality/server/src/public/quality.ts']){
+   const text=readFileSync(source(path),'utf8');
+   expect(text).not.toContain('activeSpec');
+   expect(text).not.toContain('evidenceVersionGuard');
+   expect(text).not.toContain('qualityEvidenceGuard');
+  }
+  const adapter=readFileSync(source('modules/quality/server/src/adapters/quality.ts'),'utf8');
+  expect(adapter).not.toContain('inventory_quality_specs');
+  expect(adapter).not.toContain('quality-evidence-version');
+  expect(adapter).not.toContain('SELECT');
+  expect(adapter).toContain('nativeQualityWork');
+  expect(adapter).toContain('nativeQualityHoldDetail');
+  expect(adapter).toContain('getQualityHold');
+  expect(adapter).toContain('qualityWork');
+ });
+ test('native Quality owner decisions own the retired guard assertions',()=>{
+  const decisions=readFileSync(source('tests/unit/quality/rust-quality-decisions.test.rs'),'utf8');
+  expect(decisions).toContain('identity_aliases_control_all_independent_quality_decisions');
+  expect(decisions).toContain('missing_detail_is_a_scoped_not_found_after_the_owner_read');
+  expect(decisions).toContain('QUALITY_HOLD_NOT_FOUND');
+ });
+});
+describe('quality attachment owner-scope reads are fully native',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ const text=(path:string)=>readFileSync(source(path),'utf8');
+ test('both retained scope statements are closed native read-plan kinds',()=>{
+  const registry=text('modules/quality/server/src/adapters/native_quality_read_sql.rs');
+  expect(registry).toContain('pub const RD_LEGACY_ATTACHMENT_SCOPE: &str = "quality_rd_legacy_attachment_scope"');
+  expect(registry).toContain('pub const RD_ATTACHMENT_SPEC_SCOPE: &str = "quality_rd_attachment_spec_scope"');
+  expect(registry).toContain('SELECT company_id,branch_id branch_id,NULL department_id,version FROM inventory_quality_holds WHERE id=?');
+  expect(registry).toContain('SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM inventory_quality_specs WHERE id=? AND company_id=?');
+  expect(()=>text('modules/quality/server/src/adapters/quality-attachment-scope-read-sql.ts')).toThrow();
+ });
+ test('owner adapters emit no SQL and delegate to the native scope transport',()=>{
+  const migration=text('modules/quality/server/src/adapters/attachment-migration-owner.ts');
+  const policy=text('modules/quality/server/src/adapters/attachments-policy-facts.ts');
+  const operational=text('modules/quality/server/src/adapters/attachments-operational-facts.ts');
+  const scope=text('modules/quality/server/src/adapters/native-quality-scope.ts');
+  for(const value of [migration,policy,operational,scope]){
+   expect(value).not.toContain('SELECT ');
+   expect(value).not.toContain('qualityAttachmentScopeReadSql');
+  }
+  expect(migration).toContain('RD_LEGACY_ATTACHMENT_SCOPE');
+  expect(operational).toContain('RD_ATTACHMENT_SPEC_SCOPE');
+  expect(scope).toContain('readNativeQualityScope');
+  expect(policy).toContain('readDescriptor');
+  expect(policy).toContain('readQualityHold');
+  expect(policy).toContain('RD_ATTACHMENT_DESCRIPTOR');
+  expect(operational).toContain('nativeQualityGuardAssertion');
+ });
+});
+describe('quality package-obligation scope and clock CTE dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ const files=(dir:string):string[]=>readdirSync(dir).flatMap(name=>{const path=join(dir,name);return statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
+ test('one fixed scope CTE and one fixed clock CTE back the obligation and purchase reads',async()=>{
+  const {qualityPackageScopeCte,qualityClockCte}=await import('../../../modules/quality/server/src/adapters/quality-scope-sql');
+  const {packageClockSql}=await import('@erpx/commercial-server/public/purchased-capability-sql');
+  expect(qualityPackageScopeCte).toBe('(SELECT ?::text company_id,?::boolean full)');
+  expect(qualityPackageScopeCte.match(/SELECT /g)).toHaveLength(1);
+  for(const name of ['quality_source_clock','quality_entry_clock','quality_calendar_clock'])expect(qualityClockCte(name)).toBe(`WITH ${name} AS MATERIALIZED (SELECT ${packageClockSql} now_ms)`);
+  const supply='modules/quality/server/src/adapters/supply-package-obligations.ts';
+  const manuf='modules/quality/server/src/adapters/manufacturing-package-obligations.ts';
+  for(const path of [supply,manuf]){const text=readFileSync(source(path),'utf8');expect(text).toContain('WITH scope AS${qualityPackageScopeCte}');expect(text).not.toContain('WITH scope AS(SELECT');}
+  const clockSites=[['modules/quality/server/src/adapters/record-purchases.ts','quality_source_clock'],['modules/quality/server/src/adapters/product-entry.ts','quality_entry_clock'],['modules/quality/server/src/adapters/calendar-quality-facts.ts','quality_calendar_clock']] as const;
+  for(const [path,name] of clockSites){const text=readFileSync(source(path),'utf8');expect(text).toContain(`qualityClockCte("${name}")`);expect(text).not.toContain(`WITH ${name} AS MATERIALIZED (SELECT`);}
+ });
+ test('the owner TS statement KPI stays strictly below the r17 BEFORE=75 baseline',()=>{
+  const count=files(source('modules/quality/server/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
+  expect(count).toBeLessThan(75);
+  expect(count).toBe(1);
+ });
+});
+describe('quality command-receipt guard dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('one parameterized helper reproduces the four receipt authority/result guards',async()=>{
+  const {qualityReceiptGuardSql}=await import('../../../modules/quality/server/src/adapters/quality-receipt-guard-sql');
+  const cases=[
+   ['hold.id','quality.hold.release','hold.company_id','version','hold.version::text','hold.released_by'],
+   ['alert.id','quality.alert.acknowledge','hold.company_id','version','alert.version::text','alert.acknowledged_by'],
+   ['spec.id','quality.spec.activate','spec.company_id','status',"'active'",'spec.approved_by'],
+   ['spec.id','quality.spec.cancel','spec.company_id','status',"'cancelled'",undefined],
+  ] as const;
+  const expected=[
+   "SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=hold.id AND receipt.operation='quality.hold.release' AND receipt.actor_id=hold.released_by AND receipt.authority_json::jsonb->>'companyId'=hold.company_id AND receipt.result_json::jsonb->>'version'=hold.version::text",
+   "SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=alert.id AND receipt.operation='quality.alert.acknowledge' AND receipt.actor_id=alert.acknowledged_by AND receipt.authority_json::jsonb->>'companyId'=hold.company_id AND receipt.result_json::jsonb->>'version'=alert.version::text",
+   "SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=spec.id AND receipt.operation='quality.spec.activate' AND receipt.actor_id=spec.approved_by AND receipt.authority_json::jsonb->>'companyId'=spec.company_id AND receipt.result_json::jsonb->>'status'='active'",
+   "SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=spec.id AND receipt.operation='quality.spec.cancel' AND receipt.authority_json::jsonb->>'companyId'=spec.company_id AND receipt.result_json::jsonb->>'status'='cancelled'",
+  ] as const;
+  for(const [record,operation,company,field,value,actor] of cases){
+   const sql=qualityReceiptGuardSql(record,operation,company,field,value,actor);
+   const i=cases.findIndex(item=>item[0]===record&&item[1]===operation);
+   expect(sql).toBe(expected[i]);
+   expect(sql.match(/SELECT /g)).toHaveLength(1);
+  }
+  const adapter=readFileSync(source('modules/quality/server/src/adapters/supply-package-obligations.ts'),'utf8');
+  expect(adapter.match(/qualityReceiptGuardSql\(/g)).toHaveLength(4);
+  expect(adapter).not.toContain('SELECT 1 FROM command_receipts receipt');
+  const guardHelper=readFileSync(source('modules/quality/server/src/adapters/quality-receipt-guard-sql.ts'),'utf8');
+  expect(guardHelper.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(guardHelper).toContain('import {evidenceHead} from "./inspection-evidence-source-sql";');
+  expect(guardHelper).toContain("evidenceHead('1', ` FROM command_receipts receipt WHERE");
+ });
+});
+describe('quality hold child aggregate dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('one parameterized helper reproduces the six hold-keyed child aggregates byte-for-byte',async()=>{
+  const {qualityChildAggSql}=await import('../../../modules/quality/server/src/adapters/quality-child-agg-sql');
+  const cases=[
+   ['inventory_quality_inspections','i','hold_id','h.id'],
+   ['inventory_quality_cancellations','c','hold_id','h.id'],
+   ['inventory_quality_disposition_events','d','hold_id','h.id'],
+   ['inventory_quality_inspections','inspection','hold_id','hold.id'],
+   ['inventory_quality_cancellations','event','hold_id','hold.id'],
+   ['inventory_quality_disposition_events','event','hold_id','hold.id'],
+  ] as const;
+  for(const [table,alias,key,parent] of cases){
+   const sql=qualityChildAggSql(table,alias,key,parent);
+   expect(sql).toBe(`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${alias}.${key}=${parent})`);
+   expect(sql.match(/SELECT /g)).toHaveLength(1);
+  }
+  for(const path of ['modules/quality/server/src/adapters/attachment-read-sources.ts','modules/quality/server/src/adapters/supply-package-obligations.ts']){
+   const text=readFileSync(source(path),'utf8');
+   expect(text).toContain('qualityChildAggSql(');
+   expect(text).not.toMatch(/jsonb_agg\(to_jsonb\((i|c|d|inspection|event)\) ORDER BY \1\.id\) FROM inventory_quality_/);
+  }
+ });
+});
+describe('quality r15 child aggregate family dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('spec-metric and inspection-joined child aggregates stay byte-identical through the shared helpers',async()=>{
+  const {qualityChildAggSql,qualityJoinedChildAggSql}=await import('../../../modules/quality/server/src/adapters/quality-child-agg-sql');
+  const spec=[
+   ['inventory_quality_spec_metrics','m','spec_id','s.id'],
+   ['inventory_quality_spec_metrics','metric','spec_id','spec.id'],
+  ] as const;
+  for(const [table,alias,key,parent] of spec){
+   const sql=qualityChildAggSql(table,alias,key,parent);
+   expect(sql).toBe(`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${alias}.${key}=${parent})`);
+   expect(sql.match(/SELECT /g)).toHaveLength(1);
+  }
+  const joined=[
+   ['inventory_quality_measurements','m','m.id','inspection_id','h.id','(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM inventory_quality_measurements m JOIN inventory_quality_inspections i ON i.id=m.inspection_id WHERE i.hold_id=h.id)'],
+   ['inventory_quality_inspection_attachments','a','a.inspection_id,a.attachment_id','inspection_id','h.id','(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.inspection_id,a.attachment_id) FROM inventory_quality_inspection_attachments a JOIN inventory_quality_inspections i ON i.id=a.inspection_id WHERE i.hold_id=h.id)'],
+  ] as const;
+  for(const [table,alias,order,key,parent,before] of joined){
+   const sql=qualityJoinedChildAggSql(table,alias,order,key,parent);
+   expect(sql).toBe(before);
+   expect(sql.match(/SELECT /g)).toHaveLength(1);
+  }
+  const attach=readFileSync(source('modules/quality/server/src/adapters/attachment-read-sources.ts'),'utf8');
+  const supply=readFileSync(source('modules/quality/server/src/adapters/supply-package-obligations.ts'),'utf8');
+  expect(attach.match(/qualityChildAggSql\(/g)).toHaveLength(4);
+  expect(attach.match(/qualityJoinedChildAggSql\(/g)).toHaveLength(2);
+  expect(supply.match(/qualityChildAggSql\(/g)).toHaveLength(4);
+  expect(attach).not.toContain('jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM inventory_quality_spec_metrics');
+  expect(supply).not.toContain('jsonb_agg(to_jsonb(metric) ORDER BY metric.id) FROM inventory_quality_spec_metrics');
+  expect(attach).not.toContain('jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM inventory_quality_measurements');
+  expect(attach).not.toContain('jsonb_agg(to_jsonb(a) ORDER BY a.inspection_id,a.attachment_id) FROM inventory_quality_inspection_attachments');
+  const aggHelper=readFileSync(source('modules/quality/server/src/adapters/quality-child-agg-sql.ts'),'utf8');
+  expect(aggHelper.match(/SELECT /g) ?? []).toHaveLength(0);
+  expect(aggHelper).toContain('import {scopeSql} from "./quality-scope-sql";');
+  expect(aggHelper).toContain('scopeSql(`jsonb_agg(to_jsonb(${alias}) ORDER BY ${order}) FROM ${table} ${alias} WHERE ${alias}.${key}=${parent}`)');
+ });
+});
+describe('quality source-rows family dedupe (r12)',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ const pre={
+  holds:'SELECT * FROM inventory_quality_holds',
+  inspections:'SELECT * FROM inventory_quality_inspections',
+  dispositions:'SELECT * FROM inventory_quality_disposition_events',
+  cancellations:'SELECT * FROM inventory_quality_cancellations',
+ } as const;
+ test('one parameterized helper reproduces the four full-row source reads byte-for-byte',async()=>{
+  const {qualitySourceRows}=await import('../../../modules/quality/server/src/adapters/quality-source-rows-sql');
+  for(const literal of Object.values(pre)){
+   const table=literal.slice('SELECT * FROM '.length);
+   expect(qualitySourceRows(table)).toBe(literal);
+   expect(qualitySourceRows(table).match(/SELECT /g)).toHaveLength(1);
+  }
+  const {salesQualitySettlementSources}=await import('../../../modules/quality/server/src/adapters/sales-package-sources');
+  for(const [key,literal] of Object.entries(pre))expect(salesQualitySettlementSources[key as keyof typeof pre]).toBe(literal);
+ });
+ test('the four callers share one helper literal with no inline copies',()=>{
+  const adapter=readFileSync(source('modules/quality/server/src/adapters/sales-package-sources.ts'),'utf8');
+  expect(adapter.match(/qualitySourceRows\(/g)).toHaveLength(4);
+  for(const literal of Object.values(pre))expect(adapter).not.toContain(literal);
+  const helper=readFileSync(source('modules/quality/server/src/adapters/quality-source-rows-sql.ts'),'utf8');
+  expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
+ });
+ test('source locks and r10/r11 helpers stay independent and untouched',()=>{
+  const adapter=readFileSync(source('modules/quality/server/src/adapters/sales-package-sources.ts'),'utf8');
+  expect(adapter).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations,inventory_quality_specs,inventory_quality_spec_metrics IN SHARE MODE');
+  expect(adapter).toContain('export function salesQualitySettlementSourceReadLocks');
+  const helper=readFileSync(source('modules/quality/server/src/adapters/quality-source-rows-sql.ts'),'utf8');
+  expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
  });
 });

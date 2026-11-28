@@ -1,0 +1,68 @@
+import {ppRd44NamedSourceProjection} from './pp-read-tail-r44-sources';
+import {ppRd46NamedJoinSource} from './pp-read-tail-r46-sources';
+import { PP_RD20_HR_ENGAGEMENTS_FROM_SQL, PP_RD20_LIFECYCLE_CASES_C_FROM_SQL, PP_RD20_LIFECYCLE_CASES_C_JOIN_SQL, PP_RD20_APPLIED_PACKAGES_AP_FROM_SQL, PP_RD20_HR_PEOPLE_H_JOIN_SQL } from './pp-read-tail-r20-sources';
+import 'server-only';
+import {PP_RD18_HR_PEOPLE_FROM_SQL, PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL, PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL} from './pp-read-tail-r18-sources';
+import {PP_RD19_HR_PEOPLE_P_FROM_SQL} from './pp-read-tail-r19-sources';
+import {PP_RD16_HR_PEOPLE_P_JOIN_SQL} from './pp-read-tail-r16-sources';
+/** Closed explicit-column owner projections for the supplied IAM statement snapshot.
+ * No caller-supplied table, SQL, predicate or alias is accepted. */
+export function identitySnapshotSources(){return {
+  "account_access_hr_people_p_from": PP_RD19_HR_PEOPLE_P_FROM_SQL,
+  "account_access_hr_engagements_e_from": PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL,
+  "account_access_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL,
+  "directory_operations_people_applied_packages_ap_join": "JOIN (SELECT \"id\", \"company_id\", \"person_id\", \"engagement_id\", \"position_id\", \"package_id\", \"package_revision\", \"definition\", \"source_kind\", \"scope\", \"case_id\", \"operation_id\", \"authorizing_assignment_id\", \"valid_from\", \"valid_until\", \"ended_at\", \"created_at\" FROM people_applied_packages) ap",
+  "executive_report_sources_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "executive_report_sources_hr_engagements_e_join": PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL,
+  "iam_migrations_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL,
+  "iam_service_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL,
+  "iam_service_hr_engagements_e_from": PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL,
+  "iam_store_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL,
+  "iam_store_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "iam_store_hr_engagements_e_join": PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL,
+  "legal_people_source_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "operations_operations_exceptions_facts_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "operations_operations_exceptions_facts_hr_engagements_h_join": "JOIN (SELECT \"id\", \"person_id\", \"company_id\", \"branch_id\", \"department_id\", \"worker_type\", \"employment_type\", \"status\", \"start_date\", \"end_date\", \"manager_person_id\", \"job_title\", \"currency\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"pay_group_id\", \"level_id\", \"position_id\", \"self_service_top_level\" FROM hr_engagements) h",
+  "operations_staff_policy_facts_hr_people_p_from": PP_RD19_HR_PEOPLE_P_FROM_SQL,
+  "operations_staff_policy_facts_hr_engagements_e_join": PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL,
+  "payroll_owner_facts_hr_engagements_from": PP_RD20_HR_ENGAGEMENTS_FROM_SQL,
+  "payroll_owner_facts_hr_payroll_advances_a_from": ppRd44NamedSourceProjection('"id", "company_id", "engagement_id", "person_id", "status", "version", "amount_minor", "installment_count", "first_deduction_period", "currency", "reason", "requested_by", "approved_by", "review_reason", "created_at", "reviewed_at", "updated_at", "recovery_id"', 'hr_payroll_advances', 'a'),
+  "payroll_owner_facts_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "payroll_owner_facts_hr_payroll_account_mappings_from": ppRd44NamedSourceProjection('"id", "company_id", "pay_group_id", "chart_id", "accounts_json", "status", "version", "created_by", "approved_by", "created_at", "updated_at"', 'hr_payroll_account_mappings', 'hr_payroll_account_mappings'),
+  "payroll_owner_facts_hr_payroll_runs_from": ppRd44NamedSourceProjection('"id", "company_id", "pay_group_id", "country_pack_id", "period_start", "period_end", "pay_date", "currency", "mode", "status", "revision", "totals_json", "input_digest", "error_message", "version", "created_by", "approved_by", "posted_by", "created_at", "updated_at", "scope_engagement_id", "submitted_by", "submitted_digest", "submitted_at", "adjustment_of_run_id"', 'hr_payroll_runs', 'hr_payroll_runs'),
+  "payroll_owner_facts_hr_payroll_corrections_c_from": ppRd44NamedSourceProjection('"id", "run_id", "company_id", "status", "version", "run_version", "run_revision", "input_digest", "totals_json", "reason", "requested_by", "reviewed_by", "review_reason", "created_at", "reviewed_at", "updated_at"', 'hr_payroll_corrections', 'c'),
+  "payroll_owner_facts_hr_payment_batches_from": ppRd44NamedSourceProjection('"id", "company_id", "source_type", "source_id", "currency", "status", "format_code", "file_key", "file_checksum", "total_minor", "version", "created_by", "approved_by", "exported_at", "created_at", "updated_at", "bank_account_id", "retry_requested_by"', 'hr_payment_batches', 'hr_payment_batches'),
+  "people_directory_facts_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL,
+  "people_lifecycle_facts_people_lifecycle_cases_c_from": PP_RD20_LIFECYCLE_CASES_C_FROM_SQL,
+  "people_lifecycle_facts_hr_engagements_e_join": PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL,
+  "people_lifecycle_facts_people_provision_grants_g_from": ppRd44NamedSourceProjection('"id", "operation_id", "application_id", "definition", "review_id", "assignment_id"', 'people_provision_grants', 'g'),
+  "people_lifecycle_facts_people_preparation_tasks_t_from": ppRd44NamedSourceProjection('"id", "company_id", "position_id", "case_id", "kind", "title", "status", "assignee_id", "version", "updated_at", "due_date", "responsibility", "privileged", "completed_by", "completed_at", "clearance_type", "completion_reason", "document_references", "application_id"', 'people_preparation_tasks', 't'),
+  "people_lifecycle_facts_people_applied_packages_ap_from": PP_RD20_APPLIED_PACKAGES_AP_FROM_SQL,
+  "people_lifecycle_facts_people_provision_operations_op_join": "JOIN (SELECT \"id\", \"company_id\", \"definition\", \"evidence\", \"status\", \"version\", \"created_by\", \"assignment_id\", \"session_id\", \"created_at\", \"updated_at\", \"last_error\", \"steps\", \"next_attempt_at\" FROM people_provision_operations) op",
+  "people_lifecycle_facts_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "people_lifecycle_facts_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL,
+  "people_lifecycle_facts_people_lifecycle_grants_from": ppRd44NamedSourceProjection('"id", "company_id", "case_id", "user_id", "grant_index", "definition", "review_id", "assignment_id"', 'people_lifecycle_grants', 'people_lifecycle_grants'),
+  "people_lifecycle_worker_effects_people_lifecycle_grants_g_from": ppRd44NamedSourceProjection('"id", "company_id", "case_id", "user_id", "grant_index", "definition", "review_id", "assignment_id"', 'people_lifecycle_grants', 'g'),
+  "people_lifecycle_worker_effects_people_lifecycle_cases_c_join": PP_RD20_LIFECYCLE_CASES_C_JOIN_SQL,
+  "people_lifecycle_worker_effects_people_access_cutoffs_x_from": ppRd44NamedSourceProjection('"company_id", "person_id", "case_id", "effective_at", "cancelled_at", "restored_at"', 'people_access_cutoffs', 'x'),
+  "people_lifecycle_worker_effects_people_lifecycle_cases_c_from": PP_RD20_LIFECYCLE_CASES_C_FROM_SQL,
+  "people_lifecycle_worker_effects_people_package_revisions_r_join": ppRd46NamedJoinSource('"company_id", "package_id", "revision", "definition", "created_by", "created_at"','people_package_revisions','r'),
+  "pms_command_facts_hr_people_h_join": PP_RD20_HR_PEOPLE_H_JOIN_SQL,
+  "pms_source_recipients_hr_people_h_join": PP_RD20_HR_PEOPLE_H_JOIN_SQL,
+  "position_gpo_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "position_gpo_hr_engagements_e_from": PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL,
+  "position_gpo_hr_people_person_join": "JOIN (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) person",
+  "retirement_clearance_facts_people_lifecycle_cases_c_join": PP_RD20_LIFECYCLE_CASES_C_JOIN_SQL,
+  "retirement_clearance_facts_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "user_management_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL,
+  "user_management_hr_engagements_e_from": PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL,
+  "user_management_hr_people_p_from": PP_RD19_HR_PEOPLE_P_FROM_SQL,
+  "user_management_people_lifecycle_cases_lc_from": ppRd44NamedSourceProjection('"id", "company_id", "person_id", "engagement_id", "kind", "status", "version", "effective_at", "package_id", "package_revision", "attempts", "next_attempt_at", "last_error", "definition", "review_snapshot", "authorizing_assignment_id", "created_by", "updated_at", "departure_reason", "workflow"', 'people_lifecycle_cases', 'lc'),
+  "user_management_people_package_revisions_pr_join": "JOIN (SELECT \"company_id\", \"package_id\", \"revision\", \"definition\", \"created_by\", \"created_at\" FROM people_package_revisions) pr",
+  "user_management_people_applied_packages_ap_from": PP_RD20_APPLIED_PACKAGES_AP_FROM_SQL,
+  "user_management_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "user_management_hr_people_h_join": PP_RD20_HR_PEOPLE_H_JOIN_SQL,
+  "workflow_approvals_facts_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
+  "workflow_approvals_facts_hr_engagements_e_join": PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL,
+  "workflow_flow_routing_facts_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL
+} as const;}

@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The shared Records/Files business-evidence port now carries the registered policy version and returns the installed TypeScript attachment error codes. The private development API also has an explicit direct database mode for the installed erpx_dev_* application roles. A native Account session runtime is running on 127.0.0.1:3199 against current-schema clones of the development control/holding databases; the development gateway now returns 307 for acme instead of 500. Authenticated browser/SSO verification is blocked because the stored development password returns INVALID_EMAIL_OR_PASSWORD and the local Chrome profile has no active product session.",
+  "capability": "evidence-policy-version-and-native-account-runtime",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commits": [
+    "b155fca52",
+    "31d473393"
+  ],
+  "scope": {
+    "policyVersion": "EvidencePolicyFact and EvidenceSelection now carry policy_version; select_evidence requires a registered policy version and Files compares attachment_sets.policy_version during prepare_binding and require_current.",
+    "errorCodes": "packages/server-files/src/adapters/business_evidence.rs now returns ATTACHMENT_SETS_REQUIRED, ATTACHMENT_SET_NOT_FOUND, ATTACHMENT_SET_TARGET, ATTACHMENT_POLICY_UNKNOWN, ATTACHMENT_SET_LOCKED, ATTACHMENT_SET_STALE, ATTACHMENT_SCAN_PENDING and ATTACHMENT_REQUIRED instead of collapsing them into ATTACHMENT_BINDING_CHANGED.",
+    "directRuntime": "src/composition/src/private_development_api.rs accepts an explicit direct:true selection only for the exact erpx_dev_control/erpx_dev_h00{1,2,3}_{write,read} databases with their matching *_app roles. It rejects production names, another role, remote hosts, query overrides and mixed lease/direct selections.",
+    "runtime": "The private API on 127.0.0.1:3199 uses disposable current-schema clones of erpx_dev_control and erpx_dev_h001/h002_write. The clones have 43 control and 412 holding migration receipts matching the current source. h003 is suspended in the disposable control clone; the public development databases and h003 were not modified."
+  },
+  "verification": {
+    "exactArchive": "git archive 31d473393 -> .scratch/dev/rust-migration/current/verify-evidence",
+    "cargoCheck": "PASS: cargo check -p erpx-service --locked (32.32s), .scratch/dev/rust-migration/current/verify-evidence-check.log.",
+    "periodClose": "PASS: period_close_postgres 7 passed, 0 failed (19.43s), .scratch/dev/rust-migration/current/verify-evidence-period.log.",
+    "filesEvidence": "PASS: business_evidence_postgres 3 passed, 0 failed (2.97s), .scratch/dev/rust-migration/current/verify-evidence-files.log.",
+    "recordsUnit": "PASS: records business_evidence unit 5 passed, 0 failed, .scratch/dev/rust-migration/current/verify-evidence-unit.log.",
+    "count": "PASS: service_initial_physical_stock_postgres 2 passed (50.09s), .scratch/dev/rust-migration/current/verify-evidence-count.log.",
+    "countFiles": "PASS: count_submission_postgres 4 passed (3.60s), .scratch/dev/rust-migration/current/verify-evidence-count-files.log.",
+    "privateApiUnit": "PASS: private_development_api 12 passed, 0 failed, .scratch/dev/rust-migration/current/verify-evidence-private-api.log.",
+    "libs": "PASS: erpx-server-records --lib 18 passed; erpx-server-files --lib 2 passed, .scratch/dev/rust-migration/current/verify-evidence-{records,files}-lib.log.",
+    "staticGates": "PASS: architecture:check, test:catalogue (1006 suites), docs:check, .scratch/dev/rust-migration/current/verify-evidence-{architecture,catalogue,docs}.log.",
+    "runtime": "PASS: private API listening on 127.0.0.1:3199; https://acme.jesadakorn.com/ now returns 307 instead of 500; local 3100, console-dev and private production health remain 200; retired Console root remains 404."
+  },
+  "blocked": {
+    "browserSso": "The stored console-dev credentials return 401 INVALID_EMAIL_OR_PASSWORD. The local Chrome Default profile has no __Host-erpx-product cookie for acme and no active Account session cookie. Authenticated desktop/mobile SSO verification cannot complete without a valid development password or a signed-in browser session.",
+    "h003": "The disposable native Account runtime clone currently serves h001/h002 only because the development private API parser accepts two public holdings; h003 remains served by the public development gateway but is not mounted in the native Account runtime clone. The final runtime must include h003.",
+    "legacy": "Brand/Billing/Field TypeScript consumer retirement remains open."
+  },
+  "workflowClosure": {
+    "promoted": 0,
+    "reason": "The evidence policy/version and native Account runtime are implemented and exact-tree verified, but authenticated browser/SSO proof is blocked by stale credentials and no owner can be certified."
+  },
+  "counts": {
+    "verified": 65,
+    "partial": 57,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownerTotal": 41
+  },
+  "nextAction": "Update the ignored development credentials with a valid Account password or sign in once in the Playwright-visible browser, then rerun authenticated desktop/mobile SSO and owner gates. Extend the native Account runtime clone/config to h003 before final certification."
+}

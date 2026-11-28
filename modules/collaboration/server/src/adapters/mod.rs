@@ -1,0 +1,126 @@
+pub(crate) mod legal_hold_notifications;
+pub(crate) mod maintenance_notifications;
+pub(crate) mod notification_statement;
+pub(crate) mod notification_statement_http;
+pub(crate) mod social_source_policy;
+pub(crate) mod task_source_origin;
+pub(crate) mod web_push_preferences;
+pub(crate) mod wf1a7;
+pub(crate) mod wf1a7_http;
+
+pub(crate) mod field_service_notifications;
+pub(crate) mod service_count_flow_notification;
+
+pub(crate) mod collaboration_work;
+
+pub(crate) mod collaboration_work_pg;
+
+pub(crate) mod collaboration_work_wire;
+
+pub(crate) mod handbook;
+
+pub(crate) mod handbook_http;
+
+pub(crate) mod handbook_wire;
+
+pub(crate) mod http_ingress;
+
+pub(crate) mod command_ledger;
+
+pub(crate) mod social;
+
+pub(crate) mod social_home;
+
+pub(crate) mod social_pg;
+
+pub(crate) mod social_upload_files;
+
+pub(crate) mod messaging_native;
+
+pub(crate) mod messaging_file_discard;
+
+pub(crate) mod messaging_pg;
+
+pub(crate) mod messaging_people_pg;
+
+pub(crate) mod inbox_pg;
+
+pub(crate) mod inbox_targets;
+
+pub(crate) mod inbox_calendar;
+
+pub(crate) mod inbox_crm;
+
+pub(crate) mod inbox_commerce;
+
+pub(crate) mod inbox_finance;
+
+pub(crate) mod inbox_payroll;
+
+pub(crate) mod inbox_people;
+
+pub(crate) mod inbox_support;
+
+pub(crate) mod inbox_procurement;
+
+pub(crate) mod inbox_inventory;
+
+pub(crate) mod inbox_quality;
+
+pub(crate) mod inbox_learning;
+
+pub(crate) mod inbox_talent;
+
+pub(crate) mod inbox_operations;
+
+pub(crate) mod inbox_records;
+
+pub(crate) mod inbox_governance;
+
+pub(crate) mod inbox_customer;
+
+pub(crate) mod inbox_workflow;
+
+pub(crate) mod social_http;
+
+pub(crate) mod social_http_wire;
+
+pub(crate) mod messaging_http;
+
+pub(crate) mod messaging_http_wire;
+
+pub(crate) mod messaging_teams;
+
+pub(crate) mod collaboration_work_http;
+
+pub(crate) mod inbox_http;
+
+pub mod operations_notification;
+
+#[cfg(feature = "push-provider")]
+pub mod web_push_provider;
+
+pub mod field_push_queue;
+
+pub(crate) mod field_reservation_notifications;
+
+pub mod field_inbox;
+
+pub(crate) mod service_invoice_flow_notification;
+
+pub(crate) mod field_journal_flow_notification;
+
+pub(crate) mod crm_activity_notification;
+pub(crate) mod quality_notification;
+pub(crate) mod supplier_bill_match_notification;
+
+pub(crate) mod staff_facts;
+pub(crate) mod support_notification;
+
+pub(crate) mod roster_position_notifications;
+
+pub(crate) mod customer_portal_notification;
+pub mod pms_social_event;
+pub(crate) mod rfq_notifications;
+pub mod native_lane_15;
+pub mod native_lane_16;

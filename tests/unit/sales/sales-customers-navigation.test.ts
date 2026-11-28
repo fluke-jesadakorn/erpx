@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
-import { hubHref, salesCustomerAccess, salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
-import { hubResultHref } from "@erpx/feature-shared/lib/hub-result";
-import { workplaceNavigation, navigationTrail, resolveNavigation } from "@erpx/feature-work_projection/lib/workplace-navigation";
-import { navigationLauncher } from "@erpx/feature-work_projection/lib/navigation-catalog";
-import { productionPageCut } from "@erpx/feature-shared/lib/hospitality-page-cut";
+import { hubHref, salesCustomerAccess, salesCustomerLegacyDestination } from "@erpx/sales-server/public/rules/navigation";
+import { hubResultHref } from "@erpx/platform-shared-ui/lib/hub-result";
+import { workplaceNavigation, navigationTrail, resolveNavigation } from "@erpx/work-projection-ui/lib/workplace-navigation";
+import { navigationLauncher } from "@erpx/work-projection-ui/lib/navigation-catalog";
+import { productionPageCut } from "@erpx/platform-shared-ui/lib/hospitality-page-cut";
 const base = "/holdings/acme/branches/main";
 
 it("moves list routes while retaining filters, cursor and creation context", () => {
@@ -32,10 +32,10 @@ it("opens saved owner records in the active list without losing filters", () => 
 it("shows two workspaces and keeps every auxiliary task searchable", () => {
   const model = workplaceNavigation({ workspaceBase: base, role: "holding_owner", moduleIds: ["marketing", "ecommerce"] });
   const category = model.categories.find(category => category.id === "customers-sales")!;
-  expect(category.apps.map(item => item.label)).toEqual(["Sales", "Customers"]);
-  expect(category.secondaryItems?.map(item => item.id)).toEqual(["marketing", "ecommerce"]);
+  expect(category.apps.map(item => item.label)).toEqual(["Sales work", "Opportunities", "Customers & contacts", "Sales documents", "Marketing", "Sales channels"]);
+  expect(category.secondaryItems ?? []).toEqual([]);
   for (const text of ["Follow-ups", "Pipeline", "Quotations", "Price lists", "Customer access", "Support cases", "Marketing", "Channels", "Contacts", "reports"]) expect(navigationLauncher(model, text).results.length, text).toBeGreaterThan(0);
-  expect(resolveNavigation(model, base, `${base}/customers-sales/sales/pipeline/lead-1/overview`).sidebarId).toBe("sales-hub");
+  expect(resolveNavigation(model, base, `${base}/customers-sales/sales/pipeline/lead-1/overview`).sidebarId).toBe("crm-pipeline");
   expect(resolveNavigation(model, base, `${base}/customers-sales/customers/service/cases/ticket-1/overview`).sidebarId).toBe("customers-hub");
   expect(navigationTrail(model, base, `${base}/customers-sales/sales/pipeline/lead-1/overview`).map(item => item.label)).toEqual(["Customers & sales", "Sales", "Pipeline", "Lead 1", "Overview"]);
 });
@@ -60,24 +60,24 @@ it("checks each production view against its source rollout", () => {
 import * as SourceReportReact from 'react';
 import {renderToStaticMarkup as renderSourceReport} from 'react-dom/server';
 import {vi} from 'vitest';
-import {canonicalUiHref} from '@erpx/feature-work_projection/lib/destination-registry';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import type {AuthorizedSourceRecord} from '@erpx/server-records/public/source-record-policy';
-import type {CustomerSupportView as ActualCustomerSupportView} from '@erpx/feature-sales/components/customers/customer-views';
-import type {SourceSupportLink as ActualSourceSupportLink} from '@erpx/feature-support/components/source-support-link';
-import {queryValue} from '@erpx/server-sales/public/rules/navigation';
+import {canonicalUiHref} from '@erpx/work-projection-ui/lib/destination-registry';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import type {AuthorizedSourceRecord} from '@erpx/records-server/public/source-record-policy';
+import type {CustomerSupportView as ActualCustomerSupportView} from '@erpx/sales-ui/components/customers/customer-views';
+import type {SourceSupportLink as ActualSourceSupportLink} from '@erpx/support-ui/components/source-support-link';
+import {queryValue} from '@erpx/sales-server/public/rules/navigation';
 type ReportOrigin=Parameters<typeof ActualSourceSupportLink>[0];
 type ReportViewProps=Parameters<typeof ActualCustomerSupportView>[0];
 function sourceReportActor():WorkContext{return{userId:'reporter',name:'Reporter',email:'reporter@example.test',assignmentId:'current-selected-assignment',role:'employee',companyId:'company',branchId:'branch',departmentId:null,holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',scope:{kind:'branch',holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',companyId:'company',branchId:'branch',branchSlug:'main',branchName:'Main'},assignmentScope:'branch',inherited:false,modules:['support'],assignments:[],workspaces:[]};}
 async function actualSourceReportLink(input:ReportOrigin){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../packages/feature-support/src/components/source-support-link.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-source-support-link.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='SourceSupportLink');if(!owner)throw Error('Actual SourceSupportLink required');
- const emitted=ts.transpileModule(`${owner.getText(tree).replace(/^export\s+/,'')}\nreturn SourceSupportLink;`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText,Component=new Function('React','Link','canonicalUiHref',emitted)(SourceReportReact,'a',canonicalUiHref) as (props:ReportOrigin)=>SourceReportReact.ReactElement<{href:string}>;
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../modules/support/ui/src/components/source-support-link.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-source-support-link.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='SourceSupportLink');if(!owner)throw Error('Actual SourceSupportLink required');
+ const emitted=ts.transpileModule(`${owner.getText(tree).replace(/^export\s+/,'')}\nreturn SourceSupportLink;`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText,Component=new Function('React','Link','canonicalUiHref',emitted)(SourceReportReact,'a',canonicalUiHref) as (props:ReportOrigin)=>SourceReportReact.ReactElement<{href:string}>;
  return Component(input);
 }
 function sourceReportNodes(node:SourceReportReact.ReactNode,out:SourceReportReact.ReactElement<Record<string,unknown>>[]=[]){SourceReportReact.Children.forEach(node,child=>{if(!SourceReportReact.isValidElement<Record<string,unknown>>(child))return;out.push(child);sourceReportNodes(child.props.children as SourceReportReact.ReactNode,out);});return out;}
 async function actualSourceReportView(readSource:(actor:WorkContext,input:{kind:string;id:string;version:number})=>Promise<AuthorizedSourceRecord>,canCreate=true){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../packages/feature-sales/src/components/customers/customer-views.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-source-report-view.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='CustomerSupportView');if(!owner)throw Error('Actual CustomerSupportView required');
- const supportWorkspace=vi.fn(async()=>({items:[],sources:[],canCreate,canCreateOrder:false,ownReportsOnly:true})),supportRecipients=vi.fn(async()=>[]),readSourceRecord=vi.fn(readSource),styles={filterRow:'filters',section:'section',actions:'actions'},ports={React:SourceReportReact,supportWorkspace,supportRecipients,queryValue,readSourceRecord,hubPage:(rows:unknown[])=>rows,styles,HubFilters:'Filters',HubCreate:'CreateDrawer',Field:'label',Select:'select',Button:'button',SupportConsole:'SupportConsole',HubTable:'table',Link:'a',StatusBadge:'Status',HubEmpty:'Empty',HubPagination:'Pagination',ActionLink:'a',canonicalUiHref},emitted=ts.transpileModule(`${owner.getText(tree).replace(/^export\s+/,'')}\nreturn CustomerSupportView;`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText,Component=new Function(...Object.keys(ports),emitted)(...Object.values(ports)) as (props:ReportViewProps)=>Promise<SourceReportReact.ReactNode>;
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../modules/sales/ui/src/components/customers/customer-views.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-source-report-view.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='CustomerSupportView');if(!owner)throw Error('Actual CustomerSupportView required');
+ const supportWorkspace=vi.fn(async()=>({items:[],sources:[],canCreate,canCreateOrder:false,ownReportsOnly:true})),supportRecipients=vi.fn(async()=>[]),readSourceRecord=vi.fn(readSource),styles={filterRow:'filters',section:'section',actions:'actions'},ports={React:SourceReportReact,supportWorkspace,supportRecipients,queryValue,readSourceRecord,hubPage:(rows:unknown[])=>rows,styles,HubFilters:'Filters',HubCreate:'CreateDrawer',Field:'label',Select:'select',Button:'button',SupportConsole:'SupportConsole',HubTable:'table',Link:'a',StatusBadge:'Status',HubEmpty:'Empty',HubPagination:'Pagination',ActionLink:'a',canonicalUiHref},emitted=ts.transpileModule(`${owner.getText(tree).replace(/^export\s+/,'')}\nreturn CustomerSupportView;`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText,Component=new Function(...Object.keys(ports),emitted)(...Object.values(ports)) as (props:ReportViewProps)=>Promise<SourceReportReact.ReactNode>;
  return{read:Component,supportWorkspace,supportRecipients,readSourceRecord};
 }
 it.each(['pos_sale','pms_record','asset'] as const)('the actual %s record Report link opens canonical creation with its exact original source identity/version',async kind=>{
@@ -92,22 +92,4 @@ it.each([[403,'MODULE_FORBIDDEN'],[404,'SOURCE_RECORD_NOT_FOUND'],[409,'SOURCE_R
 it('an ordinary case list still performs no source handoff and inactive creation capability renders no report console',async()=>{
  const unused=vi.fn(async():Promise<AuthorizedSourceRecord>=>{throw Error('No record should be selected');}),view=await actualSourceReportView(unused),actor=sourceReportActor(),list=await view.read({actor,base,query:{view:'support'}});expect(sourceReportNodes(list).some(node=>node.type==='SupportConsole')).toBe(false);expect(view.readSourceRecord).not.toHaveBeenCalled();
  const inactive=await actualSourceReportView(unused,false),create=await inactive.read({actor,base,query:{view:'support',new:'1'}});expect(sourceReportNodes(create).some(node=>node.type==='SupportConsole')).toBe(false);expect(inactive.readSourceRecord).not.toHaveBeenCalled();
-});
-
-import { hubHref as clientHubHref, salesCustomerAccess as clientSalesCustomerAccess, salesCustomerLegacyDestination as clientLegacyDestination } from "@erpx/feature-sales/lib/navigation";
-
-it("keeps owner and client navigation aligned across routes and permission scopes", () => {
-  for (const [route, query] of [
-    ["crm", {from: "2026-01-01"}], ["customer-followups", {orderId: "order-1"}],
-    ["support", {sourceId: "ticket-1"}], ["customer-duplicates", {}],
-    ["commerce", {view: "quote", q: "Harbor & sons"}], ["commerce", {view: "pricing"}],
-  ] as const) expect(clientLegacyDestination(base, route, query)).toBe(salesCustomerLegacyDestination(base, route, query));
-  expect(clientHubHref(base, "customers", {q: "A", cursor: "old"}, {cursor: undefined, view: "support"})).toBe(hubHref(base, "customers", {q: "A", cursor: "old"}, {cursor: undefined, view: "support"}));
-  for (const actor of [
-    {role: "employee", permissions: ["support.read"]},
-    {role: "employee", permissions: ["records.read"]},
-    {role: "employee", permissions: ["commerce.read", "commerce.sales"]},
-    {role: "employee", permissions: ["commerce.read", "commerce.sales"], departmentId: "rooms"},
-  ]) for (const apps of [undefined, ["crm", "sales", "support", "customer_authority"], ["support"]])
-    expect(clientSalesCustomerAccess(actor, apps)).toEqual(salesCustomerAccess(actor, apps));
 });

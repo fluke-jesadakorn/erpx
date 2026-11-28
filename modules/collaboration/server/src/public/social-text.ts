@@ -1,0 +1,1 @@
+export {mentionsSchema} from '@erpx/collaboration-server/domain/social-text';export {mentionPeople,textSuggestions,validateMentions,textStatements} from '@erpx/collaboration-server/adapters/social-text';

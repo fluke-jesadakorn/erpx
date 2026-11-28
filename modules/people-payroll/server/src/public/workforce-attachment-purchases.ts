@@ -1,0 +1,1 @@
+export {workforceAttachmentPurchaseScope,authorizeWorkforceAttachmentPurchase,workforceAttachmentSourceReadLocks,workforceAttachmentCommandBoundary,workforceAttachmentFailure,type WorkforceAttachmentPurchase} from "@erpx/people-payroll-server/adapters/workforce-attachment-purchases";

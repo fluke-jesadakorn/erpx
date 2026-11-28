@@ -1,3 +1,3 @@
 // App-owned entry; shared payloads do not import another application.
-export { default } from "@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/departments/[departmentSlug]/sale/receipts/[id]/[recordSection]/page";
+export { default } from "@erpx/platform-workplace/routes/front/[holdingSlug]/[companySlug]/[app]/departments/[departmentSlug]/sale/receipts/[id]/[recordSection]/page";
 

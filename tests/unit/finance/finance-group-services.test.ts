@@ -1,12 +1,12 @@
 import { describe, expect, test, vi } from 'vitest';
-import { createFinanceGroupOwnershipApplication, type FinanceGroupOwnershipPorts, type FinanceGroupOwnershipRepository } from "@erpx/server-finance/application/finance-group-ownership";
-import { createFinanceGroupEditionsApplication, type FinanceGroupEditionsPorts, type FinanceGroupEditionsRepository } from "@erpx/server-finance/application/finance-group-editions";
-import { createFinanceConsolidationApplication, type FinanceConsolidationPorts, type FinanceConsolidationRepository } from "@erpx/server-finance/application/finance-consolidation";
-import { ownershipEditionSchema, acquisitionEditionSchema, type Row } from "@erpx/server-finance/domain/finance-group-ownership";
-import { groupReportEditionSchema } from "@erpx/server-finance/domain/finance-group-editions";
-import { convert, translationRate, translateMinor } from "@erpx/server-finance/domain/group-consolidation-math";
-import type { GroupCommands } from "@erpx/server-finance/domain/group-command-ports";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { createFinanceGroupOwnershipApplication, type FinanceGroupOwnershipPorts, type FinanceGroupOwnershipRepository } from "@erpx/finance-server/application/finance-group-ownership";
+import { createFinanceGroupEditionsApplication, type FinanceGroupEditionsPorts, type FinanceGroupEditionsRepository } from "@erpx/finance-server/application/finance-group-editions";
+import { createFinanceConsolidationApplication, type FinanceConsolidationPorts, type FinanceConsolidationRepository } from "@erpx/finance-server/application/finance-consolidation";
+import { ownershipEditionSchema, acquisitionEditionSchema, type Row } from "@erpx/finance-server/domain/finance-group-ownership";
+import { groupReportEditionSchema } from "@erpx/finance-server/domain/finance-group-editions";
+import { convert, translationRate, translateMinor } from "@erpx/finance-server/domain/group-consolidation-math";
+import type { GroupCommands } from "@erpx/finance-server/domain/group-command-ports";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 
 const actor: WorkContext = {userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 function strict<Ports extends object>(facts: Partial<Ports>): Ports {
@@ -32,7 +32,7 @@ describe('Dated ownership and acquisition evidence',()=>{
   test('requires both active entities and prevents overlapping approved dates',async()=>{await expect(createFinanceGroupOwnershipApplication(ownershipPorts({readOwnershipSourceEntities:async()=>({results:entities.slice(0,1)})})).internal.ownershipSource(actor,ownershipEditionSchema.parse(ownership))).rejects.toMatchObject({code:'GROUP_ENTITY_REQUIRED'});await expect(createFinanceGroupOwnershipApplication(ownershipPorts({readOwnershipSourceOverlap:async()=>({id:'overlap'})})).internal.ownershipSource(actor,ownershipEditionSchema.parse(ownership))).rejects.toMatchObject({code:'OWNERSHIP_EFFECTIVE_OVERLAP'});});
   test('rejects a changed parent edition before checking overlapping dates',async()=>{const app=createFinanceGroupOwnershipApplication(ownershipPorts({readGetRow:async()=>({id:'parent',status:'approved',version:3})}));await expect(app.internal.ownershipSource(actor,ownershipEditionSchema.parse({...ownership,parentId:'parent',parentVersion:2}))).rejects.toMatchObject({code:'OWNERSHIP_PARENT_CHANGED'});});
   test('binds replay, source reads, staged mutations and commit to the supplied transaction',async()=>{
-    const stage=vi.fn(()=> 'ownership-effect'); const staged: string[]=[];
+    const stage=vi.fn(async()=> 'ownership-effect'); const staged: string[]=[];
     const commit: GroupCommands<string>['commit']=async(_a,_key,_operation,_input,_id,_version,result,effects)=>{staged.push(...effects);return result;};
     const scoped=ownershipPorts({stagePrepareOwnershipEditionEffect:stage},{commands:{...commands,commit}});
     const outer=ownershipPorts({}, {repository:strict<FinanceGroupOwnershipRepository<string>>({}),commands:strict<GroupCommands<string>>({}),transaction:run=>run(scoped)});

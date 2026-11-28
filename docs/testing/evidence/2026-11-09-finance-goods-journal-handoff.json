@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "Finance now owns a native draft goods-journal handoff for a future Commerce sales delivery. The Commerce goods-fulfillment command is not wired yet, so sales/orders and sales/fulfillment remain partial; this is a required owner prerequisite, not a workflow closure.",
+  "capability": "finance-goods-journal-handoff",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "f31595306ba04fd27fffc88fc1920dc296fac4c2",
+  "commit": "3e46cd091a2bedc03f82e6f1067ccb82e453069e",
+  "scope": {
+    "owner": "Finance",
+    "api": "post_commerce_goods_journal persists one deterministic draft delivery journal on the caller's serializable transaction. It resolves the open period, validates chart/accounts/base currency through the canonical journal preparation, writes two balanced lines (cost-of-sales debit, inventory credit) in the stock currency, binds source_type=delivery and source_id=fulfillment, and returns the journal id. A same-source replay returns the existing draft; a changed identity conflicts.",
+    "boundary": "The caller retains the Commerce order/fulfillment, Inventory stock issue and command receipt. Posting/GL review remains the existing Finance journal workflow; this adapter never posts."
+  },
+  "changedFiles": [
+    "packages/server-finance/src/adapters/commerce_goods_journal.rs",
+    "packages/server-finance/src/public/commerce_goods_journal.rs",
+    "packages/server-finance/Cargo.toml",
+    "tests/integration/finance/rust-commerce-goods-journal-postgres.test.rs"
+  ],
+  "verification": {
+    "postgres": "Clean archive commerce_goods_journal_postgres 2/2 pass: balanced draft source-bound journal (cogs 5000 debit, inventory 5000 credit, status draft, source delivery/fulfillment), deterministic replay without extra lines, closed period refusal, same-account/zero-value refusal, and rollback leaving zero journals.",
+    "cleanArchiveBuild": "Fresh git archive of 3e46cd091: cargo check -p erpx-service --locked --no-default-features --features private-field-api,files-scan-worker,existing-business passed.",
+    "checks": "rustfmt --check passes on the new files."
+  },
+  "limitations": [
+    "No Commerce goods fulfillment command consumes this port yet; Inventory stock_issue and order/fulfillment state are not wired.",
+    "sales/orders and sales/fulfillment remain partial.",
+    "The concurrent reviewer's uncommitted sales/quotes source-lock/auto-selection/item-fact findings are preserved; counts remain 83 verified / 39 partial / 84 unstarted."
+  ],
+  "counts": {
+    "verified": 83,
+    "partial": 39,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 8,
+    "ownerTotal": 41,
+    "salesOwner": "0 verified / 4 partial / 1 unstarted of 5"
+  },
+  "nextAction": "Wire post_commerce_goods_journal into the native Commerce goods fulfillment command together with Inventory lock/read/prepare/insert/apply_stock_issue, Commerce order-line/state updates and fulfillment Money, then browser-verify goods delivery."
+}

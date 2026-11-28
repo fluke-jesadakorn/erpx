@@ -1,0 +1,14 @@
+import {headers} from 'next/headers';
+import {technologyContext} from '@erpx/platform-workplace/routes/holdings/[holdingSlug]/administration/technology/_context';
+import {StandardOrganizationAccessWorkspace} from '@erpx/identity-access-ui/components/technology/standard-organization-access-workspace';
+import {PageHeader} from '@erpx/platform-ui/components/primitives';
+import {hasPermission} from '@erpx/identity-access-ui/lib/permissions';
+import {nativeOrganizationAccessPage} from '@erpx/organization-ui/lib/native-organization';
+export default async function Screen({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){const holdingSlug=(await params).holdingSlug,{local,actor,queries,base,canReadDirectory}=await technologyContext(holdingSlug,'organization'),query=await searchParams,incoming=await headers();      const [organization, lifecycle, automation, technology, gpoRules] = await Promise.all([
+        nativeOrganizationAccessPage(local,holdingSlug,incoming,()=>queries.organizationAccessData(local)), queries.peopleLifecycleData(local),
+        canReadDirectory ? queries.directoryAutomationData(actor) : Promise.resolve({ cases: [], connections: [], jobs: [], canApply: false, canManage: false, canReview: false }),
+        canReadDirectory ? queries.technologyData(actor) : Promise.resolve({ applications: [], operations: [] }),
+        queries.gpoRulesOverview(local),
+      ]);
+      return <div className="content-stack" data-source="live"><PageHeader appearance="standard" eyebrow="Technology" title="Organization & Access" description="Choose a unit to review positions, people, policies and delivery."/><StandardOrganizationAccessWorkspace base={base} companyName={organization.nodes.find(node => node.kind === "company")?.display_name ?? local.holdingName} organization={organization} lifecycle={lifecycle} automation={automation} technology={technology} gpoRules={gpoRules} canApply={canReadDirectory && hasPermission(actor,"iam.directory.apply")} initialSection={["person","position","company","branch","department","team","level"].some(key=>query[key])?undefined:typeof query.section === "string" ? query.section : undefined}/></div>;
+}

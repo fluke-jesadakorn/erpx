@@ -1,0 +1,90 @@
+{
+  "schema": "erpx.evidence/operations-owner-certification/v1",
+  "recorded_at": "2026-11-10T21:53:41+07:00",
+  "head": "0f8f40f745314c8c927c8fd7511193d2b659af4d",
+  "owner": "operations",
+  "package": "erpx-server-operations",
+  "workflows": [
+    "operations/feature-exception-queue",
+    "operations/feature-escalations",
+    "operations/feature-approval-decisions",
+    "operations/feature-resolution",
+    "operations/feature-queue-policies",
+    "operations/feature-operations-summary"
+  ],
+  "workflow_counts": {
+    "total": 6,
+    "verified": 6,
+    "partial": 0,
+    "unstarted": 0
+  },
+  "scope_decision": {
+    "decision": "six registered Operations workflows certified on the native owner route",
+    "included": "Native policy draft/publish/reject/retire, exception open/acknowledge/start/assign/escalate/prioritize/resolve/approve/close/reopen/reject/cancel, queue read and operations summary.",
+    "excluded": "None in the registered workflows. Field-owned records use the native Field transport rather than the Operations command.",
+    "retained_consumer": "The retained TypeScript policy/exception application in packages/server-operations/src/adapters/operations-exceptions.ts is no longer called by the product route. It remains a test/public-export consumer for operations.operations-exceptions.integration.",
+    "follow_up": "No Operations follow-up is required for the six registered workflows."
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "active",
+    "ssr": "active",
+    "jobs": "not-applicable",
+    "providers": "not-applicable"
+  },
+  "native_paths": {
+    "route": "packages/feature-apps/src/routes/api/v1/holdings/[holdingSlug]/operations/route.ts reads through nativeOperationsWorkspace/nativeOperationsDetail and writes through nativeOperationsCommand. The retained draftQueuePolicy/reviewQueuePolicy/openOperationsException/changeOperationsException branch was removed; an unset transport returns 503 NATIVE_OPERATIONS_UNAVAILABLE.",
+    "field": "Records and policies owned by Field Service are routed to the native Field operations transport before the Operations command; this is a native owner path, not a legacy fallback.",
+    "http": "The native Operations HTTP backend resolves the current Account session, Company/branch/department scope, module admission and work-selection CAS, then executes the owner command in one serializable unit.",
+    "summary": "The Operations summary is rendered from the native queue read; no separate summary write exists."
+  },
+  "gates": [
+    {
+      "name": "operations Rust unit suites",
+      "result": "rust-field-exceptions 13/13, rust-operations-queue-read 6/6, rust-operations-commands 7/7"
+    },
+    {
+      "name": "operations TS unit suites",
+      "result": "88/88 across operations.services.unit (services, task-worker display, work-social API) and operations.native-operations-transport.unit"
+    },
+    {
+      "name": "operations.native-operations-transport.unit",
+      "result": "included in the 88-case TS unit run"
+    },
+    {
+      "name": "operations Rust PostgreSQL integration suites",
+      "result": "queue-read 6/6, HTTP 3/3, commands 5/5"
+    },
+    {
+      "name": "operations.operations-exceptions.integration",
+      "result": "8/8 pass"
+    },
+    {
+      "name": "typecheck",
+      "result": "bun run typecheck exit 0"
+    },
+    {
+      "name": "structure",
+      "result": "bun run structure:check pass"
+    }
+  ],
+  "browser": {
+    "result": "The Operations page at /holdings/acme/projects-routines/operations?company=acme-co rendered with the native queue: 'Current queue 0 active \u00b7 0 awaiting review \u00b7 0 escalated \u00b7 0 past target', queue policy form, exceptions list and field operational exceptions, with no page errors.",
+    "log": ".scratch/dev/rust-migration/current/operations-browser.log",
+    "viewport": "1440x900",
+    "historical": "The register retains the earlier native browser lifecycle: POS-sale exception acknowledge v2, start v3, assign v4, escalate v5, resolve v6, independent approve v7, close v8, reopen v9, prioritize v10, resolve v11, reject v12, cancel v13; policy publish v2 and retire v3.",
+    "limitation": "A new browser command journey was not re-run because the development database currently has no published queue policy or source exception fixture. The native Rust HTTP/commands suites and the historical browser lifecycle cover the command path; the page load above proves the native read route and the fail-closed route change."
+  },
+  "legacy": {
+    "removed": "The product Operations route no longer imports or calls draftQueuePolicy, reviewQueuePolicy, openOperationsException or changeOperationsException.",
+    "remaining": "The retained TypeScript application remains exported and is exercised by operations.operations-exceptions.integration. It is a test/public-export consumer, not a product fallback.",
+    "field": "Field-owned records continue to use the native Field operations transport."
+  },
+  "notes": [
+    "The route change removes the last product fallback identified by the e208578b4 correction for the five partial Operations workflows.",
+    "No 6-subagent roster or Common frozen-bundle coordination is present; this bundle follows the user-directed execution without claiming that process evidence."
+  ],
+  "status": "owner-complete",
+  "surfaces_scope": "The surfaces apply to the six registered Operations workflows. The retained TypeScript application is a test/public-export consumer outside the product route."
+}

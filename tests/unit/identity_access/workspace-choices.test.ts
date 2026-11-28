@@ -11,28 +11,28 @@ const mocks = vi.hoisted(() => ({
   role: vi.fn(),
 }));
 
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({
   currentSession: mocks.session,
   requirePlatformContext: mocks.platform,
 }));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   activeHoldingBindings: mocks.bindings,
   holdingResources: mocks.resources,
 }));
-vi.mock("@erpx/server-identity_access/public/iam-store", () => ({ iamRoles: async (db:unknown, companyId:string, ids:string[]) => new Map(await Promise.all(ids.map(async id=>[id,await mocks.role(db,companyId,id)] as const))) }));
+vi.mock("@erpx/identity-access-server/public/iam-store", () => ({ iamRoles: async (db:unknown, companyId:string, ids:string[]) => new Map(await Promise.all(ids.map(async id=>[id,await mocks.role(db,companyId,id)] as const))) }));
 
-import { workspaceChoices } from "@erpx/server-organization/public/workspace-choices";
+import { workspaceChoices } from "@erpx/organization-server/public/workspace-choices";
 import {
   buildWorkspaceHoldingChoice,
   type WorkspaceChoiceAssignment,
   type WorkspaceChoiceNode,
-} from "@erpx/feature-work_projection/lib/workspace-choice";
+} from "@erpx/work-projection-ui/lib/workspace-choice";
 import {
   capabilitySupport,
   liveDestination,
   moduleAvailability,
   moduleRegistry,
-} from "@erpx/catalogue/module-registry";
+} from "@erpx/platform-catalogue/module-registry";
 
 function database(assignments: unknown[], nodes: unknown[]) {
   return {

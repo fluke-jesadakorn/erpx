@@ -1,3 +1,4 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {beforeAll,it,expect,vi} from 'vitest';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
@@ -5,13 +6,13 @@ import {mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {Pool} from 'pg';
-import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
+import {PostgresDatabase} from "@erpx/platform-runtime-server/adapters/runtime/postgres";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {saveMaster,saveOrder,orderSchema,transitionOrder,changeOrderReservation,fulfillOrder} from '@erpx/server-commerce/public/commerce';
-import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {saveMaster,saveOrder,orderSchema,transitionOrder,changeOrderReservation} from '@erpx/commerce-server/public/commerce';
+import {getOrder} from '@erpx/commerce-server/public/commerce-order-read';
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const run=promisify(execFile),hash=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 async function tableDigests(database:PostgresDatabase){
@@ -37,7 +38,7 @@ it('restores an isolated source-linked business snapshot without reposting its t
  await transitionOrder(f.owner,orderId,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,orderId,{action:'approve',expectedVersion:2},key());
  const details=await getOrder(f.owner,orderId),lineId=String(details.lines[0].id);
  await changeOrderReservation(f.owner,orderId,{expectedVersion:3,action:'reserve',lineId,quantity:'2',expiresAt:Date.now()+3600000,reason:'Reserve before recovery rehearsal'},key());
- const delivery=await fulfillOrder(f.owner,orderId,{attachmentSetIds:[],expectedVersion:4,date:'2026-09-02',lines:[{lineId,quantity:'1',allocations:[]}],...(await deliveryEvidence(db,f.owner,orderId))},key());
+ const delivery=await seedCommerceFulfillment(db, f.owner,orderId,{attachmentSetIds:[],expectedVersion:4,date:'2026-09-02',lines:[{lineId,quantity:'1',allocations:[]}],...(await deliveryEvidence(db,f.owner,orderId))},key());
  const expected=await tableDigests(db);
  const cliEnv={...process.env,PGHOST:adminUrl.hostname,PGPORT:adminUrl.port,PGUSER:decodeURIComponent(adminUrl.username),PGPASSWORD:decodeURIComponent(adminUrl.password),PGDATABASE:source};
  const admin=new Pool({connectionString:adminUrl.href,max:1});let restored:PostgresDatabase|undefined,created=false;

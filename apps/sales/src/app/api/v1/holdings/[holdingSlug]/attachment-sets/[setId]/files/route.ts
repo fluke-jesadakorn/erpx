@@ -1,3 +1,3 @@
 // App-owned entry; shared payloads do not import another application.
-export { POST } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/files/route";
+export { POST } from "@erpx/platform-workplace/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/files/route";
 

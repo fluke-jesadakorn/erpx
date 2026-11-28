@@ -1,2 +1,0 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export {roleInput,grantInput,reviewInput,accessReviewCampaignInput,accessReviewDecisionInput,startAccessReviewCampaign,decideAccessReviewItem,cancelAccessReviewCampaign,saveIamRole,grantIamAccess,revokeIamAssignment,applyIamRevocation,decideIamReview,proposeIamReview} from "@erpx/server-identity_access/adapters/iam-service";

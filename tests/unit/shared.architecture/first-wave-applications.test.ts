@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createInvitationDeliveryApplication, type InvitationDeliveryPorts } from "@erpx/server-identity_access/application/invitation-delivery";
-import { createOrganizationAccessApplication } from "@erpx/server-organization/application/access";
-import type { OrganizationAccessActor, OrganizationAccessSnapshot } from "@erpx/server-organization/domain/access";
-import { createResourceCleanupApplication } from "@erpx/server-manage_erpx/application/resource-cleanup";
-import { createPlatformOperationsApplication } from "@erpx/server-platform_administration/application/operations-summary";
-import type { HoldingJobStatistics } from "@erpx/server-platform_administration/domain/operations-summary";
+import { createInvitationDeliveryApplication, type InvitationDeliveryPorts } from "@erpx/identity-access-server/application/invitation-delivery";
+import { createOrganizationAccessApplication } from "@erpx/organization-server/application/access";
+import type { OrganizationAccessActor, OrganizationAccessSnapshot } from "@erpx/organization-server/domain/access";
+import { createResourceCleanupApplication } from "@erpx/manage-erpx-server/application/resource-cleanup";
 
 function invitationFixture() {
   const job = { id: "job-1", invitation_id: "invite-1", attempts: 1, lease_token: "lease-1" };
@@ -92,29 +90,5 @@ describe("Manage ERPX bounded resource cleanup", () => {
     const application = createResourceCleanupApplication({ clock: { now: () => 1000000 }, objects: { delete: async () => { throw new Error("store unavailable"); } }, repository: { expiredUploads: async () => [{ id: "unbound", revision: 1 }], uploadHasAttachment: async () => false, expireUpload, expireAiReservations } });
     await expect(application.cleanup("holding-1")).rejects.toThrow("store unavailable");
     expect(expireUpload).not.toHaveBeenCalled(); expect(expireAiReservations).not.toHaveBeenCalled();
-  });
-});
-
-describe("Platform independently observable Holding queues", () => {
-  const identity = (id: string) => ({ id, slug: id, displayName: id });
-  const statistics = (pendingEvents: number, deadLetterEvents = 0): HoldingJobStatistics => ({ pendingEvents, deadLetterEvents, claimedEvents: 0, oldestPendingAt: null, deadLetters: [] });
-  it("retains healthy Holdings and totals when another binding fails", async () => {
-    const application = createPlatformOperationsApplication({ controlHealth: async () => [{ service: "jobs", heartbeatAt: 99, details: "{}" }], jobs: async id => { if (id === "unavailable") throw new Error("private connection error"); return statistics(2, 1); }, migrations: async () => ({ track: "holding-write", applied: 4, pending: [], latestApplied: "0004", error: null }) }, { now: () => 100 });
-    const result = await application.summarize("platform_admin", [identity("healthy"), identity("unavailable")]);
-    expect(result.holdings.map(row => row.status)).toEqual(["attention", "unavailable"]);
-    expect(result.totals).toEqual({ holdings: 2, pendingEvents: 2, deadLetterEvents: 1, claimedEvents: 0 });
-    expect(result.holdings.every(row => row.jobHeartbeatAt === 99)).toBe(true);
-    expect(JSON.stringify(result)).not.toContain("private connection error");
-  });
-  it("keeps job health visible if only migration receipts are unavailable", async () => {
-    const application = createPlatformOperationsApplication({ controlHealth: async () => [], jobs: async () => statistics(1), migrations: async () => { throw new Error("missing migration table"); } }, { now: () => 100 });
-    const result = await application.summarize("platform_admin", [identity("holding-1")]);
-    expect(result.holdings[0]).toMatchObject({ status: "pending", error: null, migrations: { error: "Migration receipts are unavailable for this Holding." } });
-  });
-  it("keeps distinct input bindings observable even when their Holding identifiers coincide", async () => {
-    const application = createPlatformOperationsApplication({ controlHealth: async () => [], jobs: async (_id, _now, index) => statistics(index + 1), migrations: async () => ({ track: "holding-write", applied: 1, pending: [], latestApplied: "0001", error: null }) }, { now: () => 100 });
-    const result = await application.summarize("platform_admin", [identity("same-id"), identity("same-id")]);
-    expect(result.holdings.map(row => row.pendingEvents)).toEqual([1, 2]);
-    expect(result.totals.pendingEvents).toBe(3);
   });
 });

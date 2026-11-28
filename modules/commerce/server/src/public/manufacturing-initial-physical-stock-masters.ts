@@ -1,0 +1,2 @@
+export {createManufacturingInitialPhysicalStockProduct,createManufacturingInitialPhysicalStockWarehouse} from '@erpx/commerce-server/adapters/manufacturing-initial-physical-stock-masters';
+export {manufacturingInitialPhysicalStockProductSchema,manufacturingInitialPhysicalStockWarehouseSchema,type ManufacturingInitialPhysicalStockProductInput,type ManufacturingInitialPhysicalStockWarehouseInput,type ManufacturingInitialPhysicalStockMasterResult} from '@erpx/commerce-server/domain/manufacturing-initial-physical-stock-masters';

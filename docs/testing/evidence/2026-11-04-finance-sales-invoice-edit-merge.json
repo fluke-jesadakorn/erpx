@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance standalone sales-invoice edit/void merged; finance:sales-invoice-workspace closes",
+  "capability": "finance-sales-invoice-edit-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 52,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/52",
+    "state": "MERGED",
+    "mergedAt": "2026-11-04T01:02:53Z",
+    "base": "a5d47da8e7142406481a6179971f60051b03f977",
+    "head": "252d522793fb5f8562bf354070b5ab7b77edb2e4",
+    "mergeCommit": "403c4f589c061d31719bbb322a42de8b15c994f4",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "finance:sales-invoice-workspace",
+    "slice": "standalone sales-invoice edit/void and closing slice",
+    "adapter": "packages/server-finance/src/adapters/sales_invoice_edit.rs",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-invoice-edit.ts",
+    "blockingFix": "packages/feature-finance/src/adapters/server/native-service-invoice.ts"
+  },
+  "verification": {
+    "postgres": "finance.rust-sales-invoice-edit-postgres.integration 4/4",
+    "regressions": "finance.rust-sales-receipt-postgres 2/2; finance.rust-sales-defaults-postgres 3/3; finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 792 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4",
+    "browser": "Desktop INV-2026-000011 and mobile INV-2026-000012: create 201 THB 107.00, edit 200 THB 214.00 v2 with Revision 2, void 200 voided/outstanding 0; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 19,
+    "workflowsPartial": 0,
+    "workflowsMerged": 19,
+    "workflowsTotal": 206,
+    "workflowState": "finance:sales-invoice-workspace verified and merged"
+  },
+  "limits": [
+    "Payable and non-standalone invoices remain on their owner path; payable editing stays legacy.",
+    "Native edit/void require a Company Finance assignment.",
+    "The Finance app still logs pre-existing hydration/work-source console errors; pageErrors stay 0."
+  ]
+}

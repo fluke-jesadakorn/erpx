@@ -1,0 +1,10 @@
+import 'server-only';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import {runtimePreservationFileSources} from '@erpx/files-server/public/runtime-preservation-sources';
+import {createRuntimeMutationAuthority} from '@erpx/legal-server/application/runtime-preservation-authority';
+import {legalFilesAdvisoryLockSql} from './legal-read-tail-r9-sources';
+import {legalHoldTargetGuardPrefix} from './legal-read-tail-r24-sources';
+import {legalFilePreservationHoldTargetHead} from './legal-read-tail-r44-sources';
+/** Read ports for ordinary storage mutations; no destruction command dependency. */
+export function runtimeMutationRepository(db:SqlDatabase){const files=runtimePreservationFileSources(db);return {lock:()=>db.prepare(legalFilesAdvisoryLockSql).run(),pendingOwner:files.pendingOwner,held:async (key:string)=>!!await db.prepare(`SELECT 1 WHERE EXISTS(${legalFilePreservationHoldTargetHead('1','target','hold','<>')} AND (p.object_key=? OR (p.source_type='attachment' AND ${files.preservedAttachmentObject}))) OR EXISTS(${legalHoldTargetGuardPrefix}hold.state<>'released' AND target.item_id IN (${files.boundLegalItemIds}))`).bind(key,key,key,key,key).first()};}
+export function runtimeMutationAuthority(db:SqlDatabase){return createRuntimeMutationAuthority(runtimeMutationRepository(db));}

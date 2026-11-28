@@ -1,12 +1,13 @@
-import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
-import { businessRoles,type BusinessRole } from "@erpx/feature-identity_access/lib/business-roles";
+import {reservedWorkspaceSlug} from '@erpx/platform-contracts/holding-hosts';
+import type { SqlDatabase, SqlStatement } from "@erpx/platform-runtime-server/adapters/runtime/types";
+import { businessRoles,type BusinessRole } from "@erpx/identity-access-ui/lib/business-roles";
 import { seedWorker } from "./seed-roster";
 import { getLocalProxy } from "../local/fixtures";
-import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
+import type { RuntimeEnv } from "@erpx/platform-runtime-server/adapters/runtime/env";
 import { hashPassword } from "better-auth/crypto";
-import { moduleRegistry } from "@erpx/catalogue/module-registry";
-import { project, type EventMessage, type JobEnv } from "../../src/workers/jobs";
-import { calculatePayrollAmounts } from "@erpx/feature-people_payroll/lib/payroll-math";
+import { moduleRegistry } from "@erpx/platform-catalogue/module-registry";
+import { project, type EventMessage, type JobEnv } from "@erpx/workflow-server/public/job-projector";
+import { calculatePayrollAmounts } from "@erpx/people-payroll-ui/lib/payroll-math";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { localSeedLevels } from "../../fixtures/organization/builders/local-seed-levels";
@@ -92,7 +93,7 @@ function orgStatements(db: Db, holding: string) {
         .bind(branchId, "branch", branchId, branchName, company.id, company.id, branchId, "active"));
       for (const [slug, label] of [["operations", "Operations"], ["finance", "Finance"], ["people", "People"]] as const) {
         statements.push(db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES(?,?,?,?,?,?,?,?,1) ON CONFLICT DO NOTHING")
-          .bind(`dept:${branchId}:${slug}`, "department", slug, `${branchName} ${label}`, branchId, company.id, branchId, "active"));
+          .bind(`dept:${branchId}:${slug}`, "department", reservedWorkspaceSlug(slug)?slug+'-dept':slug, `${branchName} ${label}`, branchId, company.id, branchId, "active"));
       }
     }
   }
@@ -399,12 +400,13 @@ async function seedFiles(env: SeedEnv, holding: string, db: Db) {
     const currency = company.id === "beacon-co" ? "GBP" : company.id === "northstar-co" ? "EUR" : "USD";
     const rows = ["reference,payee,amount,currency,status", ...amounts.map((amount, row) => `PAY-${runId}-${row + 1},Worker ${row + 1},${(amount / 100).toFixed(2)},${currency},outstanding`)].join("\n");
     const body = text(rows); const checksum = await digest(body); const key = `${holding}/people/payments/${batchId}.csv`;
-    if (!(await files.head(key))) {
+    const existing = await files.head(key);
+    if (!existing || existing.customMetadata?.sha256 !== checksum) {
       await files.put(key, body, { httpMetadata: { contentType: "text/csv" }, customMetadata: { sha256: checksum, format: "generic-csv", seed: "erpx-rich-local-2026" } });
     }
-    statements.push(db.prepare("INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,file_key,file_checksum,total_minor,version,created_by,approved_by,exported_at,created_at,updated_at) VALUES(?,?,?,?,?,'exported','generic-csv',?,?,?,1,?,?,?, ?,?) ON CONFLICT DO NOTHING")
+    statements.push(db.prepare("INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,file_key,file_checksum,total_minor,version,created_by,approved_by,exported_at,created_at,updated_at) VALUES(?,?,?,?,?,'exported','generic-csv',?,?,?,1,?,?,?, ?,?) ON CONFLICT(id) DO UPDATE SET file_key=excluded.file_key,file_checksum=excluded.file_checksum,total_minor=excluded.total_minor,currency=excluded.currency,format_code=excluded.format_code")
       .bind(batchId, company.id, "payroll", runId, currency, key, checksum, amounts.reduce((sum, amount) => sum + amount, 0), actor, reviewer, now, now, now));
-    for (let row = 0; row < 20; row += 1) statements.push(db.prepare("INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
+    for (let row = 0; row < 20; row += 1) statements.push(db.prepare("INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET engagement_id=excluded.engagement_id,person_id=excluded.person_id,reference=excluded.reference,payee_name=excluded.payee_name,amount_minor=excluded.amount_minor,currency=excluded.currency")
       .bind(`payment-item-${company.id}-${index}-${row}`, batchId, `eng-${company.id}-${String(row + 1).padStart(3, "0")}`, `hr-${company.id}-${String(row + 1).padStart(3, "0")}`, `PAY-${runId}-${row + 1}`, `Worker ${row + 1}`, amounts[row], currency));
   }
   await batch(db, statements);

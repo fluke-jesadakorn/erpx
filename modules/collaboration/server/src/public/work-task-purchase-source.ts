@@ -1,0 +1,1 @@
+export {workTaskSocialFileSourceRows,workTaskSocialPurchasePredicate,workTaskSocialSourceLocks,workTaskSocialAudienceSourceLocks,workTaskSocialPurchaseSource} from '@erpx/collaboration-server/adapters/work-task-purchase-source';

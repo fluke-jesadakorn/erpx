@@ -1,0 +1,5 @@
+{
+  "corpusSourceClean": "SELECT 1 FROM legal_documents d JOIN legal_items i ON i.id=d.item_id WHERE d.id=? AND {predicate}",
+  "membersWhere": "SELECT 1 FROM legal_members WHERE {predicate}",
+  "settingsWhere": "SELECT 1 FROM legal_settings WHERE {predicate}"
+}

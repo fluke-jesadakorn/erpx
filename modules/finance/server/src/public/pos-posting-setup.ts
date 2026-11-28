@@ -1,0 +1,1 @@
+export {requirePosStartupFinanceAuthority,posStartupFinanceReadLocks,posStartupFinanceState,validatePosStartupFinanceState,posStartupEffectiveService} from '@erpx/finance-server/adapters/pos-posting-setup';

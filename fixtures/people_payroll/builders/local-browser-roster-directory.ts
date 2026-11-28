@@ -1,13 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
-import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
-import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
-import { rosterCommand, rosterData } from "@erpx/server-people_payroll/public/people-roster";
-import { addDays, rosterMonday } from "@erpx/server-people_payroll/public/rules/people-roster-domain";
-import type { DirectoryInventory } from "@erpx/feature-identity_access/lib/directory-operations";
+import type { RuntimeEnv } from "@erpx/platform-runtime-server/adapters/runtime/env";
+import { PostgresDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/adapters/runtime/types";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { loadIamAuthority } from "@erpx/identity-access-server/public/iam-store";
+import { rosterCommand, rosterData } from "@erpx/people-payroll-server/public/people-roster";
+import { addDays, rosterMonday } from "@erpx/people-payroll-server/public/rules/people-roster-domain";
+import type { DirectoryInventory } from "@erpx/identity-access-ui/lib/directory-operations";
 import { assertAcmeBrowserSeedTarget } from "../../shared/builders/acme-browser-seed-target";
 import { demoCompany, demoPrefix } from "../../organization/builders/acme-organization";
 

@@ -2,19 +2,20 @@ import { beforeAll, beforeEach, it, expect, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { legalCommand, detail } from "@erpx/server-legal/public/legal/service";
-import { access } from "@erpx/server-legal/public/legal/access";
-import { inspectDocument, uploadDocument } from "@erpx/server-legal/public/legal/documents";
-import { legalCitation } from "@erpx/server-legal/public/legal/citations";
-import { bangkokSourceCheckDate, drainLegalSourceChecks, lawCorpusCommand, lawCorpusView, officialLawUrl } from "@erpx/server-legal/public/legal/law-corpus";
-import { lawCitation, lawKnowledge, legalKnowledge, retrieveLegalAiEvidence, revalidateLegalAiEvidence, validateLegalAiCitations } from "@erpx/server-legal/public/legal/knowledge";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }) }));
-vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { legalCommand, detail } from "@erpx/legal-server/public/legal/service";
+import { access } from "@erpx/legal-server/public/legal/access";
+import { inspectDocument, uploadDocument } from "@erpx/legal-server/public/legal/documents";
+import { legalCitation } from "@erpx/legal-server/public/legal/citations";
+import { bangkokSourceCheckDate, drainLegalSourceChecks, lawCorpusCommand, lawCorpusView, officialLawUrl } from "@erpx/legal-server/public/legal/law-corpus";
+import { lawCitation, lawKnowledge, legalKnowledge, retrieveLegalAiEvidence, revalidateLegalAiEvidence, validateLegalAiCitations } from "@erpx/legal-server/public/legal/knowledge";
+import {seedLawSourceNotice} from '../../support/legal/law-source-notice-fixture';
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }) }));
+vi.mock("@erpx/files-server/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "simulated scanner", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "simulated scanner", definitionUpdatedAt: Date.now() }),
 }));
-vi.mock("@erpx/server-files/public/attachments/preview", () => ({ attachmentPreviewReadiness: async () => ({ ready: true, error: null }), detectedAttachmentMediaType: (_bytes: Uint8Array, type: string) => type, sanitizedAttachmentPreview: async () => null }));
+vi.mock("@erpx/files-server/public/attachments/preview", () => ({ attachmentPreviewReadiness: async () => ({ ready: true, error: null }), detectedAttachmentMediaType: (_bytes: Uint8Array, type: string) => type, sanitizedAttachmentPreview: async () => null }));
 const db = env.H001_DB, key = () => crypto.randomUUID(), text = "ข้อความสมมติสำหรับการทดสอบ สิทธิขอสำเนาข้อมูลส่วนบุคคล ต้องตรวจฉบับและข้อเท็จจริง ไม่ใช่ข้อสรุปกฎหมายจริง";
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
@@ -102,12 +103,12 @@ it("replays imports, rejects stale versions, and preserves immutable source chun
 });
 it("keeps source fetch failure visible and new source downloads pending, with restart deduplication", async () => {
   const r = await fixture(), now = Date.parse("2026-10-01T00:00:00Z"), fetcher = vi.fn(async () => new Response("Synthetic updated official source"));
-  await drainLegalSourceChecks(db, env.H001_FILES, fetcher, now);
+  await drainLegalSourceChecks(db, env.H001_FILES, { holdingId: "h001", holdingSlug: "acme", holdingName: "Acme" }, fetcher, now, seedLawSourceNotice);
   const checks = (await lawCorpusView(db, f.manager, r.id)).checks;
   expect(checks[0]).toMatchObject({ state: "pending_review", check_date: "2026-10-01" });
-  await drainLegalSourceChecks(db, env.H001_FILES, fetcher, now);
+  await drainLegalSourceChecks(db, env.H001_FILES, { holdingId: "h001", holdingSlug: "acme", holdingName: "Acme" }, fetcher, now, seedLawSourceNotice);
   expect(fetcher).toHaveBeenCalledTimes(1);
-  await drainLegalSourceChecks(db, env.H001_FILES, async () => new Response(null, { status: 503 }), now + 86400000);
+  await drainLegalSourceChecks(db, env.H001_FILES, { holdingId: "h001", holdingSlug: "acme", holdingName: "Acme" }, async () => new Response(null, { status: 503 }), now + 86400000, seedLawSourceNotice);
   const failed = (await lawCorpusView(db, f.manager, r.id)).checks.find((row) => row.check_date === "2026-10-02");
   expect(failed).toMatchObject({ state: "failed", checked_at: null, error: "LEGAL_SOURCE_HTTP_503" });
   expect((await lawKnowledge(db, f.manager, "สิทธิขอสำเนา")).sources).toHaveLength(0);
@@ -181,13 +182,13 @@ it("skips source-fetch side effects when Company Legal is disabled", async () =>
   await fixture();
   await legalCommand(db, f.manager, { action: "settings", enabled: false }, key());
   const fetcher = vi.fn(async () => new Response("Synthetic official source"));
-  await drainLegalSourceChecks(db, env.H001_FILES, fetcher, Date.parse("2026-10-01T00:00:00Z"));
+  await drainLegalSourceChecks(db, env.H001_FILES, { holdingId: "h001", holdingSlug: "acme", holdingName: "Acme" }, fetcher, Date.parse("2026-10-01T00:00:00Z"), seedLawSourceNotice);
   expect(fetcher).not.toHaveBeenCalled();
   expect((await lawCorpusView(db, f.manager)).checks).toHaveLength(0);
 });
 it("binds a daily-source candidate to the exact uploaded original before marking its review complete", async () => {
   const r = await fixture();
-  await drainLegalSourceChecks(db, env.H001_FILES, async () => new Response(text), Date.parse("2026-10-01T00:00:00Z"));
+  await drainLegalSourceChecks(db, env.H001_FILES, { holdingId: "h001", holdingSlug: "acme", holdingName: "Acme" }, async () => new Response(text), Date.parse("2026-10-01T00:00:00Z"), seedLawSourceNotice);
   const check = (await lawCorpusView(db, f.manager, r.id)).checks[0];
   const candidate = await command(r.id, "law.revision.import", { sourceId: r.sourceId, sourceCheckId: check.id, documentId: r.document.id, revisionLabel: "Daily-candidate", publishedOn: "2026-10-01", effectiveFrom: "2026-10-01", extractionMethod: "manual", chunks: [{ page: 2, section: "Synthetic daily revision", text }] });
   expect((await lawCorpusView(db, f.manager, r.id)).checks[0]).toMatchObject({ state: "pending_review", candidate_revision_id: candidate.evidenceId });

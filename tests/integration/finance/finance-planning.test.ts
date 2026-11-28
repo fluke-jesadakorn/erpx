@@ -1,9 +1,9 @@
-import {financePlanningWorkspace,financePlanRecord} from "@erpx/server-finance/public/finance-planning";
+import {financePlanningWorkspace,financePlanRecord} from "@erpx/finance-server/public/finance-planning";
 import {afterEach} from "vitest";
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
-import { readWorkSnapshot } from "@erpx/server-work_projection/public/work-items";
+import { readWorkSnapshot } from "@erpx/work-projection-server/public/work-items";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
+import { setFinanceCompanyTool } from "@erpx/finance-server/public/finance-company-tools";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
   expenseDb as db,
@@ -24,10 +24,10 @@ import {
   financialReportSchema,
   snapshotFinancialReport,
   exportFinancialReport,
-} from "@erpx/server-finance/public/finance-planning";
-import {createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
-import { financeCsvRows,financeCsv } from "@erpx/feature-finance/lib/finance-csv";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+} from "@erpx/finance-server/public/finance-planning";
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
+import { financeCsvRows,financeCsv } from "@erpx/finance-ui/lib/finance-csv";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -62,21 +62,20 @@ async function approve(id: string) {
   );
 }
 async function post() {
-  const j = await createJournal(
-    f.owner,
-    createJournalSchema.parse({
-      chartId: f.chart,
-      periodId: f.period,
-      entryDate: "2026-09-04",
-      currency: "THB",
-      lines: [
-        { accountId: f.accounts.expense, debit: "80.01", credit: "0" },
-        { accountId: f.accounts.cash, debit: "0", credit: "80.01" },
-      ],
-    }),
-    key(),
-  );
-  await postJournal(f.manager, String(j.id), key(), { expectedVersion: 1 });
+  const j = await seedFinanceJournal(db, {
+    companyId: f.company,
+    chartId: f.chart,
+    periodId: f.period,
+    entryDate: "2026-09-04",
+    currency: "THB",
+    key: key(),
+    createdBy: f.owner.userId,
+    status: "posted",
+    lines: [
+      { accountId: f.accounts.expense, debit: "80.01", credit: "0" },
+      { accountId: f.accounts.cash, debit: "0", credit: "80.01" },
+    ],
+  });
   return j;
 }
 it('rolls immutable report snapshot and issued CSV bytes back after final outbox failure, then retries and replays once',async()=>{

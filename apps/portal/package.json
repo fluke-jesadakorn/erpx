@@ -10,11 +10,11 @@
     "lint": "bun ../../scripts/testing/scoped-lint.ts --app=portal"
   },
   "dependencies": {
-    "@erpx/feature-portal": "workspace:*",
-    "@erpx/workplace": "workspace:*",
-    "next": "16.4.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "@erpx/contracts": "workspace:*"
+    "@erpx/product-portal-ui": "workspace:*",
+    "@erpx/platform-workplace": "workspace:*",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "@erpx/platform-contracts": "workspace:*"
   }
 }

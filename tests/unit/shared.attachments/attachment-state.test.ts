@@ -4,7 +4,7 @@ import {
   canMutateAttachmentDraft,
   canReorderAttachmentPublications,
   canRevokeAttachmentPublication,
-} from "@erpx/feature-files/lib/attachment-state";
+} from "@erpx/files-ui/lib/attachment-state";
 
 describe("attachment display state", () => {
   it.each([

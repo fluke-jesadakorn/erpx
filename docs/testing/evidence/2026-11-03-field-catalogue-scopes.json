@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "six Field catalogue scopes verified; merge pending checklist 18",
+  "capability": "field-catalogue-scopes",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "78b6b210a (catalogue verification); later transport-only code head 7025a1fb3 does not change these scopes",
+  "workflows": [
+    {
+      "id": "field_service/service-orders",
+      "verifiedBy": [
+        "field_service.field-service.integration 8/8 including the registered full workflow case",
+        "field_service.rust-parts-command-postgres.integration 35/35 for reserve/issue/setup/prerequisites",
+        "field_service.rust-http-parity-postgres.integration 40/41 + single pass for order/detail/cancel variants",
+        "browser journey v2 for request/order creation and Work readback"
+      ]
+    },
+    {
+      "id": "field_service/feature-agreements",
+      "verifiedBy": [
+        "field_service.field-service.integration registered case: draft create and independent activation",
+        "browser journey v2: draft v1 and independent active v2"
+      ]
+    },
+    {
+      "id": "field_service/feature-dispatch",
+      "verifiedBy": [
+        "field_service.field-service.integration registered case: dispatch and start",
+        "browser journey v2: dispatch/start phases"
+      ]
+    },
+    {
+      "id": "field_service/feature-visits",
+      "verifiedBy": [
+        "field_service.field-service.integration registered case: start, exception/resume and customer sign-off completion",
+        "files.rust-field-files-private-api.provider 2/2 for the native Files scan worker",
+        "real-Chrome Files lifecycle evidence 2026-11-03-field-visit-files-lifecycle.json"
+      ]
+    },
+    {
+      "id": "field_service/feature-exceptions",
+      "verifiedBy": [
+        "field_service.field-service.integration registered case: exception and resume",
+        "field_service.rust-http-parity-postgres.integration cancel variants"
+      ]
+    },
+    {
+      "id": "field_service/feature-billing-release",
+      "verifiedBy": [
+        "field_service.field-service.integration registered case: independent billing release",
+        "browser journey v2: release, invoice post, controlled receipt create/approve/release, bank import/confirm, one allocation, paid invoice, matched bank row, balanced journal",
+        "finance.rust-service-invoice-posting.unit 10/10"
+      ]
+    }
+  ],
+  "crossOwnerConsumers": [
+    "Support source-record link and immutable source (Support 61 unit + 9 integration)",
+    "Collaboration selected Records actor and Field commands",
+    "Operations exception ownership and independent review (10 unit)",
+    "Records generic Field mutations fail closed (29 unit)",
+    "Work summary and detail reads in the browser journey",
+    "Field Files staging/upload/scan/content/bind lifecycle"
+  ],
+  "runtimeAndOwnership": [
+    "Product Field route dispatches only to nativeReservePost with no legacy fallback (170 unit tests)",
+    "Private production API mounts Field routes with production Account authority (4/4 suite)",
+    "Production worker supervisor runs dependency/outbox, Files scan and configured count workers"
+  ],
+  "limits": [
+    "Local scoped evidence, not owner acceptance or merge.",
+    "Workflow merged flags remain false until the scoped PR lands on codex/rust-backend-migration.",
+    "Checklist 17 (modularity/withdrawal conditions) and 18 (merge) remain open."
+  ]
+}

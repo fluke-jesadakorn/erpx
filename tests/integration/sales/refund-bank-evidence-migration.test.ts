@@ -1,23 +1,25 @@
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
 import {postgresBackupTools} from '../../support/postgres-tools';
 import {expect,it,vi} from 'vitest';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {Pool} from 'pg';
-import {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import {LocalFileStore} from '@erpx/server-runtime/adapters/runtime/filesystem';
+import {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import {LocalFileStore} from '@erpx/platform-runtime-server/adapters/runtime/filesystem';
 import {env} from '../../support/runtime-env';
-import {migrateDatabase} from '@erpx/server-runtime/public/runtime/migrations';
-import {packageGrantStore} from '@erpx/server-commercial/public/package-grants';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {postInvoice,postJournal} from '@erpx/server-finance/public/finance';
-import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
-import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
+import {migrateDatabase} from '@erpx/platform-runtime-server/public/runtime/migrations';
+import {packageGrantStore} from '@erpx/commercial-server/public/package-grants';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {postInvoice} from '@erpx/finance-server/public/finance';
+import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
+import {completeCommerceReturn,decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/commerce-server/public/commerce';
+import {getOrder} from '@erpx/commerce-server/public/commerce-order-read';
 
 let db:PostgresDatabase,files:LocalFileStore;
 const key=()=>randomUUID();
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:db,files}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:db,files}),runtimeEnv:async()=>env}));
 
 function native(error:unknown):{code?:string;constraint?:string;message?:string}{
  let value=error;for(let count=0;count<6&&value&&typeof value==='object';count++){if('code' in value&&value.code==='23514')return {code:'23514',constraint:'constraint' in value&&typeof value.constraint==='string'?value.constraint:undefined,message:'message' in value&&typeof value.message==='string'?value.message:undefined};if(!('cause' in value))break;value=value.cause;}return {};
@@ -64,12 +66,12 @@ async function zeroLedgerSalesCompany() {
     ]);
     const scope:WorkContext['scope']=scopeKind==='department'?{kind:'department',holdingId:'h001',holdingSlug:'test',holdingName:'Test',companyId:company,branchId:branch,departmentId:department,departmentSlug:department,departmentName:'Native Sales team'}:scopeKind==='branch'?{kind:'branch',holdingId:'h001',holdingSlug:'test',holdingName:'Test',companyId:company,branchId:branch,branchSlug:branch,branchName:'Native service branch'}:{kind:'holding',holdingId:'h001',holdingSlug:'test',holdingName:'Test',companyId:company};
     const context:WorkContext={userId,assignmentId,role,companyId:company,branchId:scopeKind==='holding'?null:branch,departmentId:scopeKind==='department'?department:null,holdingId:'h001',holdingSlug:'test',holdingName:'Test',name,email:`${name}@example.test`,assignmentScope:scopeKind,inherited:false,modules:[],assignments:[],workspaces:[],scope};
-    const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');
+    const {loadIamAuthority}=await import('@erpx/identity-access-server/public/iam-store');
     context.iam=await loadIamAuthority(db,company,userId,role);
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),salesManager=await actor('sales-manager','sales_manager'),treasury=await actor('treasury','treasury');
-  const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');
+  const {positionSchema}=await import('@erpx/organization-server/public/organization');const {savePosition}=await import('../../support/helpers/organization-positions');const {installStaffLevels}=await import('../../support/helpers/organization-levels');
   await installStaffLevels(db,owner,key());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),key())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[salesManager,3],[treasury,4]] as const){
@@ -86,7 +88,7 @@ async function zeroLedgerSalesCompany() {
 }
 
 async function zeroSalesEnvelope(actor:WorkContext){
-  const {salesPostingSetup}=await import('@erpx/server-finance/public/sales-posting-setup');
+  const {salesPostingSetup}=await import('@erpx/finance-server/public/sales-posting-setup');
   const view=await salesPostingSetup(actor);
   expect(view.available).toBe(true);expect(view.contextKey).toMatch(/^[a-f0-9]{64}$/);
   if(!view.contextKey)throw Error('Actual current Sales posting context required');
@@ -94,7 +96,7 @@ async function zeroSalesEnvelope(actor:WorkContext){
 }
 
 async function zeroSalesReferences(z:Awaited<ReturnType<typeof zeroLedgerSalesCompany>>){
-  const api=await import('@erpx/server-finance/public/sales-posting-setup'),chartBody={...await zeroSalesEnvelope(z.reviewer),input:{name:'Original first Sales service chart',baseCurrency:'THB',accountingBasis:'IFRS'}},chartKey=key(),chart=await api.createSalesPostingChart(z.reviewer,chartBody,chartKey);
+  const api=await import('@erpx/finance-server/public/sales-posting-setup'),chartBody={...await zeroSalesEnvelope(z.reviewer),input:{name:'Original first Sales service chart',baseCurrency:'THB',accountingBasis:'IFRS'}},chartKey=key(),chart=await api.createSalesPostingChart(z.reviewer,chartBody,chartKey);
   expect(await api.createSalesPostingChart(z.reviewer,chartBody,chartKey)).toEqual(chart);
   const accounts={receivableAccountId:'',revenueAccountId:'',taxAccountId:'',cashAccountId:''};
   for(const [field,category,controlKind] of [['receivableAccountId','asset','receivable'],['revenueAccountId','revenue','none'],['taxAccountId','liability','none'],['cashAccountId','asset','bank']] as const){
@@ -122,7 +124,7 @@ async function actualSalesServiceBeforeGoods(noVat=false){
   const approved=await api.decideSalesPostingDefaults(z.manager,String(draft.id),{contextKey:(await zeroSalesEnvelope(z.manager)).contextKey,input:{expectedVersion:1,action:'approve',reason:'Original independent reviewer approves actual service defaults before the goods extension'}},key());
   const customer=await saveMaster(z.owner,'parties',null,{kind:'customer',code:key(),name:'Actual pre-existing service customer'},key()),service=await saveMaster(z.owner,'products',null,{sku:key(),name:'Actual pre-existing installed service',itemType:'service',price:'100',taxBps:noVat?0:700},key()),order=await saveOrder(z.owner,null,orderSchema.parse({kind:'sales',partyId:customer.id,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId:service.id,quantity:'1',price:'100',taxBps:noVat?0:700}]}),key()),orderId=String(order.id);
   await transitionOrder(z.owner,orderId,{expectedVersion:1,action:'submit'},key());await transitionOrder(z.salesManager,orderId,{expectedVersion:2,action:'approve'},key());await assignZeroSales(z,'order',orderId,'confirmed',z.owner);
-  const lineId=String((await getOrder(z.owner,orderId)).lines[0].id),completion=await fulfillOrder(z.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Original customer accepted the actual pre-existing service',lines:[{lineId,quantity:'1'}]}),key());
+  const lineId=String((await getOrder(z.owner,orderId)).lines[0].id),completion=await seedCommerceFulfillment(db, z.owner,orderId,fulfillmentSchema.parse({expectedVersion:3,date:'2026-09-03',completionMode:'service',evidenceNote:'Original customer accepted the actual pre-existing service',lines:[{lineId,quantity:'1'}]}),key());
   await assignZeroSales(z,'order',orderId,'invoicing',z.owner);
   const invoiced=await invoiceFulfillment(z.owner,String(completion.fulfillmentId),{expectedVersion:1,date:'2026-09-04',dueDate:'2026-09-10'},key()),invoiceId=String(invoiced.invoiceId);
   await assignZeroSales(z,'invoice',invoiceId,'draft',z.manager);await postInvoice(z.manager,invoiceId,{expectedVersion:1,periodId:refs.period.id,entryDate:'2026-09-04'},key());await assignZeroSales(z,'invoice',invoiceId,'posted',z.treasury);
@@ -138,7 +140,7 @@ async function actualSalesServiceBeforeGoods(noVat=false){
 }
 
 async function companyServiceCashFixture(twoBanks=false){
-  const s=await actualSalesServiceBeforeGoods(),finance=await import('@erpx/server-finance/public/finance');
+  const s=await actualSalesServiceBeforeGoods(),finance=await import('@erpx/finance-server/public/finance');
   const banks=[s.refs.accounts.cashAccountId],payments=[s.paymentId];
   let reversedBank:string|null=null,reversedPayment:string|null=null;
   async function createBank(name:string){
@@ -159,8 +161,8 @@ async function companyServiceCashFixture(twoBanks=false){
   }
   const detail=await getOrder(s.z.owner,s.orderId),returned=await requestCommerceReturn(s.z.owner,s.fulfillmentId,returnRequestSchema.parse({expectedVersion:2,date:'2026-09-06',reason:'Actual Company service customer independently accepts the whole credit',lines:[{lineId:String(detail.fulfillmentLines[0].id),quantity:'1'}]}),key());
   const reviewed=await decideCommerceReturn(s.z.salesManager,String(returned.id),'approve',{expectedVersion:1,reason:'Different actual Sales manager reviews the original completed service'},key());
-  expect(reviewed.stockJournalId).toBeUndefined();await assignZeroSales(s.z,'journal',String(reviewed.creditJournalId),'draft',s.z.manager);await postJournal(s.z.manager,String(reviewed.creditJournalId),key(),{expectedVersion:1});
-  const completed=await completeCommerceReturn(s.z.manager,String(returned.id),{expectedVersion:2},key()),refundId=String(completed.refundId),refunds=await import('@erpx/server-finance/public/refunds');
+  expect(reviewed.stockJournalId).toBeUndefined();await assignZeroSales(s.z,'journal',String(reviewed.creditJournalId),'draft',s.z.manager);await markFinanceJournalPosted(db,String(reviewed.creditJournalId),s.z.manager.userId);
+  const completed=await completeCommerceReturn(s.z.manager,String(returned.id),{expectedVersion:2},key()),refundId=String(completed.refundId),refunds=await import('@erpx/finance-server/public/refunds');
   expect(completed.refundMinor).toBe(twoBanks?7500:5000);
   const reviewer=await s.z.actor('independent-cash-source-reviewer','finance_approver');
   await refunds.approveRefund(reviewer,refundId,{expectedVersion:1,beneficiaryName:'Original fictional service customer',beneficiaryAccount:'FICTIONAL-SERVICE-REFUND',reason:'Independent original credit and settled receipt review'},key());
@@ -192,7 +194,7 @@ it('rejects invalid populated pre1057 bank consumption atomically and upgrades n
   // Original fictional Holding identity bootstrap only. Ledger, Company quote,
   // defaults, Service sources and bank evidence below use normal owner commands.
   await db.prepare("INSERT INTO beta_bootstrap(singleton,holding_id,owner_user_id,created_at) VALUES(1,'h001','fixture',1) ON CONFLICT(singleton) DO NOTHING").run();
-  const s=await companyServiceCashFixture(),refunds=await import('@erpx/server-finance/public/refunds'),finance=await import('@erpx/server-finance/public/finance');
+  const s=await companyServiceCashFixture(),refunds=await import('@erpx/finance-server/public/refunds'),finance=await import('@erpx/finance-server/public/finance');
   await s.z.store.apply({expectedVersion:0,idempotencyKey:key(),grant:{...s.z.grant,packageId:'finance',version:1,reason:'Separate actual generic Bank populated migration control',evidence:'test:refund-bank-pre1057-upgrade'}});
   const prepared=await refunds.prepareRefundInstruction(s.z.treasury,s.refundId,await s.input(s.banks[0],'50'),key()),instructionId=String(prepared.id);
   await refunds.exportRefundInstructions(s.z.treasury,{instructions:[{id:instructionId,expectedVersion:1}]},key());
@@ -306,7 +308,7 @@ it('preserves populated pre1058 manual Count history and restored source while a
   for(const file of (await readdir(resolve('migrations/postgres/holding-write'))).filter(file=>file.endsWith('.sql')&&Number(file.slice(0,4))<=1058)){await cp(resolve('migrations/postgres/holding-write',file),join(currentRoot,'holding-write',file));if(Number(file.slice(0,4))<=1057)await cp(resolve('migrations/postgres/holding-write',file),join(oldRoot,'holding-write',file));}
   await migrateDatabase(db,'holding-write',oldRoot);expect(await db.prepare("SELECT count(*)::int n FROM erpx_migrations WHERE name LIKE '1058_%'").first('n')).toBe(0);expect(await db.prepare("SELECT to_regclass('inventory_initial_physical_stock_sources') name").first('name')).toBeNull();expect((await db.prepare("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'inventory_%initial%physical%' ORDER BY proname").all()).results).toEqual([]);
   await db.prepare("INSERT INTO beta_bootstrap(singleton,holding_id,owner_user_id,created_at) VALUES(1,'h001','fixture',1) ON CONFLICT(singleton) DO NOTHING").run();
-  const s=await actualSalesServiceBeforeGoods(),initial=await import('@erpx/server-inventory/public/initial-physical-stock-count'),inventory=await import('@erpx/server-inventory/public/inventory-counts'),goods=await import('@erpx/server-commerce/public/sales-goods-posting-setup');
+  const s=await actualSalesServiceBeforeGoods(),initial=await import('@erpx/inventory-server/public/initial-physical-stock-count'),inventory=await import('@erpx/inventory-server/public/inventory-counts'),goods=await import('@erpx/commerce-server/public/sales-goods-posting-setup');
   const variance=await s.refs.api.createSalesPostingAccount(s.z.reviewer,{...await zeroSalesEnvelope(s.z.reviewer),input:{chartId:s.refs.chart.id,code:'5400',name:'Real pre-upgrade current-period Stock variance',category:'expense',currency:'THB',isControl:false,controlKind:'none'}},key()),mapping=await goods.salesGoodsPostingSetup(s.z.reviewer);if(!mapping.contextKey)throw Error('Actual current Goods mapping context required');
   expect(await db.prepare('SELECT category,currency,status,control_kind FROM finance_accounts WHERE id=? AND company_id=?').bind(variance.id,s.z.company).first()).toEqual({category:'expense',currency:'THB',status:'active',control_kind:'none'});
   await goods.initializeSalesGoodsPostingSetup(s.z.reviewer,{expectedVersion:0,contextKey:mapping.contextKey,expectedSalesDefaults:mapping.expectedSalesDefaults,chartId:s.refs.chart.id,currency:'THB',reason:'Normal reviewed Goods mapping for populated manual Count migration control',...s.mapping},key());

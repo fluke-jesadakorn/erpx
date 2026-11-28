@@ -1,0 +1,134 @@
+import 'server-only';
+import {headers} from 'next/headers';
+import {idNameEmailByUserIdsSql} from './iam-probe-sql';
+import {auditFeedSql,newestPageSql} from './read-tail-family-r27';
+import {iamServiceNodeSubquerySql} from './read-tail-family-r34';
+import {createIamServiceReads} from '@erpx/identity-access-server/application/iam-service-reads';
+import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/organization-server/public/identity-snapshot-sources';
+import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/people-payroll-server/public/identity-snapshot-sources';
+import {iamDb} from '@erpx/identity-access-server/public/iam-db';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import {runtimeEnv} from '@erpx/platform-runtime-server/public/runtime';
+import type {PostgresDatabase} from '@erpx/platform-runtime-server/public/runtime/postgres';
+import {hasPermission} from '@erpx/identity-access-ui/lib/permissions';
+import {planIdentityControlRead,PC_MFA_ENABLED} from './native-control-read-plan';
+import type {RoleRevision} from '@erpx/identity-access-ui/lib/iam';
+import {type IamActor,iamPermission} from '@erpx/identity-access-server/domain/iam-actor';
+import {createAssertCompanyScope} from '@erpx/identity-access-server/application/iam-context';
+const assertCompanyScope=createAssertCompanyScope({error:(...args)=>new ApiError(...args)});
+import {requirePermission} from '@erpx/identity-access-server/public/iam-permissions';
+import {nativeDirectoryConfig,nativeRole,nativeRoleIds} from './native-lane-11/client';
+import {nativeSessionList} from '@erpx/identity-access-server/public/native-session-list';
+const organizationSources=organizationSnapshotSources(),peoplepayrollSources=peoplepayrollSnapshotSources();
+export async function iamAuditHistory(db: PostgresDatabase, actor: IamActor, search: string, cursor?: string) { return readService(db).iamAuditHistory(actor, search, cursor); }
+export async function listIamRoles(db: PostgresDatabase, companyId: string): Promise<RoleRevision[]> { return readService(db).listIamRoles(companyId); }
+export async function iamOverview(db: PostgresDatabase, actor: IamActor, self = false) { return readService(db).iamOverview(actor, self); }
+function readService(database: PostgresDatabase) {
+    const db = iamDb(database);
+    let environment: Awaited<ReturnType<typeof runtimeEnv>>;
+    const control = async () => environment ??= await runtimeEnv();
+    // Published role catalog reads are owned by the native lane 11 axum
+    // service. These ports are strict transports: no SQL and no fallback.
+    return createIamServiceReads({ error: (...args) => new ApiError(...args), now: Date.now, companyScope: assertCompanyScope, authorize: requirePermission, readyControl: async () => { await control(); }, roleIds: async (companyId) => (await nativeRoleIds(undefined, companyId)).map(id => ({id})), role: async (companyId, id) => nativeRole(undefined, id, companyId), auditPage: async (actor, needle, after) => (await db
+            .prepare(`${auditFeedSql(' AND (action ILIKE ? OR actor_id ILIKE ? OR target_id ILIKE ?) AND (?::bigint IS NULL OR created_at<? OR (created_at=? AND id<?))')} ORDER BY created_at DESC,id DESC LIMIT 101`)
+            .bind(actor.companyId, needle, needle, needle, after?.createdAt ?? null, after?.createdAt ?? null, after?.createdAt ?? null, after?.id ?? null)
+            .all<Record<string, unknown>>()).results, assignments: async (actor, self) => {
+            const table = actor.platform ? "platform_assignments" : "assignments";
+            return (await db
+                .prepare(`SELECT a.*,${actor.platform ? "'platform' AS company_id,'platform' AS scope_kind,NULL AS scope_node_id,NULL AS branch_id," : ""} m.status identity_status,m.login_policy,m.person_id,m.connection_id,m.version identity_version,mp.group_id,mapping_group.name group_name,mp.connection_id mapping_connection_id,i.enabled directory_enabled,i.observed_at,c.status connection_status FROM ${table} a LEFT JOIN iam_members m ON m.user_id=a.user_id AND m.company_id=? LEFT JOIN iam_identities i ON i.id=m.identity_id LEFT JOIN iam_connections c ON c.id=m.connection_id LEFT JOIN iam_mappings mp ON a.source='directory' AND mp.id=a.source_id AND mp.company_id=${actor.platform ? "'platform'" : "a.company_id"} LEFT JOIN iam_groups mapping_group ON mapping_group.connection_id=mp.connection_id AND mapping_group.external_id=mp.group_id WHERE ${actor.platform ? "true" : "a.company_id=?"} AND (?::text IS NULL OR a.user_id=?) ${!actor.platform && actor.scopeKind !== "holding" ? `AND (a.scope_node_id=? OR a.scope_node_id IN (${iamServiceNodeSubquerySql(organizationSources.iam_service_organization_nodes_from,'branch-first')}))` : ""} ORDER BY a.user_id,a.role`)
+                .bind(actor.companyId, ...(actor.platform ? [] : [actor.companyId]), self ? actor.userId : null, self ? actor.userId : null, ...(!actor.platform && actor.scopeKind !== "holding"
+                ? [actor.scopeNodeId, actor.scopeNodeId, actor.companyId]
+                : []))
+                .all<Record<string, unknown>>()).results;
+        },
+        people: async (actor) => {
+            return (await db
+                .prepare(`SELECT id,user_id,legal_name ${peoplepayrollSources.iam_service_hr_people_from} WHERE company_id=? AND status='active' AND (? OR EXISTS(SELECT 1 ${peoplepayrollSources.iam_service_hr_engagements_e_from} WHERE e.person_id=hr_people.id AND e.status='active' AND (e.branch_id=? OR e.department_id=?)))`)
+                .bind(actor.companyId, actor.scopeKind === "holding", actor.scopeNodeId, actor.scopeNodeId)
+                .all<{
+                id: string;
+                user_id: string | null;
+                legal_name: string;
+            }>()).results;
+        },
+        nodes: async (actor) => {
+            return (await db
+                .prepare(`SELECT id,display_name,kind,branch_id ${organizationSources.iam_service_organization_nodes_from} WHERE company_id=? AND status='active' AND (? OR id=? OR branch_id=?) ORDER BY kind,display_name`)
+                .bind(actor.companyId, actor.scopeKind === "holding", actor.scopeNodeId, actor.scopeNodeId)
+                .all()).results;
+        },
+        migrations: async (actor) => {
+            return (await db
+                .prepare(newestPageSql('iam_migrations', 100))
+                .bind(actor.companyId)
+                .all()).results;
+        },
+        users: async (ids) => {
+            const env = await control();
+            return (await env.CONTROL_DB.prepare(idNameEmailByUserIdsSql(ids))
+                .bind(...ids)
+                .all<{
+                id: string;
+                name: string;
+                email: string;
+            }>()).results;
+        },
+        mfaStatus: async (actor) => {
+            const env = await control();
+            const plan = await planIdentityControlRead(PC_MFA_ENABLED,[actor.userId]);
+            return await env.CONTROL_DB.prepare(plan.sql)
+                .bind(...plan.values)
+                .first<{
+                enabled: boolean;
+            }>();
+        },
+        campaigns: async (actor) => { return (await db.prepare(newestPageSql('iam_access_review_campaigns', 50)).bind(actor.companyId).all<Record<string, unknown>>()).results; },
+        campaignItems: async (actor, accessReviewCampaigns) => { return (await db.prepare(`SELECT i.* FROM iam_access_review_items i JOIN iam_access_review_campaigns c ON c.id=i.campaign_id WHERE c.company_id=? AND c.id IN (${accessReviewCampaigns.map(() => "?").join(",")}) ORDER BY c.created_at DESC,i.user_id,i.role`).bind(actor.companyId, ...accessReviewCampaigns.map(c => String(c.id))).all<Record<string, unknown>>()).results; },
+        // Owned by the native lane 45 axum service. Strict transport only:
+        // no SQL, no TypeScript fallback; a missing or failed native read throws.
+        sessions: async (actor) => {
+            let incoming: Pick<Headers, 'get'> | undefined;
+            try { incoming = await headers(); }
+            catch { /* no request scope: the actor's holding selects the target */ }
+            return nativeSessionList(actor, incoming);
+        },
+        // Directory configuration rows are owned by the native lane 11 axum
+        // service. This port is a strict transport only: no SQL and no fallback.
+        connections: async (actor, canManageDirectory) =>
+            nativeDirectoryConfig(undefined, "connections", canManageDirectory, actor.companyId),
+        groups: async (actor) =>
+            nativeDirectoryConfig(undefined, "groups", false, actor.companyId),
+        previews: async (actor) =>
+            nativeDirectoryConfig(undefined, "previews", false, actor.companyId),
+        mappings: async (actor) => {
+            return (await db
+                .prepare(`SELECT * FROM iam_mappings WHERE company_id=? ${["holding", "platform"].includes(actor.scopeKind) ? "" : `AND (scope_node_id=? OR scope_node_id IN (${iamServiceNodeSubquerySql(organizationSources.iam_service_organization_nodes_from,'branch-first')}))`} ORDER BY id`)
+                .bind(actor.companyId, ...(["holding", "platform"].includes(actor.scopeKind)
+                ? []
+                : [actor.scopeNodeId, actor.scopeNodeId, actor.companyId]))
+                .all()).results;
+        },
+        identities: async (actor) =>
+            nativeDirectoryConfig(undefined, "identities", false, actor.companyId),
+        reviews: async (actor) => {
+            return (await db
+                .prepare(`SELECT * FROM iam_reviews WHERE company_id=? AND (? OR created_by=? OR (? AND kind IN ('assignment.grant','invitation.authorize','mapping.activate','policy.grant') AND (payload->>'scopeNodeId'=? OR ${actor.platform ? "false AND ?::text IS NULL AND ?::text IS NULL" : `payload->>'scopeNodeId' IN (${iamServiceNodeSubquerySql(organizationSources.iam_service_organization_nodes_from,'company-first')})`}))) ORDER BY created_at DESC LIMIT 100`)
+                .bind(actor.companyId, hasPermission(actor, iamPermission(actor, "iam.review")) &&
+                ["holding", "platform"].includes(actor.scopeKind), actor.userId, hasPermission(actor, iamPermission(actor, "iam.review")), actor.scopeNodeId, actor.companyId, actor.scopeNodeId)
+                .all()).results;
+        },
+        recentAudit: async (actor) => {
+            return (await db
+                .prepare(`${auditFeedSql('')} ORDER BY created_at DESC,id DESC LIMIT 100`)
+                .bind(actor.companyId)
+                .all()).results;
+        },
+        active: async (r, now) => {
+            return await db
+                .prepare("SELECT iam_assignment_active(?,?) active")
+                .bind(r.id, now)
+                .first<{
+                active: boolean;
+            }>();
+        } });
+}

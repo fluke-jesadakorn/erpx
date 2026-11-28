@@ -3,22 +3,22 @@ import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname, resolve, join } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
-import { assertHospitalityDevelopmentTarget } from "@erpx/feature-shared/lib/hospitality-seed-target";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
-import { pmsAccountKeys, records, record, plusDays } from "@erpx/server-pms/public/rules/pms-model";
+import { assertHospitalityDevelopmentTarget } from "@erpx/platform-shared-ui/lib/hospitality-seed-target";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { businessRoles } from "@erpx/identity-access-ui/lib/business-roles";
+import { pmsAccountKeys, records, record, plusDays } from "@erpx/pms-server/public/rules/pms-model";
 import { mock } from 'bun:test';
 // CLI has no page renderer. Fail closed if a domain command attempts navigation.
 mock.module('next/navigation',()=>({forbidden:()=>{throw new Error('CLI_PAGE_FORBIDDEN');},redirect:()=>{throw new Error('CLI_REDIRECT_FORBIDDEN');}}));
-const {pmsAccountCategory,pmsAccountCode}=await import("@erpx/server-finance/public/hospitality-accounting");
-import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
-const { pmsCommand, loadPms, drainPms }=await import("../../packages/server-pms/src/public/pms");
-const {posCommand}=await import("@erpx/server-pos/public/pos-core");
-const {one}=await import("@erpx/server-runtime/public/runtime/sql");
-const { saveMaster }=await import("@erpx/server-commerce/public/commerce");
-const { countSchema, saveCount, transitionCount }=await import("@erpx/server-inventory/public/inventory-counts");
-const { importBankStatement }=await import("@erpx/server-finance/public/finance");
-const {confirmManualRate,manualRateSchema}=await import("@erpx/server-finance/public/company-money");
+const {pmsAccountCategory,pmsAccountCode}=await import("@erpx/finance-server/public/hospitality-accounting");
+import { PostgresDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+const { pmsCommand, loadPms, drainPms }=await import("../../modules/pms/server/src/public/pms");
+const {posSeedCommand}=await import("../../tests/support/helpers/pos-native-seed");
+const {one}=await import("@erpx/platform-runtime-server/public/runtime/sql");
+const { saveMaster }=await import("@erpx/commerce-server/public/commerce");
+const { seedOpeningStock }=await import("../../tests/support/helpers/inventory-opening-stock-seed");
+const { importBankStatement }=await import("@erpx/finance-server/public/finance");
+const {confirmManualRate,manualRateSchema}=await import("@erpx/finance-server/public/company-money");
 
 const manifestPath=process.env.ERPX_DATABASE_MANIFEST;
 if(!manifestPath)throw new Error('ERPX_DATABASE_MANIFEST_REQUIRED');
@@ -29,8 +29,9 @@ const jobsPath=join(dirname(manifestPath),'databases-jobs.json');
 const jobsManifest=JSON.parse(await readFile(jobsPath,'utf8'));
 assertHospitalityDevelopmentTarget(jobsManifest,process.env.ERPX_ENVIRONMENT??process.env.NODE_ENV);
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
-const {getRuntime,closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
+const {getRuntime,closeRuntime}=await import("@erpx/platform-runtime-server/adapters/runtime/env");
 const env=getRuntime(),db=new PostgresDatabase({connectionString:jobsManifest.databases.H001_DB,max:2}),control=env.CONTROL_DB;
+const seedPos=posSeedCommand(db);
 
 const namespace='hospitality-demo-v1',directory=resolve('.scratch/dev/hospitality');
 await mkdir(directory,{recursive:true,mode:0o700});
@@ -123,9 +124,8 @@ try {
             await pms(`clean:${number}`,'task.complete',{id:task,checked:checklist},actors.housekeeper);
             await pms(`inspect:${number}`,'task.inspect',{id:task},actors.inspector);
           }
-          const count=(await step(`${prefix}:opening-count`,countSchema.parse({warehouseId:warehouse,countDate:clean?date:plusDays(date,-1),reason:'Fictional independently counted opening ingredient stock',lines:fixture.restaurant.openingStock.map(s=>({productId:products[s.sku],countedQuantity:String(s.quantityMilli/1000),unitCost:(s.valueMinor/s.quantityMilli*10).toFixed(2)}))}),(input,key)=>saveCount(admin,null,countSchema.parse(input),key))).id;
-          for(const [action,version] of [['submit',1],['approve',2],['post',3]] as const)await step(`${prefix}:count-${action}`,{expectedVersion:version,attachmentSetIds:[],reason:'Independent fictional opening stock review'},(input,key)=>transitionCount(action==='submit'?admin:finance,count,action,input as {expectedVersion:number;attachmentSetIds:string[];reason:string},key));
-          const pos=async(label:string,op:string,input:unknown,actor=admin)=>step(`${prefix}:${label}`,input,(body,key)=>posCommand(db,actor,op,body,key));
+          const openingLines=fixture.restaurant.openingStock.map(s=>({productId:products[s.sku],countedQuantity:String(s.quantityMilli/1000),unitCost:(s.valueMinor/s.quantityMilli*10).toFixed(2)})),count=(await step(`${prefix}:opening-count`,{warehouseId:warehouse,lines:openingLines},()=>seedOpeningStock(db,warehouse,openingLines))).id;
+          const pos=async(label:string,op:string,input:unknown,actor=admin)=>step(`${prefix}:${label}`,input,(body,key)=>seedPos(actor,op,body,key));
           let register:string;
           if(clean)register=String((await pos('bootstrap-pos','settings.bootstrap',{mode:'restaurant',registerName:'Rehearsal kitchen',warehouseId:warehouse})).registerId);
           else register=(await pos('register','register.save',{name:'Scenario kitchen',warehouseId:warehouse,mode:'restaurant'})).id;
@@ -164,8 +164,7 @@ try {
           await pms('checkout','stay.check_out',{id:departing.stay},actors.frontDesk);await pms('close-checkout-guestAccount','guest_account.close',{id:departing.guestAccount},actors.hotelCashier);
           const minibar=(await pms('minibar-item','item.save',{name:'Fictional minibar water',kind:'minibar',productId:products.WATER,warehouseId:warehouse,price:4000})).id;
           await pms('minibar-charge','minibar.charge',{itemId:minibar,quantity:1,roomId:rooms['202'],guestAccountId:inhouse.guestAccount,reason:'Fictional water consumed'},actors.hotelCashier);
-          const linenCount=(await step(`${prefix}:linen-count`,countSchema.parse({warehouseId:warehouse,countDate:date,reason:'Fictional independently counted bath linen',lines:[{productId:products.LINEN,countedQuantity:'100',unitCost:'30.00'}]}),(input,key)=>saveCount(admin,null,countSchema.parse(input),key))).id;
-          for(const [action,version] of [['submit',1],['approve',2],['post',3]] as const)await step(`${prefix}:linen-count-${action}`,{expectedVersion:version,attachmentSetIds:[],reason:'Independent fictional linen stock review'},(input,key)=>transitionCount(action==='submit'?admin:finance,linenCount,action,input as {expectedVersion:number;attachmentSetIds:string[];reason:string},key));
+          const linenLines=[{productId:products.LINEN,countedQuantity:'100',unitCost:'30.00'}],linenCount=(await step(`${prefix}:linen-count`,{warehouseId:warehouse,lines:linenLines},()=>seedOpeningStock(db,warehouse,linenLines))).id;
           // Preserve earlier practice records while making the linen stock example distinct from drinks.
           const oldLinen=state.steps[`${prefix}:linen-item`]?.result?.id;
           if(oldLinen){const old=record(await loadPms(db,admin,property),'item',oldLinen);if(old.data.name==='Fictional linen'&&old.data.productId===products.WATER)await pms('legacy-linen-label','item.save',{id:old.id,name:'Legacy fictional stock stand-in',kind:'linen',productId:products.WATER,warehouseId:warehouse,price:old.data.price});}

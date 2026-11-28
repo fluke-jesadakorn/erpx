@@ -1,0 +1,2 @@
+export {manufacturingSourceAccess,manufacturingWorkspacePurchases,manufacturingPurchaseControls,requireManufacturingPurchasedRead,withManufacturingPurchasedCommand,manufacturingPurchaseSourceReadLocks,manufacturingPurchaseSpecificationRows,manufacturingPurchaseOrderRows,manufacturingPurchaseRecordRows} from "@erpx/manufacturing-server/adapters/purchases";
+export type {ManufacturingPurchaseControls,ManufacturingPurchaseTarget} from "@erpx/manufacturing-server/adapters/purchases";

@@ -1,0 +1,1 @@
+export type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentRepository,PortalAttachmentStageScope,PortalAttachmentStagedSource,PortalAttachmentRecoverySource} from "@erpx/legal-server/application/portal-attachments";

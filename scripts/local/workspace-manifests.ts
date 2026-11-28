@@ -1,9 +1,10 @@
+import { workspaceManifests } from "./workspace-paths";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, symlinkSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import ts from "typescript";
 import { ensureWorkspaceProxySource } from "./workspace-proxy-source";
 import { refreshWorkspaceStyles } from "../assets/workspace-styles";
-import { appDefinitions } from "@erpx/contracts/apps";
+import { appDefinitions } from "@erpx/platform-contracts/apps";
 
 const root = resolve(import.meta.dirname, "../.."), rootPackage = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 function files(directory: string): string[] {
@@ -11,7 +12,7 @@ function files(directory: string): string[] {
   return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap(entry => entry.isDirectory() && !["node_modules", ".next", ".build", ".cache"].includes(entry.name)
     ? files(`${directory}/${entry.name}`) : entry.isFile() ? [`${directory}/${entry.name}`] : []);
 }
-const allNames = new Set(readdirSync(resolve(root, "packages"), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `@erpx/${entry.name}`));
+const allNames = workspaceManifests(root);
 const version = (name: string) => rootPackage.dependencies[name] ?? rootPackage.devDependencies[name];
 function dependencies(sourceFiles: string[]) {
   const result: Record<string, string> = {};
@@ -32,8 +33,8 @@ function dependencies(sourceFiles: string[]) {
   }
   return Object.fromEntries(Object.entries(result).sort(([a], [b]) => a.localeCompare(b)));
 }
-for (const name of [...allNames].sort()) {
-  const directory = `packages/${name.slice("@erpx/".length)}`, sourceFiles = files(`${directory}/src`), exports: Record<string, string> = {};
+for (const [name, directory] of [...allNames].sort(([a], [b]) => a.localeCompare(b))) {
+  const sourceFiles = files(`${directory}/src`), exports: Record<string, string> = {};
   for (const file of sourceFiles) {
     const path = file.slice(`${directory}/src/`.length), extension = extname(path);
     const key = /\.[cm]?[jt]sx?$/.test(extension) ? path.slice(0, -extension.length) : path;
@@ -47,7 +48,7 @@ for (const name of [...allNames].sort()) {
 }
 for (const app of [...appDefinitions, { id: "compat", directory: "apps/compat", package: "@erpx/app-compat" }]) {
   const directory = app.directory, deps = dependencies(files(`${directory}/src`));
-  Object.assign(deps, { next: version("next"), react: version("react"), "react-dom": version("react-dom"), "@erpx/contracts": "workspace:*" });
+  Object.assign(deps, { next: version("next"), react: version("react"), "react-dom": version("react-dom"), "@erpx/platform-contracts": "workspace:*" });
   writeFileSync(resolve(root, directory, "package.json"), JSON.stringify({ name: app.package, version: "0.0.0", private: true, type: "module", scripts: {
     dev: app.id === "compat" ? "bun run --cwd ../.. dev" : `bun run --cwd ../.. dev -- --app=${app.id}`,
     build: `bun ../../scripts/local/app-task.ts build --app=${app.id}`,

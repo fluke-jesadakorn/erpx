@@ -1,2 +1,0 @@
-export {attachmentReadRoute,attachmentReadSource,attachmentPrivateReadSourceLocks,attachmentReadChanged,assertAttachmentReadRoute,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,withRemainingAttachmentContentRead} from '@erpx/server-files/adapters/private-attachment-reads';
-export type {AttachmentReadRoute,AttachmentReadSource} from '@erpx/server-files/adapters/private-attachment-reads';

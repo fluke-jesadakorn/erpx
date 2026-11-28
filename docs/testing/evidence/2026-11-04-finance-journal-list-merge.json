@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance journal list merged; the Finance owner remains partial for the sales-invoice workspace",
+  "capability": "finance-journal-list-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 38,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/38",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T22:30:42Z",
+    "base": "a773ccbf57fbcb95064192c660333c7d5f37fd3d",
+    "head": "3eadee4d6cff421020ea823d99fde0b6f5771407",
+    "mergeCommit": "78769a698ece0a18d0b13883be1fd94ed038e2e9",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "finance/journals",
+    "changedFiles": 21,
+    "adapter": "packages/server-finance/src/adapters/journal_list.rs",
+    "filter": "packages/server-finance/src/adapters/initial_stock_journal_filter.sql",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-journal-list.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/accounting/screen.tsx"
+  },
+  "verification": {
+    "postgres": "finance.rust-journal-list-postgres.integration 2/2",
+    "sync": "finance.initial-stock-journal-filter.unit 1/1",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 786 suites), rust-runtime-foundation 6/6",
+    "browser": "Desktop and mobile normal-auth journal pages: 20 posted journals, payment/invoice rows THB 100.00 debit/credit; pageErrors 0. Native API stopped -> zero rows and native read error; restart -> 20 rows."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 17,
+    "workflowsPartial": 1,
+    "workflowsMerged": 17,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "Source-specific journal posting commands remain with their owning modules; manual and Field-origin writers are native.",
+    "The initial-stock filter is embedded generated SQL kept in sync by a unit test.",
+    "The Finance app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

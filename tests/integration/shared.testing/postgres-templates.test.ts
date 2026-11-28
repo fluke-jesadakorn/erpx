@@ -61,7 +61,7 @@ it('invalidates templates for migration bytes, fixture revision, and PostgreSQL 
   expect(await schemaFingerprint(temporary,'control','18.6:UTC','profile-b')).not.toBe(key);
   expect(await schemaFingerprint(temporary,'control','18.6:Asia/Bangkok','profile-a')).not.toBe(key);
   await writeFile(file,'CREATE TABLE example(id bigint);');expect(await schemaFingerprint(temporary,'control','18.6:UTC','profile-a')).not.toBe(key);
-  const inputs=['fixtures/example.ts','tests/support/helper.ts','scripts/seed/example.ts','packages/server-runtime/src/adapters/runtime/migrations.ts','packages/server-runtime/src/adapters/runtime/postgres.ts','packages/server-runtime/src/adapters/runtime/resources.ts','packages/server-runtime/src/adapters/runtime/read-metrics.ts','bun.lock'];
+  const inputs=['fixtures/example.ts','tests/support/helper.ts','scripts/seed/example.ts','platform/runtime/server/src/adapters/runtime/migrations.ts','platform/runtime/server/src/adapters/runtime/postgres.ts','platform/runtime/server/src/adapters/runtime/resources.ts','platform/runtime/server/src/adapters/runtime/read-metrics.ts','bun.lock'];
   for(const input of inputs){const path=join(temporary,input);await mkdir(join(path,'..'),{recursive:true});await writeFile(path,'original input');}
   const fixture=await postgresFixtureFingerprint(temporary);
   for(const input of inputs){const path=join(temporary,input);await writeFile(path,'changed input');expect(await postgresFixtureFingerprint(temporary)).not.toBe(fixture);await writeFile(path,'original input');}

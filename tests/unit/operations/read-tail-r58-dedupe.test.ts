@@ -1,0 +1,111 @@
+import { readFile, readdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { describe, it, expect, vi } from 'vitest';
+vi.mock('server-only', () => ({}));
+import { OPERATIONS_PROJECTION_FROM_SOURCE } from '../../../modules/operations/server/src/adapters/read-tail-r58-sources';
+import { operationsOverdueAlertSql } from '../../../modules/operations/server/src/adapters/executive-task-cohort';
+import { finalRootOwnerProjectionSources as collaborationProjectionSources } from '@erpx/collaboration-server/public/final-root-owner-projection-sources';
+import { OPERATIONS_VIEWER_CLOCK_SQL } from '../../../modules/operations/server/src/adapters/workforce-actor-scope-source';
+import { OPERATIONS_STAFF_TASK_HEAD, OPERATIONS_TASK_LIST_HEAD } from '../../../modules/operations/server/src/adapters/read-tail-r53-sources';
+import { OPERATIONS_EXISTS_HEAD } from '../../../modules/operations/server/src/adapters/read-tail-r55-sources';
+import { OPERATIONS_SELECT_1_FROM } from '../../../modules/operations/server/src/adapters/read-tail-r56-sources';
+import { OPERATIONS_OWNER_PROJECTION_ID_HEAD } from '../../../modules/operations/server/src/adapters/read-tail-r57-sources';
+
+const srcRoot = resolve(__dirname, '../../../modules/operations/server/src');
+const src = (name: string) => readFile(new URL(`../../../modules/operations/server/src/adapters/${name}`, import.meta.url), 'utf8');
+const sha = (sql: string) => createHash('sha256').update(sql).digest('hex');
+const binds = (sql: string) => (sql.match(/\?/g) ?? []).length;
+
+/** Independent pre-r58 byte oracles captured from the two retired inline
+ *  `SELECT ${projection} FROM (${source})` heads. Literal hashes are fixed
+ *  before the routing edit; rendered hashes are the fully composed statements. */
+const retired = {
+  overdue: `SELECT 1 FROM (${collaborationProjectionSources.staff_notifications}) n WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert' AND n.record_id=t.id AND n.record_version=t.version AND n.id LIKE 'staff-task-alert-overdue-%'`,
+  overdueSep: `SELECT 1 FROM (${collaborationProjectionSources.staff_notifications}) n\n        WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert'\n          AND n.record_id=t.id AND n.record_version=t.version\n          AND n.id LIKE 'staff-task-alert-overdue-%'`,
+};
+const oracle = {
+  overdueHead: '0d69ea1c928405751c599b96582660d07be5516fb1a878f3ef4f8b618d0573a9',
+  overdue: 'bab603b35a63be4d7101ffbfbac45287debd6892f5bca7882dab046c5d69db79',
+  overdueSep: 'cf621cddcabc9d1cd3a5d9bf19b0473af76e37700a264b3ec158de6d98bc5d6e',
+};
+
+describe('operations read-tail r58 projection-source head consolidation', () => {
+  it('renders the shared head byte-identically and stays read-only', () => {
+    expect(OPERATIONS_PROJECTION_FROM_SOURCE('x', 'y')).toBe('SELECT x FROM (y)');
+    expect(OPERATIONS_PROJECTION_FROM_SOURCE('x', 'y').match(/SELECT /g)).toHaveLength(1);
+    expect(binds(OPERATIONS_PROJECTION_FROM_SOURCE('x', 'y'))).toBe(0);
+    expect(OPERATIONS_PROJECTION_FROM_SOURCE('x', 'y')).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|INSERT\s+INTO|DELETE\s+FROM/i);
+    const overdueHead = OPERATIONS_PROJECTION_FROM_SOURCE('1', collaborationProjectionSources.staff_notifications);
+    expect(overdueHead).toBe(`SELECT 1 FROM (${collaborationProjectionSources.staff_notifications})`);
+    expect(sha(overdueHead)).toBe(oracle.overdueHead);
+  });
+
+  it('renders the retired overdue projection byte-identically through the oracles', () => {
+    const overdue = operationsOverdueAlertSql('1', 't');
+    expect(overdue).toBe(retired.overdue);
+    expect(sha(overdue)).toBe(oracle.overdue);
+    const overdueSep = operationsOverdueAlertSql('1', 't', '\n        ', '\n          ');
+    expect(overdueSep).toBe(retired.overdueSep);
+    expect(sha(overdueSep)).toBe(oracle.overdueSep);
+
+    for (const sql of [overdue, overdueSep]) {
+      expect(binds(sql)).toBe(1);
+      expect(sql).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|INSERT\s+INTO|DELETE\s+FROM/i);
+      // The embedded native projection contributes its own SELECT; the head adds exactly one.
+      expect(sql.match(/SELECT /g)).toHaveLength(2);
+    }
+  });
+
+  it('keeps one head definition and routes the remaining family file through it', async () => {
+    const [helper, staff, cohort] = await Promise.all([
+      src('read-tail-r58-sources.ts'), src('staff-facts.ts'), src('executive-task-cohort.ts'),
+    ]);
+    expect(helper.match(/export const OPERATIONS_PROJECTION_FROM_SOURCE/g)).toHaveLength(1);
+    expect(helper).toContain('`SELECT ${projection} FROM (${source})`');
+    expect(cohort.match(/OPERATIONS_PROJECTION_FROM_SOURCE\(/g)).toHaveLength(1);
+    expect(cohort).toContain("from './read-tail-r58-sources'");
+    expect(cohort).not.toContain('SELECT ${projection} FROM (');
+    expect(cohort).toContain('${OPERATIONS_PROJECTION_FROM_SOURCE(projection, collaborationProjectionSources.staff_notifications)} n${whereSep}WHERE');
+    // The staff-level reader migrated to the native lane-28 owner: no SQL remains.
+    expect(staff).not.toContain('OPERATIONS_PROJECTION_FROM_SOURCE(');
+    expect(staff).toContain('nativeLane28StaffLevels');
+  });
+
+  it('leaves viewer clock, native reads, locks and prior r53/r55/r56/r57 helpers untouched', async () => {
+    const [scope, native, alert, locks, r53, r55, r56, r57] = await Promise.all([
+      src('workforce-actor-scope-source.ts'), src('native-operations-read.ts'),
+      src('work-task-alert-purchases.ts'), src('project-source-locks.ts'),
+      src('read-tail-r53-sources.ts'), src('read-tail-r55-sources.ts'),
+      src('read-tail-r56-sources.ts'), src('read-tail-r57-sources.ts'),
+    ]);
+    expect(OPERATIONS_VIEWER_CLOCK_SQL).toContain('clock_timestamp()');
+    expect(scope).toContain('OPERATIONS_VIEWER_CLOCK_SQL');
+    expect(r53).toContain('OPERATIONS_STAFF_TASK_HEAD');
+    expect(OPERATIONS_TASK_LIST_HEAD).toBe('SELECT t.id,t.title,t.state,t.');
+    expect(OPERATIONS_STAFF_TASK_HEAD('t')).toBe('SELECT 1 FROM staff_tasks t ');
+    expect(r55).toContain('OPERATIONS_EXISTS_HEAD');
+    expect(OPERATIONS_EXISTS_HEAD()).toBe('EXISTS(SELECT 1 FROM ');
+    expect(r56).toContain('OPERATIONS_SELECT_1_FROM');
+    expect(OPERATIONS_SELECT_1_FROM('staff_tasks t')).toBe('SELECT 1 FROM staff_tasks t');
+    expect(r57).toContain('OPERATIONS_OWNER_PROJECTION_ID_HEAD');
+    expect(OPERATIONS_OWNER_PROJECTION_ID_HEAD).toBe('SELECT "id","company_id",');
+    expect(native).toContain('OPERATIONS_RD_');
+    expect(alert).toContain('LOCK TABLE staff_tasks');
+    expect(locks).toContain('LOCK TABLE staff_tasks IN SHARE ROW EXCLUSIVE MODE');
+  });
+
+  it('retirement:ts-statements lowers the operations SELECT KPI below 62', async () => {
+    let total = 0;
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) await walk(p);
+        else if (entry.name.endsWith('.ts')) total += ((await readFile(p, 'utf8')).match(/SELECT /g) ?? []).length;
+      }
+    };
+    await walk(srcRoot);
+    expect(total).toBe(58);
+    expect(total).toBeLessThan(62);
+  });
+});

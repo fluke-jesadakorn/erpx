@@ -1,0 +1,17 @@
+import "server-only";
+import {hasPermission} from "@erpx/identity-access-ui/lib/permissions";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
+import {commercePackageEnforcementMode,readPurchasedAccess} from "@erpx/commercial-server/public/purchase-command-boundary";
+import {purchasedCapabilityPredicate} from "@erpx/commercial-server/public/purchased-capability-sql";
+import {landedCostPurchaseSourceRows,requireLandedCostPurchasedRead} from "@erpx/inventory-server/adapters/landed-cost-purchases";
+import {clockScopedPurchaseExistsSql,nativeRecordExistsSql,sourceScopeRowsSql,recordIdExistsSql} from './read-tail-sql';
+/** Actual source and purchase are checked before shared consumer limits. */
+export async function landedCostSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:"staff"|"inbox"|"records"){
+ const mode=await commercePackageEnforcementMode();if(mode!=="enforced"){if(mode==="shadow")await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:"supply.advanced-inventory"});return {where:"TRUE",args:[] as unknown[]};}
+ const id=surface==="staff"?"staff_notifications.record_id":surface==="inbox"?"e.source_id":"workspace_records.id",company=surface==="staff"?"staff_notifications.company_id":surface==="inbox"?"e.company_id":"workspace_records.company_id",relevant=surface==="records"?`${nativeRecordExistsSql('inventory_landed_costs','actual_landed_cost',id)}`:`${surface==="staff"?"staff_notifications.record_type":"e.source_type"}='landed_cost'`;
+ if(actor.departmentId||!hasPermission(actor,"finance.read"))return {where:`NOT (${relevant})`,args:[]};
+ const visible=clockScopedPurchaseExistsSql('landed_source',sourceScopeRowsSql(landedCostPurchaseSourceRows,'s'),id,company,'finance.read',["supply.advanced-inventory","supply.receiving","supply.stock"].map(capability=>purchasedCapabilityPredicate("landed_source.company_id",capability,"history","landed_source_clock.now_ms")).join(" AND "));
+ return {where:`(NOT (${relevant}) OR ${visible})`,args:[actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role]};
+}
+export async function requireLandedCostWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){if(await commercePackageEnforcementMode()==="disabled")return;if(await database.prepare(recordIdExistsSql("inventory_landed_costs")).bind(id).first())await requireLandedCostPurchasedRead(database,actor,id);}

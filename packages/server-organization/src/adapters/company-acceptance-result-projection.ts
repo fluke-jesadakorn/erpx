@@ -1,1 +1,0 @@
-export const companyAcceptanceResultProjection="SELECT 'company-acceptance-result-'||?||'-'||requested_by,company_id,requested_by,'company_business_acceptance',company_id,version,?,? FROM company_business_acceptance WHERE company_id=?";

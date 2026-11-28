@@ -1,0 +1,1 @@
+export {staffNotificationSourceTypes} from '@erpx/collaboration-server/domain/staff-notifications';export type {StaffNotification} from '@erpx/collaboration-server/domain/staff-notifications';export {hasStaffNotificationResolver,listStaffNotifications,visibleNotifications,notificationsPage} from '@erpx/collaboration-server/adapters/staff-notifications';

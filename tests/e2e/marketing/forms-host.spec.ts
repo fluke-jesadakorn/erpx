@@ -150,8 +150,8 @@ test("isolated anonymous Forms host submits the published version and replays ex
     expect((await replayResponse.json()).data).toEqual(receipt);
 
     const observer = await createWorkflowUiObserver(visitor, testInfo, {
-      routeSource: "packages/feature-forms/src/routes/forms/[holdingSlug]/[formId]/page.tsx",
-      targetSource: "packages/feature-marketing/src/components/public-marketing-form.tsx",
+      routeSource: "products/forms/ui/src/routes/forms/[holdingSlug]/[formId]/page.tsx",
+      targetSource: "modules/marketing/ui/src/components/public-marketing-form.tsx",
       checks: [
         "published form and reviewed content render without authentication",
         "required consent is submitted with the published form version",

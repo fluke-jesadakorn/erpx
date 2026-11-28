@@ -1,0 +1,17 @@
+import "server-only";
+import { readTailR45AssignmentExistsSql } from './read-tail-r45-sql';
+
+/** Shared parameterized eligibility fragments for the Support read tail.
+ * One owner-local rendering keeps each call site byte-identical; the native
+ * readers remain the authority. */
+export const supportEligibleFlagSql = (predicate: string, alias: string) =>
+    `CASE WHEN ${readTailR45AssignmentExistsSql('m', `${predicate} AND m.user_id=?`)} THEN 1 ELSE 0 END ${alias}`;
+
+/** One parameterized assignment-access read witness shared by the Support ticket
+ * and incident read predicates. The active assignment/principal prefix and each
+ * caller's trailing scope/role clause render byte-identically; the native readers
+ * remain the authority. */
+export const supportAssignmentAccessSql = (alias: string, pad: string, tail: string) =>
+    readTailR45AssignmentExistsSql('g', `g.id=? AND g.user_id=? AND g.role=? AND g.company_id=${alias}.company_id
+${pad}AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+${tail}`);

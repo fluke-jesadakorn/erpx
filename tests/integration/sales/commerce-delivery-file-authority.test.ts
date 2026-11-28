@@ -1,20 +1,21 @@
-import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
+import {seedCommerceFulfillment} from "../../support/helpers/commerce-fulfillment-seed";
+import {fulfillmentSchema} from '@erpx/commerce-server/public/commerce';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
-import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {saveMaster,saveOrder,orderSchema,transitionOrder,fulfillOrder} from '@erpx/server-commerce/public/commerce';
-import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import { attachmentContent, attachmentLinkStatus, completeAttachmentUpload, createAttachmentSet, drainAttachmentScans, listAttachmentSets, reserveAttachmentFile } from "@erpx/server-files/public/attachments/service";
-import { attachmentBindingState } from "../../support/helpers/attachment-v2";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { loadIamAuthority } from "@erpx/identity-access-server/public/iam-store";
+import {assignFlowPrimary,resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/commerce-server/public/commerce';
+import {getOrder} from '@erpx/commerce-server/public/commerce-order-read';
+import { attachmentContent, attachmentLinkStatus, completeAttachmentUpload, createAttachmentSet, drainAttachmentScans, listAttachmentSets, reserveAttachmentFile } from "@erpx/files-server/public/attachments/service";
+import { attachmentBindingState, withdrawSeededAttachment } from "../../support/helpers/attachment-v2";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
 // Declared scanner adapter; intake, MIME sniffing, preview, source binding and
 // stock/GL commands are native. Compiled browser journeys use actual ClamAV.
-vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
+vi.mock("@erpx/files-server/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "Declared delivery scanner fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "Declared delivery scanner fixture", definitionUpdatedAt: Date.now() }),
 }));
@@ -58,7 +59,7 @@ it("lets the actual warehouse role upload scan and consume delivery evidence onc
   expect(await drainAttachmentScans(db, env.H001_FILES, uploaded.sourceId)).toBe(true);
   expect(await attachmentLinkStatus(db, warehouse, slot.attachmentLinkId)).toMatchObject({ sourceState: "available", previewAvailable: true, bindable: true });
   // A second open intent is excluded from this immutable delivery set.
-  await (await import("@erpx/server-files/public/attachments/service")).withdrawAttachmentLink(db, warehouse, pending.attachmentLinkId, "Only the receiver's clean final proof is used.", key());
+  await withdrawSeededAttachment(db, warehouse, pending.attachmentLinkId, "Only the receiver's clean final proof is used.", key());
   const command = key(), fulfillmentInput = { expectedVersion: 3, date: "2026-09-22", lines: [{ lineId, quantity: "1" }], evidenceIds: [], evidenceNote: "The fictional customer signed the warehouse delivery confirmation.", attachmentSetIds: [set.id] };
   // Fail after every owner write and its audit, proving a single commit boundary.
   const retainedTables=["commerce_orders","commerce_order_lines","commerce_stock","commerce_stock_moves","commerce_fulfillments","commerce_fulfillment_lines","commerce_fulfillment_evidence","inventory_ledger","inventory_order_reservations","inventory_lots","inventory_lot_balances","inventory_lot_moves","inventory_fulfillment_lot_allocations","finance_journals","finance_journal_lines","money_transaction_snapshots","attachment_sets","attachment_links","attachments","attachment_events","command_receipts","audit_events","outbox_events","command_assertions"];
@@ -70,13 +71,13 @@ it("lets the actual warehouse role upload scan and consume delivery evidence onc
   const before=await retainedState(),fault=`commerce_delivery_late_${command.replaceAll("-","")}`;
   await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'COMMERCE_DELIVERY_LATE_OUTBOX';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.command_id='${command}') EXECUTE FUNCTION ${fault}();`);
   try {
-    await expect(fulfillOrder(warehouse,orderId,fulfillmentSchema.parse(fulfillmentInput),command)).rejects.toThrow("COMMERCE_DELIVERY_LATE_OUTBOX");
+    await expect(seedCommerceFulfillment(db, warehouse,orderId,fulfillmentSchema.parse(fulfillmentInput),command)).rejects.toThrow("COMMERCE_DELIVERY_LATE_OUTBOX");
     expect(await retainedState()).toEqual(before);
     expect(await attachmentBindingState(db,set.id)).toMatchObject({set_state:"draft",link_state:"draft"});
     for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT command_id FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
   } finally {await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}();`);}
-  const delivered = await fulfillOrder(warehouse, orderId, fulfillmentSchema.parse(fulfillmentInput), command);
-  expect(await fulfillOrder(warehouse, orderId, fulfillmentSchema.parse(fulfillmentInput), command)).toEqual(delivered);
+  const delivered = await seedCommerceFulfillment(db, warehouse, orderId, fulfillmentSchema.parse(fulfillmentInput), command);
+  expect(await seedCommerceFulfillment(db, warehouse, orderId, fulfillmentSchema.parse(fulfillmentInput), command)).toEqual(delivered);
   const reloaded = await getOrder(warehouse, orderId);
   expect(reloaded.order).toMatchObject({ state: "fulfilled", version: 4 });
   expect(reloaded.lines[0].fulfilled_milli).toBe(1000);

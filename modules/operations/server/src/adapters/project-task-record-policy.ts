@@ -1,0 +1,31 @@
+import {participantSql} from '@erpx/workflow-server/public/approval-participant-projection';
+import {sourceAccessSql} from '@erpx/collaboration-server/public/social-source-policy';
+import {operationsActiveDelegationSql} from './task-delegation-source';
+import {approverJsonExistsSql} from './task-approver-access-source';
+import {operationsTableExists} from './identity-policy-version-guard';
+import {OPERATIONS_STAFF_TASK_HEAD} from './read-tail-r53-sources';
+
+/** SQL counterpart of the original task reader's participant and social-source
+ * policy, for consumers that must apply source policy before their own LIMIT. */
+function participantQuery(id:string,company:string,viewer:string){
+ const user=`${viewer}.user_id`;
+ const sql=`EXISTS(${OPERATIONS_STAFF_TASK_HEAD('project_task_record')}LEFT JOIN staff_projects parent_project ON parent_project.id=project_task_record.project_id
+ LEFT JOIN LATERAL (${operationsActiveDelegationSql('sd.delegate_user_id','sd','project_task_record.id','project_task_record.company_id',`${viewer}.now_ms`,' ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1')}) delegation ON TRUE
+ WHERE project_task_record.id=${id} AND project_task_record.company_id=${company} AND (
+ iam_same_person(project_task_record.creator_user_id,${user},project_task_record.company_id) OR iam_same_person(project_task_record.assignee_user_id,${user},project_task_record.company_id)
+ OR iam_same_person(delegation.delegate_user_id,${user},project_task_record.company_id) OR iam_same_person(parent_project.owner_user_id,${user},project_task_record.company_id)
+ OR ${operationsTableExists('staff_project_members m', `m.project_id=parent_project.id AND m.user_id=${user}`)}
+ OR ${approverJsonExistsSql('project_task_record','start',user)}
+ OR ${approverJsonExistsSql('project_task_record','completion',user)}
+ OR ${participantSql('task','project_task_record',user)})
+`;
+ return sql;
+}
+
+/** Original native Task participant policy, without repeating the conversation
+ * source gate. Consumers must compose its named current post-rights predicate. */
+export function taskParticipantReadPolicy(id:string,company:string,viewer:string){return `${participantQuery(id,company,viewer)})`;}
+export function projectTaskRecordPolicy(id:string,company:string,viewer:string){
+ const user=`${viewer}.user_id`;
+ return `${participantQuery(id,company,viewer)} AND NOT EXISTS(SELECT 1 FROM social_task_origins origin LEFT JOIN social_posts project_task_post ON project_task_post.id=origin.post_id WHERE origin.task_id=project_task_record.id AND (project_task_post.id IS NULL OR project_task_post.state<>'published' OR NOT (${sourceAccessSql('project_task_post',`${viewer}.assignment_id`,{userId:user,now:`${viewer}.now_ms`})}))))`;
+}

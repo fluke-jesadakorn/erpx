@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAccruals, type AccrualPorts } from "@erpx/server-finance/application/accruals";
-import { createCompanyTools, type CompanyToolPorts } from "@erpx/server-finance/application/company-tools";
-import { createAccrualPolicy, accrualScheduleSchema, type AccrualRow } from "@erpx/server-finance/domain/accruals";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { createAccruals, type AccrualPorts } from "@erpx/finance-server/application/accruals";
+import { createCompanyTools, type CompanyToolPorts } from "@erpx/finance-server/application/company-tools";
+import { createAccrualPolicy, accrualScheduleSchema, type AccrualRow } from "@erpx/finance-server/domain/accruals";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 const actor: WorkContext = { userId: 'reviewer', name: 'Reviewer', email: 'reviewer@example.test', assignmentId: 'assignment', role: 'finance_approver', companyId: 'company', branchId: null, departmentId: null, holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', scope: { kind: 'holding', holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', companyId: 'company' }, assignmentScope: 'holding', inherited: false, modules: ['finance'], assignments: [], workspaces: [] };
 const error = (status: number, code: string, message: string) => Object.assign(new Error(message), { status, code });
 function strict<T extends object>(facts: Partial<T>): T { return new Proxy(facts, { get(target, key) { if (!(key in target))

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Support incidents workflow merged; Support owner remains partial",
+  "capability": "support-incidents-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 22,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/22",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T19:30:20Z",
+    "base": "f156b255d4e4350095b63350c8c8cc865fddb2c5",
+    "head": "dbf67d68c2e2327990191f643e3b5042630735d1",
+    "mergeCommit": "ded61723c4e3638cc37b0bfef53a9a3b76ec19c7",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "support/incidents",
+    "changedFiles": 19,
+    "nativeWriter": "src/composition/src/support_incident_command.rs",
+    "http": "src/composition/src/support_incident_http.rs",
+    "transport": "packages/feature-support/src/adapters/server/native-support-incident.ts",
+    "excluded": ["support/feature-attachments", "support/sla-watch", "support/feature-support-sessions", "support/feature-capabilities"]
+  },
+  "verification": {
+    "postgres": "support.rust-support-incident-command-postgres.integration 3/3",
+    "unit": "erpx-server-support 19/19",
+    "transport": "support.native-support-incident-transport.unit 4/4",
+    "gates": "cargo clippy, typecheck, structure, architecture, docs, catalogue (33 modules, 774 suites), rust-runtime-foundation 6/6",
+    "browser": "Desktop and mobile normal-auth lifecycles create/start/update/mitigate/close, persisted closed v5 with five events, five receipts, five audit and five outbox rows; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 0,
+    "ownersTotal": 41,
+    "workflowsVerified": 8,
+    "workflowsPartial": 6,
+    "workflowsMerged": 8,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "Incident attachments, SLA watch, sessions and capabilities remain separate workflows.",
+    "The Support app logs React hydration console warnings; pageErrors stay 0.",
+    "The Support owner remains partial; this PR closes the incidents workflow only."
+  ]
+}

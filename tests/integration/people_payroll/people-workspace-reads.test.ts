@@ -1,14 +1,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { beforeAll, expect, it, vi } from "vitest";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { archivedPeopleDirectory, holdingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
-import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
-import { peopleWorkspaceData } from "@erpx/server-people_payroll/public/people-workspace";
-import { measureReads } from "@erpx/server-runtime/adapters/runtime/read-metrics";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { archivedPeopleDirectory, holdingPeopleDirectory } from "@erpx/organization-server/public/holding-people-directory";
+import { organizationAccessData } from "@erpx/organization-server/public/organization-access";
+import { peopleWorkspaceData } from "@erpx/people-payroll-server/public/people-workspace";
+import { measureReads } from "@erpx/platform-runtime-server/adapters/runtime/read-metrics";
 import { applyMigrations, env } from "../../support/runtime-env";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingBindingBySlug: async (slug: string) => {
     if (slug !== "test") throw new Error("HOLDING_NOT_FOUND");
     return { id: "h001", slug, displayName: "Test Holding" };

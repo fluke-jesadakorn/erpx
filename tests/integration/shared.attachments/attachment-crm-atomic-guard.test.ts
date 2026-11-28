@@ -1,19 +1,20 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import type { PreparedAttachmentBinding } from "@erpx/server-files/public/attachments/types";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { prepareAttachmentBinding } from "@erpx/files-server/public/attachments/service";
+import type { PreparedAttachmentBinding } from "@erpx/files-server/public/attachments/types";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {expenseFixture} from "../../support/helpers/expense-fixture";
 import {seedAttachmentSet,attachmentBindingState} from "../../support/helpers/attachment-v2";
-import {bindRecordAttachmentSet,attachmentContent} from "@erpx/server-files/public/attachments/service";
-import {createCRMLead,getCRMLead,changeCRMLead} from "@erpx/server-crm/public/crm";
-import {changeCRMIdentity} from "@erpx/server-crm/public/crm-identities";
-import {saveMaster} from '@erpx/server-commerce/public/commerce';
-import {createMarketingAsset} from "@erpx/server-marketing/public/marketing";
-import {changeMarketingCampaign} from "@erpx/server-marketing/public/marketing-campaigns";
-import {measureReads} from "@erpx/server-runtime/public/runtime/read-metrics";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {seedCrmQualifiedLead} from "../../support/helpers/crm-qualify-seed";
+import {bindRecordAttachmentSet,attachmentContent} from "@erpx/files-server/public/attachments/service";
+import {createCRMLead,getCRMLead} from "@erpx/crm-server/public/crm";
+import {changeCRMIdentity} from "@erpx/crm-server/public/crm-identities";
+import {saveMaster} from '@erpx/commerce-server/public/commerce';
+import {createMarketingAsset} from "@erpx/marketing-server/public/marketing";
+import {changeMarketingCampaign} from "@erpx/marketing-server/public/marketing-campaigns";
+import {measureReads} from "@erpx/platform-runtime-server/public/runtime/read-metrics";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 afterEach(()=>vi.unstubAllEnvs());
 
 const db = env.H001_DB;
@@ -216,7 +217,7 @@ describe("CRM attachment binding atomic authorization", () => {
 });
 
 async function packageGrant(company:string,packageId:"sales"|"sales-marketing",state:"active"|"draining"="active"){
- const {packageGrantStore,readCompanyPackageGrants}=await import("@erpx/server-commercial/public/package-grants"),prior=(await readCompanyPackageGrants(db,company)).find(row=>row.packageId===packageId);
+ const {packageGrantStore,readCompanyPackageGrants}=await import("@erpx/commercial-server/public/package-grants"),prior=(await readCompanyPackageGrants(db,company)).find(row=>row.packageId===packageId);
  return packageGrantStore(db,{authorize:async()=>({userId:"isolated-crm-files-provider"}),obligations:async()=>{throw Error("CRM_FILES_FIXTURE_CANNOT_INACTIVATE");}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:"Isolated original CRM Marketing Files purchase",evidence:"test:crm-marketing-files"}});
 }
 async function nativeCRM(){
@@ -228,11 +229,11 @@ async function heldBytes(sourceId:string,body:string){const objectKey=String(awa
 it("checks actual Sales-only CRM files without Marketing and retains draining held bytes and exact replay under current authority",async()=>{
  const {fixture:f,detail}=await nativeCRM(),account=String(detail.account_id),file=await seedAttachmentSet(db,f.owner,{targetType:"crm_account",targetId:account,componentKind:"record",purposeKey:"brief",expectedTargetVersion:1}),body="Original fictional CRM brief retained under Legal hold";await heldBytes(file.sourceId,body);vi.stubEnv("ERPX_COMMERCE_PACKAGE_ENFORCEMENT","enforced");
  await expect(bindRecordAttachmentSet(db,f.owner,file.setId,1,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await packageGrant(f.company,"sales");const command=key(),receipt=await bindRecordAttachmentSet(db,f.owner,file.setId,1,command);await packageGrant(f.company,"sales","draining");expect(await bindRecordAttachmentSet(db,f.owner,file.setId,1,command)).toEqual(receipt);expect(await (await attachmentContent(db,env.H001_FILES,f.owner,file.linkId,"original")).object.text()).toBe(body);
- const {readCompanyPackageGrants}=await import("@erpx/server-commercial/public/package-grants");expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(["sales"]);await db.prepare("UPDATE assignments SET revoked_at=1 WHERE id=?").bind(f.owner.assignmentId).run();await expect(bindRecordAttachmentSet(db,f.owner,file.setId,1,command)).rejects.toMatchObject({status:404});await expect(attachmentContent(db,env.H001_FILES,f.owner,file.linkId,"original")).rejects.toMatchObject({status:404});
+ const {readCompanyPackageGrants}=await import("@erpx/commercial-server/public/package-grants");expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(["sales"]);await db.prepare("UPDATE assignments SET revoked_at=1 WHERE id=?").bind(f.owner.assignmentId).run();await expect(bindRecordAttachmentSet(db,f.owner,file.setId,1,command)).rejects.toMatchObject({status:404});await expect(attachmentContent(db,env.H001_FILES,f.owner,file.linkId,"original")).rejects.toMatchObject({status:404});
 });
 
 it("rolls back CRM opportunity file binding on a final actual contact lineage change with unchanged original opportunity version",async()=>{
- const {fixture:f,lead,detail}=await nativeCRM(),foreign=await nativeCRM();f.tie.role="sales_manager";f.tie.branchId=null;f.tie.departmentId=null;f.tie.assignmentId=await f.grant(f.tie,"sales_manager");const customer=String((await saveMaster(f.owner,"parties",null,{kind:"customer",code:key(),name:"Reviewed native CRM customer"},key())).id);await changeCRMIdentity(f.tie,{action:"link-finance",accountId:detail.account_id,customerId:customer,expectedVersion:1,evidence:"Independent review of the real original customer"},key());await changeCRMLead(f.owner,String(lead.id),{action:"qualify",expectedVersion:1,customerId:customer,expectedValue:"25",closeDate:"2026-12-20",reason:"Original actual Company prospect qualified"},key());
+ const {fixture:f,lead,detail}=await nativeCRM(),foreign=await nativeCRM();f.tie.role="sales_manager";f.tie.branchId=null;f.tie.departmentId=null;f.tie.assignmentId=await f.grant(f.tie,"sales_manager");const customer=String((await saveMaster(f.owner,"parties",null,{kind:"customer",code:key(),name:"Reviewed native CRM customer"},key())).id);await changeCRMIdentity(f.tie,{action:"link-finance",accountId:detail.account_id,customerId:customer,expectedVersion:1,evidence:"Independent review of the real original customer"},key());await seedCrmQualifiedLead(db,{companyId:f.company,ownerId:f.owner.userId,leadId:String(lead.id),customerId:customer,expectedValue:"25",closeDate:"2026-12-20",reason:"Original actual Company prospect qualified"});
  const id=String(await db.prepare("SELECT id FROM crm_opportunities WHERE lead_id=?").bind(lead.id).first("id")),file=await seedAttachmentSet(db,f.owner,{targetType:"crm_opportunity",targetId:id,componentKind:"record",purposeKey:"brief",expectedTargetVersion:1}),command=key(),fault=`crm_file_source_${key().replaceAll("-","")}`;vi.stubEnv("ERPX_COMMERCE_PACKAGE_ENFORCEMENT","enforced");await packageGrant(f.company,"sales");
  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE crm_leads SET contact_id='${foreign.detail.contact_id}' WHERE id='${lead.id}';RETURN NEW;END;$$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}();`);
  try{await expect(bindRecordAttachmentSet(db,f.owner,file.setId,1,command)).rejects.toMatchObject({code:"CRM_ATTACHMENT_CHANGED"});}finally{await db.prepare(`DROP TRIGGER ${fault} ON command_receipts`).run();await db.prepare(`DROP FUNCTION ${fault}()`).run();}
@@ -248,7 +249,7 @@ it("rolls back CRM account Files and immutable receipts after deferred current I
 
 it("requires the Marketing addon for actual creative files while preserving retained campaign settlement and exact creative retry",async()=>{
  const f=await expenseFixture(),owner={...f.owner,modules:["marketing"]};await db.prepare("UPDATE assignments SET modules_json='[\"marketing\"]' WHERE id=?").bind(owner.assignmentId).run();const asset=await createMarketingAsset(owner,{kind:"content",name:"Reviewed fictional creative source",configuration:{},preview:{headline:"Declared synthetic content"}},key()),campaign=await changeMarketingCampaign(owner,{action:"create",code:`M${key().slice(0,8)}`,name:"Original retained campaign"},key()),file=await seedAttachmentSet(db,owner,{targetType:"marketing_asset",targetId:String(asset.id),componentKind:"record",purposeKey:"source",expectedTargetVersion:1}),evidence=await seedAttachmentSet(db,owner,{targetType:"marketing_campaign",targetId:String(campaign.id),componentKind:"record",purposeKey:"source",expectedTargetVersion:1}),body="Private creative source retained with original Legal hold";await heldBytes(file.sourceId,body);vi.stubEnv("ERPX_COMMERCE_PACKAGE_ENFORCEMENT","enforced");await packageGrant(f.company,"sales");await expect(bindRecordAttachmentSet(db,owner,file.setId,1,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await packageGrant(f.company,"sales-marketing");const command=key(),receipt=await bindRecordAttachmentSet(db,owner,file.setId,1,command),next=await seedAttachmentSet(db,owner,{targetType:"marketing_asset",targetId:String(asset.id),componentKind:"record",purposeKey:"source",expectedTargetVersion:2});await packageGrant(f.company,"sales-marketing","draining");
- expect(await bindRecordAttachmentSet(db,owner,file.setId,1,command)).toEqual(receipt);expect(await (await attachmentContent(db,env.H001_FILES,owner,file.linkId,"original")).object.text()).toBe(body);await expect(bindRecordAttachmentSet(db,owner,next.setId,2,key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});const newCreative=await seedAttachmentSet(db,owner,{targetType:"marketing_campaign",targetId:String(campaign.id),componentKind:"record",purposeKey:"creative",expectedTargetVersion:1,mediaType:"image/png"});await expect(bindRecordAttachmentSet(db,owner,newCreative.setId,1,key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});await bindRecordAttachmentSet(db,owner,evidence.setId,1,key());expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:"bound",link_state:"bound"});const {readCompanyPackageGrants}=await import("@erpx/server-commercial/public/package-grants");expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId).sort()).toEqual(["sales","sales-marketing"]);
+ expect(await bindRecordAttachmentSet(db,owner,file.setId,1,command)).toEqual(receipt);expect(await (await attachmentContent(db,env.H001_FILES,owner,file.linkId,"original")).object.text()).toBe(body);await expect(bindRecordAttachmentSet(db,owner,next.setId,2,key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});const newCreative=await seedAttachmentSet(db,owner,{targetType:"marketing_campaign",targetId:String(campaign.id),componentKind:"record",purposeKey:"creative",expectedTargetVersion:1,mediaType:"image/png"});await expect(bindRecordAttachmentSet(db,owner,newCreative.setId,1,key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});await bindRecordAttachmentSet(db,owner,evidence.setId,1,key());expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:"bound",link_state:"bound"});const {readCompanyPackageGrants}=await import("@erpx/commercial-server/public/package-grants");expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId).sort()).toEqual(["sales","sales-marketing"]);
 });
 
 it("rechecks original Marketing module selection after deferred file effects and preserves exact retry without broadening authority",async()=>{

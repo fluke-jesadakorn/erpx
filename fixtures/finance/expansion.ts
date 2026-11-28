@@ -1,11 +1,11 @@
 import { seedExpenseCompany } from "../expenses/company";
-import type { SqlDatabase, FileStore } from "@erpx/server-runtime/adapters/runtime/types";
-import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
+import type { SqlDatabase, FileStore } from "@erpx/platform-runtime-server/adapters/runtime/types";
+import { setFinanceCompanyTool } from "@erpx/finance-server/public/finance-company-tools";
 import {
   prepareBookRule,
   decideBookRule,
   bookRuleSchema,
-} from "@erpx/server-finance/public/finance-books";
+} from "@erpx/finance-server/public/finance-books";
 import {
   prepareBudgetEdition,
   budgetEditionSchema,
@@ -16,67 +16,68 @@ import {
   decideFinancePlan,
   snapshotFinancialReport,
   exportFinancialReport,
-} from "@erpx/server-finance/public/finance-planning";
-import {createJournal,createJournalSchema,postJournal,postInvoice,importBankStatement,createPeriod,beginClose,closePeriod,calculateCloseReconciliations,trialBalance} from '@erpx/server-finance/public/finance';
+} from "@erpx/finance-server/public/finance-planning";
+import {seedFinanceJournal} from '../../tests/support/helpers/finance-journal-seed';
+import {postInvoice,importBankStatement,createPeriod,calculateCloseReconciliations,trialBalance} from '@erpx/finance-server/public/finance';
 import {
   createBankCsvMapping,
   bankCsvMappingSchema,
   importMappedBankCsv,
   proposeBankMatchGroup,
   decideBankMatchGroup,
-} from "@erpx/server-finance/public/finance-bank-automation";
+} from "@erpx/finance-server/public/finance-bank-automation";
 import {
   prepareCollectionCase,
   decideCollectionCase,
   reviseCollectionCase,
-} from "@erpx/server-finance/public/finance-collections";
+} from "@erpx/finance-server/public/finance-collections";
 import {
   prepareBusinessContract,
   businessContractSchema,
   prepareRecognitionRun,
   decideBusinessContract,
   decideRecognitionRun,
-} from "@erpx/server-finance/public/finance-business-contracts";
+} from "@erpx/finance-server/public/finance-business-contracts";
 import {
   prepareBillingCorrection,
   decideBillingCorrection,
   billingCorrectionSchema,
-} from "@erpx/server-finance/public/finance-billing-corrections";
+} from "@erpx/finance-server/public/finance-billing-corrections";
 import {
   prepareInstrument,
   decideInstrument,
   prepareInstrumentRun,
   decideInstrumentRun,
   instrumentEditionSchema,
-} from "@erpx/server-finance/public/finance-instruments";
+} from "@erpx/finance-server/public/finance-instruments";
 import {
   createAsset,
   activateAsset,
   assetSchema,
-} from "@erpx/server-finance/public/finance-assets";
+} from "@erpx/finance-server/public/finance-assets";
 import {
   prepareAssetPolicy,
   decideAssetPolicy,
   prepareAssetPolicyRun,
   decideAssetPolicyRun,
-} from "@erpx/server-finance/public/finance-asset-policies";
+} from "@erpx/finance-server/public/finance-asset-policies";
 import {
   prepareAccountingProfile,
   decideAccountingProfile,
-} from "@erpx/server-finance/public/accounting-profiles";
+} from "@erpx/finance-server/public/accounting-profiles";
 import {
   prepareYearClosing,
   decideYearClosing,
-} from "@erpx/server-finance/public/finance-reporting";
+} from "@erpx/finance-server/public/finance-reporting";
 import {
   prepareGroupReportEdition,
   decideGroupReportEdition,
   groupReportEditionExport,
-} from "@erpx/server-finance/public/finance-group-editions";
+} from "@erpx/finance-server/public/finance-group-editions";
 import {
   scheduleFinanceDraft,
   drainFinanceDueDrafts,
-} from "@erpx/server-finance/public/finance-due-drafts";
+} from "@erpx/finance-server/public/finance-due-drafts";
 const key = () => crypto.randomUUID();
 type Row = Record<string, string | number | null>;
 /** Synthetic source-owned rehearsal. All amounts are stated in the companion test.
@@ -204,18 +205,15 @@ export async function seedFinanceExpansionRehearsal(
     .bind(f.period)
     .run();
   const close = async (x: typeof f, id: string) => {
-    const prepared = await beginClose(x.reviewer, id, key());
-    await closePeriod(
-      x.manager,
-      id,
-      {
-        expectedVersion: Number(prepared.version),
-        attachmentSetIds: [],
-        proof:
-          "Independent retained GL, bank and source-owner reconciliation for synthetic engineering close",
-      },
-      key(),
-    );
+    // The native period-close command owns this transition; seed its persisted
+    // state so retained fixture assertions exercise the closed period without a
+    // retired TypeScript close writer.
+    await db
+      .prepare(
+        "UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=?",
+      )
+      .bind(x.manager.userId, Date.now(), id)
+      .run();
   };
   const statement = async (
     date: string,
@@ -575,21 +573,20 @@ export async function seedFinanceExpansionRehearsal(
   );
   const cashLines = [];
   for (const amount of ["60.01", "39.99"]) {
-    const j = await createJournal(
-      preparer,
-      createJournalSchema.parse({
-        chartId: f.chart,
-        periodId: september,
-        entryDate: "2026-09-04",
-        currency: "THB",
-        lines: [
-          { accountId: f.accounts.cash, debit: amount, credit: "0" },
-          { accountId: f.accounts.revenue, debit: "0", credit: amount },
-        ],
-      }),
-      key(),
-    );
-    await postJournal(approver, String(j.id), key(), { expectedVersion: 1 });
+    const j = await seedFinanceJournal(db, {
+      companyId: preparer.companyId,
+      chartId: f.chart,
+      periodId: september,
+      entryDate: "2026-09-04",
+      currency: "THB",
+      key: key(),
+      createdBy: preparer.userId,
+      status: "posted",
+      lines: [
+        { accountId: f.accounts.cash, debit: amount, credit: "0" },
+        { accountId: f.accounts.revenue, debit: "0", credit: amount },
+      ],
+    });
     cashLines.push(
       String(
         await db

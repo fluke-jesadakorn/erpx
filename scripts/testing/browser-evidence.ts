@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition } from '@erpx/platform-contracts/apps';
 import { chmod, copyFile, lstat, mkdir, open, readdir, realpath } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 

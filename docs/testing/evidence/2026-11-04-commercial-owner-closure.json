@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Commercial now has an owner-local Company package overview and purchase-admission read, an owner-local HTTP router, strict private-loopback Next transport, and a fail-closed provider package-page SSR/API cutover. Shared composition mounting, package writes in this HTTP surface, the five billing-oriented acceptance workflows and browser acceptance remain open.",
+  "capability": "commercial-company-package-overview",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "7125323db",
+  "scope": {
+    "workflows": [],
+    "workflowBoundary": "No acceptance-catalogue commercial workflow is claimed. commercial/invoices, commercial/entitlements, commercial/feature-catalog-plans, commercial/feature-subscriptions and commercial/feature-grace-recovery remain billing-owned and unverified in Rust. This slice advances the owner foundation: the current catalogue, Company grants/history, command-CAS revision and capability admission decisions.",
+    "domain": "Typed CompanyPackageOverview, CompanyPurchaseAdmission and CompanyCapabilityAdmission contracts. The overview carries the catalogue definitions, current Company grants/history, the same package-grant revision used by command CAS, billing mode and observation time. Admission carries the exact PackageDecision and allowed-by-mode observation without a reusable command witness.",
+    "application": "validate_purchase_request centralizes the bounded capability policy. company_package_overview reads the current Company facts, rejects any fact belonging to another Company, derives package_grant_revision and returns the catalogue snapshot. CompanyPurchaseAdmissionPort exposes read-only admission decisions. No command, receipt, audit/outbox event or packagedefinition is created by these reads.",
+    "adapters": "PgCompanyPurchaseReader retains its serializable transaction, Commercial source table locks and Company advisory lock. inspect_admission reuses the existing inspect path and projects the witness-free admission response. The overview uses the existing Company-scoped read plus package_grant_revision. No cross-owner SQL or new schema is introduced.",
+    "http": "Owner-local GET routes for /api/v1/holdings/{holding_slug}/commercial/companies/{company_id}/packages and /purchase-admission. Exact Host/Holding targets, bounded and percent-decoded capability/purpose/mode query parsing, duplicate/unknown/control-character rejection, CompanyId validation, private/no-store/no-referrer/nosniff responses and bounded BusinessError status mapping. The backend receives typed transport facts and must supply the current Account/Platform authority, serializable owner unit and rendered context.",
+    "transport": "packages/server-commercial/src/adapters/native-company-packages.ts validates ERPX_NATIVE_COMMERCIAL_CONFIG (loopback HTTP only, reserved ports rejected through the shared policy, exact HTTPS Holding origin, unique hosts/slugs/ids, 250..30000 ms, bounded holdings), resolves by exact holdingId and incoming Host, forwards the actual session cookie and Provider assignment/context headers, bounds the response to 2 MiB, rejects redirects/malformed JSON/foreign Company/duplicate packages or grants/context drift and maps owner failures to explicit API errors.",
+    "ssr": "The provider Company packages page resolves the selected/first Company on the server, reads the native overview directly, seeds CompanyPackageManager with the exact snapshot and keeps the retained Provider context boundary. The package API GET route now requires the native Commercial transport. Unset or malformed ERPX_NATIVE_COMMERCIAL_CONFIG returns 503 NATIVE_COMMERCIAL_UNAVAILABLE and never falls back to companyPackageLifecycle.overview.",
+    "purchaseAndIdentity": "The Next page/route still requires the normal Account session and current Platform Commercial authority through the retained provider()/requirePlatformContext preflight. The transport forwards the session and current Provider assignment; the composition backend must re-check current Platform Commercial authority and the selected Company on its own owner transaction. A Company package grant never supplies Platform permission.",
+    "notClaimed": "No browser or authenticated page render, shared composition mount, package preview/apply command cutover, grant write, idempotency receipt, audit/outbox effect, legacy-grant migration change, billing workflow, provider/payment behavior or production acceptance."
+  },
+  "changedFiles": [
+    ".env.example",
+    "packages/server-commercial/Cargo.toml",
+    "packages/server-commercial/package.json",
+    "packages/server-commercial/src/adapters/company_packages_http.rs",
+    "packages/server-commercial/src/adapters/mod.rs",
+    "packages/server-commercial/src/adapters/native-company-packages.ts",
+    "packages/server-commercial/src/adapters/postgres_purchases.rs",
+    "packages/server-commercial/src/adapters/provider-commercial.ts",
+    "packages/server-commercial/src/application/purchases.rs",
+    "packages/server-commercial/src/domain/company_access.rs",
+    "packages/server-commercial/src/domain/mod.rs",
+    "packages/server-commercial/src/domain/packages.rs",
+    "packages/server-commercial/src/public/provider-commercial.ts",
+    "packages/server-commercial/src/public/purchases.rs",
+    "packages/feature-commercial/src/components/company-package-manager.tsx",
+    "packages/feature-admin/src/routes/provider/commercial/packages/page.tsx",
+    "tests/catalogue/suite-manifest.json",
+    "tests/integration/commercial/rust-company-packages-postgres.test.rs",
+    "tests/unit/commercial/native-company-packages-transport.test.ts",
+    "tests/unit/commercial/provider-commercial-transport.test.ts",
+    "tests/unit/commercial/rust-company-packages.test.rs"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "set -a; . ./.env.local; set +a; cargo test -p erpx-server-commercial --locked",
+      "result": "30 passed, 0 failed, 0 ignored across 5 targets",
+      "targets": {
+        "lib": "0 passed",
+        "company_packages": "6 passed (catalogue/revision overview, foreign-Company rejection, bounded requests, witness-free admission serialization, target configuration and actual loopback router)",
+        "company_packages_postgres": "4 passed (Company-scoped overview and rollback, admission policy/modes, serializable transaction requirement, and actual router reads over PostgreSQL)",
+        "package_capabilities": "7 passed (existing)",
+        "purchase_postgres": "13 passed (existing)"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-commercial --all-targets --locked --no-deps",
+      "result": "pass"
+    },
+    "format": {
+      "command": "rustfmt --edition 2024 --check on the changed Commercial owner and test files",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "commercial.rust-company-packages-postgres.integration",
+      "fixture": "ERPX_TEST_ADMIN_URL from local .env.local on 127.0.0.1:5432 with disposable erpx_dev_rust_* databases, migrated Holding-write schema and real Commercial audit/history fixture rows",
+      "cases": [
+        "The overview returns only the selected Company grant and history, the full checked-in catalogue, the exact package_grant_revision, sandbox billing mode and observation time; a foreign grant is absent.",
+        "A grant update inside the owner transaction is visible to the next overview and rolls back, leaving state/version/revision unchanged on committed readback.",
+        "Admission returns allowed decisions for active grants, allows expired active grants only for settle-existing, denies new work after expiry, permits shadow/disabled observation and allows history from a retained right without exposing PRIVATE_GRANT_EVIDENCE or a command witness.",
+        "Empty capability requests fail with COMMERCIAL_CAPABILITIES_REQUIRED; a reader outside a transaction or inside READ COMMITTED fails closed.",
+        "The actual owner-local HTTP router reads the overview and admission over migrated PostgreSQL, including a foreign-Company path that returns only that Company source."
+      ],
+      "negativeCoverage": "foreign Company facts, uncommitted readback rollback, expired NewWork, retained-history purpose, shadow/disabled modes, empty capability list, missing transaction, weak isolation and rejected duplicate/unknown/control-character HTTP query fields."
+    },
+    "httpRouter": {
+      "tests": "6 unit tests; the loopback case covers overview 200, duplicate query 422, admission 200 with purpose/mode, percent-decoded capability 200, missing/duplicate/unknown/control-character query 422, invalid CompanyId 422, unknown Host 404 and backend conflict 409. The PostgreSQL integration suite additionally drives the same router through a real PgUnitOfWork backend.",
+      "limit": "The router test uses a recording backend and an ephemeral 127.0.0.1 listener; it does not prove the shared composition backend."
+    },
+    "typescript": {
+      "unit": "ERPX_SELECTED_TEST_FILES=[tests/unit/commercial/provider-commercial-transport.test.ts,tests/unit/commercial/native-company-packages-transport.test.ts] vitest --config tests/config/vitest.unit.config.mts: 23 passed (18 existing + 5 new)",
+      "typechecks": [
+        "tsc --noEmit -p packages/server-commercial/tsconfig.json: pass",
+        "tsc --noEmit -p packages/feature-commercial/tsconfig.json: pass",
+        "tsc --noEmit -p packages/feature-admin/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass",
+        "tsc --noEmit -p apps/admin/tsconfig.json: pass",
+        "tsc --noEmit -p apps/account/tsconfig.json: pass"
+      ],
+      "eslint": "targeted new transport/provider/page/manager/test files: no errors; only the repository's existing Next pages-directory warning"
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0",
+      "catalogue": "tests/catalogue/suite-manifest.json parses with 852 unique suite ids and contains the three new Commercial suites. Full validateCatalogue could not run because concurrent agents added unregistered project WBS test files (TEST_INVENTORY_MISMATCH); no Commercial suite was involved."
+    },
+    "browser": "not run; no browser, authenticated page render, Next dev server, public URL or screenshot was executed. No workflow is claimed browser-verified."
+  },
+  "behavior": {
+    "authorization": "The Next page/route requires the normal Account session and current Platform Commercial authority. The native HTTP detail is intentionally composition-supplied: the backend must resolve current Account/Platform authority, exact Holding/Company scope and the selected Platform assignment before calling the owner read. No package grant or Company role creates Platform permission.",
+    "isolation": "Every overview/admission read is constructed for one explicit CompanyId. The PostgreSQL reader rejects a different CompanyId, acquires the Commercial source locks and the Company advisory lock, and the application rejects any grant/history fact with another company_id. The HTTP router binds Host and Holding slug; the Next transport resolves the exact configured holdingId and validates the returned holdingId/holdingSlug/companyId.",
+    "versions": "The overview revision is package_grant_revision over the ordered Company grants, matching the revision used as expectedRevision by package commands. A changed grant changes the revision; the read does not invent or advance a version.",
+    "clock": "The overview observedAt and admission observedAt are supplied by the composition clock. Admission re-evaluates start/expiry/retention boundaries at that instant; the overview itself does not filter current grants.",
+    "idempotency": "Not applicable to this read-only surface. No command, receipt, review token or retry mutation was added.",
+    "auditAndOutbox": "Not applicable to this read-only surface. No audit row, outbox event, packagedefinition, grant or history right is written.",
+    "rollback": "The PostgreSQL suite updates a grant inside an owner unit, observes the changed overview and aborts; the committed state and revision remain unchanged. The read path performs no write to roll back.",
+    "readback": "The PostgreSQL suite reads the overview back outside the aborted transaction and the HTTP suite serializes the overview/admission response through the actual router; the transport test validates exact response shape and context drift."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_commercial::public::purchases::{CompanyPackageOverview, CompanyPurchaseAdmission, CompanyCapabilityAdmission, CompanyPurchaseAdmissionPort, company_package_overview, validate_purchase_request}",
+      "erpx_server_commercial::public::purchases::{company_package_router, CompanyPackageReadHttpTarget, CompanyPackageReadHttpBackend, CompanyPackageReadHttpRequest, CompanyPackageReadHttpKind, CompanyPackageReadHttpResponse}"
+    ],
+    "backendRequired": "Implement CompanyPackageReadHttpBackend in src/composition: parse the normal Account/Platform request, require current platform.commercial.read authority, verify the configured Holding target and requested Company through Organization ownership, open one serializable Holding unit, build PgCompanyPurchaseReader with the checked-in catalogue, call company_package_overview for Overview and inspect_admission for Admission, and return data plus the exact rendered context {userId, holdingId, holdingSlug, companyId, platformAssignmentId, platformRole, roleRevision, modules, permissions, expiresAt}. Map PgTransactionError to BusinessError.",
+    "privateDevelopmentApi": [
+      "Build one CompanyPackageReadHttpTarget per registered Holding with exact Host, slug and https origin.",
+      "router = router.merge(erpx_server_commercial::public::purchases::company_package_router(targets).map_err(|_| \"PRIVATE_API_COMMERCIAL_CONFIGURATION_INVALID\")?);",
+      "Mount /api/v1/holdings/{holding_slug}/commercial/companies/{company_id}/packages and /purchase-admission before the generic 404 fallback."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_COMMERCIAL_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]}. Unset configuration intentionally returns 503 NATIVE_COMMERCIAL_UNAVAILABLE for the provider package overview; it does not use companyPackageLifecycle.overview.",
+    "whyNotAppliedHere": "This implementation subagent is prohibited from editing src/composition/**, root Cargo files, package lockfiles, packages/contracts/**, docs/status/** and other owners' implementation. No shared schema migration or generated contract was added."
+  },
+  "legacyInventory": {
+    "removed": [
+      "The provider GET /api/v1/platform/commercial/packages snapshot no longer calls companyPackageLifecycle(...).overview or nativeServicePackageOverview; it requires the owner-local Commercial transport and fails closed without it."
+    ],
+    "retained": [
+      "packages/server-commercial/src/adapters/company-package-lifecycle.ts remains for package preview/apply and other TypeScript consumers; only its overview GET path is withdrawn from the provider route.",
+      "The provider companies list still uses nativeServiceCompanies when ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG is set and the retained Organization/provider path otherwise.",
+      "Package preview/apply continue through the existing native Service lifecycle when configured or the retained TypeScript lifecycle otherwise; this slice does not cut over package writes.",
+      "The legacy grant migration page, billing workflows, Stripe/provider behavior and the five acceptance commercial workflows remain retained and unverified in Rust.",
+      "The retained provider()/requirePlatformContext preflight remains a presentation/route guard, not an atomic substitute for the composition backend's owner transaction."
+    ]
+  },
+  "limits": [
+    "No composition backend is mounted, so no private/production route serves company_package_router yet. The HTTP test backend is a recording fake and the PostgreSQL tests call the owner read directly.",
+    "The provider page seed/API cutover cannot be exercised without the new private configuration; unset configuration fails closed with an explicit notice/503 and never falls back.",
+    "This is a read-only slice. Package preview/apply writes, idempotency receipts, audit/outbox and grant CAS commands remain on their existing paths and were not changed.",
+    "No browser, authenticated page, Next dev server, public URL or screenshot verification was run. The five commercial acceptance workflows remain unverified.",
+    "Bun is not installed in this worktree, so bun run structure:check/test:catalogue and the repository Bun runner were not executed. Node tsx layout, direct tsc/vitest/eslint and cargo were used instead.",
+    "A concurrent agent added unregistered Project WBS tests to the same worktree; full catalogue validation reports TEST_INVENTORY_MISMATCH for those files. The Commercial suites were parsed and the concurrent work was preserved, not edited.",
+    "No root Cargo.toml, Cargo.lock, package lockfile, packages/contracts/**, src/composition/** or docs/status/** change was made. Hosted CI, staging, private production and Cloudflare were not accessed."
+  ]
+}

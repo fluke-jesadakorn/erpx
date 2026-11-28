@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "site-measurement",
+  "version": "1.0.0",
+  "name": "Site measurement",
+  "description": "Show the next site measurement you can access in CRM.",
+  "tile": {
+    "source": "crm.next-site-measurement.v1",
+    "destination": "crm.lead-activity.v1"
+  },
+  "events": ["crm.activity.changed.v1"]
+}

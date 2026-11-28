@@ -2,11 +2,11 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {dirname,join,resolve} from 'node:path';
 import {mock} from 'bun:test';
-import {assertHospitalityDevelopmentTarget} from "@erpx/feature-shared/lib/hospitality-seed-target";
-import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
+import {assertHospitalityDevelopmentTarget} from "@erpx/platform-shared-ui/lib/hospitality-seed-target";
+import {businessRoles} from "@erpx/identity-access-ui/lib/business-roles";
 import {posDemoCompany as company} from "../../../fixtures/pos/catalog";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {PostgresDatabase} from "@erpx/platform-runtime-server/adapters/runtime/postgres";
 mock.module('next/navigation',()=>({forbidden:()=>{throw new Error('CLI_PAGE_FORBIDDEN');},redirect:()=>{throw new Error('CLI_REDIRECT_FORBIDDEN');}}));
 const manifestPath=process.env.ERPX_DATABASE_MANIFEST;if(!manifestPath)throw new Error('DEVELOPMENT_MANIFEST_REQUIRED');
 const app=JSON.parse(await readFile(manifestPath,'utf8')),jobsPath=join(dirname(manifestPath),'databases-jobs.json'),jobs=JSON.parse(await readFile(jobsPath,'utf8'));
@@ -14,11 +14,12 @@ assertHospitalityDevelopmentTarget(app,process.env.ERPX_ENVIRONMENT);assertHospi
 const flag=(name:string)=>process.argv.find(arg=>arg.startsWith(`--${name}=`))?.slice(name.length+3);
 const numbers=[flag('room-sale'),flag('retail-sale')];if(numbers.some(number=>!number))throw new Error('PASS_BROWSER_ROOM_AND_RETAIL_BILL_NUMBERS');
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
-const {closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
-const {posCommand}=await import("@erpx/server-pos/public/pos-core");
-const {one,all}=await import("@erpx/server-runtime/public/runtime/sql");
-const {posDayReport}=await import("@erpx/server-pos/public/pos-daily");
+const {closeRuntime}=await import("@erpx/platform-runtime-server/adapters/runtime/env");
+const {posSeedCommand}=await import("../../../tests/support/helpers/pos-native-seed");
+const {one,all}=await import("@erpx/platform-runtime-server/public/runtime/sql");
+const {posDayReport}=await import("@erpx/pos-server/public/pos-daily");
 const db=new PostgresDatabase({connectionString:jobs.databases.H001_DB,max:2});
+const seedPos=posSeedCommand(db);
 const actor=(label:'manager'|'finance')=>({userId:`pos-thb-v1-${label}`,assignmentId:`pos-thb-v1-${label}-access`,role:label==='manager'?'pos_manager':'finance_approver',companyId:company,branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'acme',holdingName:'ACME',name:label,email:`${label}@pos-thb-v1.example`,assignmentScope:'holding',inherited:false,modules:[...businessRoles[label==='manager'?'pos_manager':'finance_approver']],assignments:[],workspaces:[],scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'ACME',companyId:company}} as WorkContext);
 try{
  const sales=[];
@@ -26,13 +27,13 @@ try{
  const manager=actor('manager'),finance=actor('finance');
  for(const sale of sales){
   const shift=(await one(db,'SELECT * FROM pos_shifts WHERE id=? AND company_id=?',sale.shift_id,company))!;
-  if(process.argv.includes('--review-shifts')&&shift.state==='closed')await posCommand(db,manager,'shift.review',{id:shift.id,expectedVersion:shift.version,reason:'Independent review of fictional browser acceptance drawer count'},`pos-browser-review:${shift.id}:v${shift.version}`);
+  if(process.argv.includes('--review-shifts')&&shift.state==='closed')await seedPos(manager,'shift.review',{id:shift.id,expectedVersion:shift.version,reason:'Independent review of fictional browser acceptance drawer count'},`pos-browser-review:${shift.id}:v${shift.version}`);
   if(process.argv.includes('--confirm-days')){
    const close=await one(db,'SELECT * FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=?',company,sale.branch_id,sale.business_date);
    if(!close)throw new Error('PREPARE_DAY_IN_BROWSER_FIRST');
    if(close.state==='prepared'){
     const before=await one(db,'SELECT COUNT(*) n FROM finance_journals WHERE company_id=?',company);
-    await posCommand(db,finance,'day.confirm',{id:close.id,expectedVersion:close.version},`pos-browser-confirm:${close.id}:v${close.version}`);
+    await seedPos(finance,'day.confirm',{id:close.id,expectedVersion:close.version},`pos-browser-confirm:${close.id}:v${close.version}`);
     const after=await one(db,'SELECT COUNT(*) n FROM finance_journals WHERE company_id=?',company);
     if(before?.n!==after?.n)throw new Error('DAY_CONFIRM_REPOSTED_A_JOURNAL');
    }

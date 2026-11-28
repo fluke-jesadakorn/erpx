@@ -1,0 +1,21 @@
+{
+  "name": "@erpx/agent-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/agent-governance-console": "./src/components/agent-governance-console.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/records-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/agent-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "react": "19.3.1"
+  }
+}

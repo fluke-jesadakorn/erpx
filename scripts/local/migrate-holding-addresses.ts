@@ -1,11 +1,11 @@
 /** Install only the authorized route migration, never unrelated pending work. */
 import {readFile,mkdir,copyFile} from 'node:fs/promises';
 import {dirname,join,resolve} from 'node:path';
-import {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
-import {migrateDatabase} from '@erpx/server-runtime/adapters/runtime/migrations';
-import {reservedWorkspaceSlugs} from '@erpx/contracts/holding-hosts';
-import {assertHospitalityDevelopmentTarget} from '@erpx/feature-shared/lib/hospitality-seed-target';
-import type {DatabaseManifest} from '@erpx/server-runtime/adapters/runtime/env';
+import {PostgresDatabase} from '@erpx/platform-runtime-server/adapters/runtime/postgres';
+import {migrateDatabase} from '@erpx/platform-runtime-server/adapters/runtime/migrations';
+import {reservedWorkspaceSlugs} from '@erpx/platform-contracts/holding-hosts';
+import {assertHospitalityDevelopmentTarget} from '@erpx/platform-shared-ui/lib/hospitality-seed-target';
+import type {DatabaseManifest} from '@erpx/platform-runtime-server/adapters/runtime/env';
 
 const manifestPath=process.env.ERPX_DATABASE_MANIFEST;
 if(!manifestPath)throw new Error('DEVELOPMENT_MANIFEST_REQUIRED');

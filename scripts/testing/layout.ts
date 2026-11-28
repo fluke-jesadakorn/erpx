@@ -1,8 +1,10 @@
+import { workspaceManifests, workspaceSpecifierDirectory } from "../local/workspace-paths";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadCatalogue, repositoryRoot, validateCatalogue, type Suite } from "./catalogue";
-import { appDefinitions } from "@erpx/contracts/apps";
+import { appDefinitions } from "@erpx/platform-contracts/apps";
 import { loadProviderRehearsals } from "./provider-rehearsals";
+import { trackedTemporaryFiles } from "../docs/documentation-integrity";
 
 /** File placement follows the declared lane and owner, including shared owners. */
 export function assertTestPlacement(suites: readonly Pick<Suite, "id" | "lane" | "owner" | "files">[]): void {
@@ -17,6 +19,8 @@ export function assertTestPlacement(suites: readonly Pick<Suite, "id" | "lane" |
 }
 
 export function checkRepositoryLayout(root = repositoryRoot): void {
+  const temporaryFiles = trackedTemporaryFiles(root);
+  if (temporaryFiles.length) throw new Error(`TRACKED_TEMPORARY_FILES:${temporaryFiles.join(",")}`);
   const catalogue = loadCatalogue(root);
   validateCatalogue(catalogue, root);
   assertTestPlacement(catalogue.suites);
@@ -39,7 +43,7 @@ export function checkRepositoryLayout(root = repositoryRoot): void {
       const file = `${directory}/${entry.name}`;
       if (file === "src/server/modules") continue;
       if (entry.isDirectory()) checkServer(file);
-      else if (/\.tsx?$/.test(file) && file !== "src/server/runtime/env.ts")
+      else if (/\.tsx?$/.test(file))
         throw new Error(`LEGACY_SERVER_LOCATION:${file}`);
     }
   }
@@ -56,14 +60,16 @@ export function checkRepositoryLayout(root = repositoryRoot): void {
       const manifest = JSON.parse(readFileSync(resolve(root, directory, "package.json"), "utf8"));
       if (manifest.name !== name || manifest.private !== true) throw new Error(`APP_PACKAGE_IDENTITY_CHANGED:${directory}`);
     }
-    for (const entry of readdirSync(resolve(root, "packages"), { withFileTypes: true }).filter(entry => entry.isDirectory())) {
-      const directory = resolve(root, "packages", entry.name);
+    for (const [name, path] of workspaceManifests(root)) {
+      const directory = resolve(root, path);
       const manifest = JSON.parse(readFileSync(resolve(directory, "package.json"), "utf8"));
-      if (manifest.name !== `@erpx/${entry.name}` || manifest.private !== true || !manifest.exports)
-        throw new Error(`WORKSPACE_PACKAGE_IDENTITY_CHANGED:${entry.name}`);
-      if (entry.name.startsWith("server-")) for (const folder of readdirSync(resolve(directory, "src"), { withFileTypes: true })) {
-        if (folder.isDirectory() && !["domain", "application", "adapters", "public"].includes(folder.name))
-          throw new Error(`SERVER_OWNER_PLACEMENT:${entry.name}/${folder.name}`);
+      if (workspaceSpecifierDirectory(name.slice("@erpx/".length)) !== path || manifest.private !== true || !manifest.exports)
+        throw new Error("WORKSPACE_PACKAGE_IDENTITY_CHANGED:" + path);
+      if (path.endsWith("/server") || path.startsWith("packages/server-")) {
+        for (const folder of readdirSync(resolve(directory, "src"), { withFileTypes: true })) {
+          if (folder.isDirectory() && !["domain", "application", "adapters", "public", "testing"].includes(folder.name))
+            throw new Error("SERVER_OWNER_PLACEMENT:" + path + "/" + folder.name);
+        }
       }
     }
   }

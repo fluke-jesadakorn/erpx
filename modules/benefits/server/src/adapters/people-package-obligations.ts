@@ -1,0 +1,29 @@
+import "server-only";
+import {createHash} from "node:crypto";
+import type {PostgresDatabase} from "@erpx/platform-runtime-server/public/runtime/postgres";
+import type {SqlDatabase} from "@erpx/platform-runtime-server/public/runtime/types";
+import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/commercial-server/public/package-settlement-sources";
+import {assertPeoplePackageObligationSources,peoplePackageSettlementSources as people} from "@erpx/people-payroll-server/public/package-obligations";
+import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix,benefitWindowFactPrefix,benefitDependentFactPrefix,benefitPlanFactPrefix,benefitFactFinalSelect,benefitSubqueryNotExists,benefitExistsHead} from "@erpx/benefits-server/adapters/benefits-read-sql";
+type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
+export async function lockPeopleBenefitsPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE benefit_plans,benefit_plan_events,benefit_dependents,benefit_dependent_events,benefit_enrollment_windows,benefit_window_events,benefit_elections,benefit_election_events,benefit_payroll_inputs IN SHARE MODE").run();sources.set(database,companyId);}
+/** Benefits owns reviewed elections and immutable Payroll deliveries. Its
+ * schema has no Roster/Time/Leave/Overtime source FK: unrelated elections cannot
+ * block the Workforce add-on. Actual rows still participate in the revision.
+ * Base People retains pending review and future monetary coverage duties. */
+export async function peopleBenefitsPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
+ owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error("PEOPLE_BENEFITS_PACKAGE_OBLIGATION_SOURCE_REQUIRED");assertPeoplePackageObligationSources(owner,database,input.companyId);
+ if(input.moduleId!=="benefits"||!["people","people-workforce"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("PEOPLE_BENEFITS_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
+ const facts=(await database.prepare(`${benefitScopePrefix}?::boolean is_base,to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
+ facts AS(
+ ${benefitPlanFactPrefix}p.status='draft' pending FROM benefit_plans p,scope WHERE p.company_id=scope.company_id
+ ${benefitWindowFactPrefix}w.status IN ('draft','open') FROM benefit_enrollment_windows w,scope WHERE w.company_id=scope.company_id
+ ${benefitDependentFactPrefix} OR ${benefitSubqueryNotExists(people.people, 'p', 'p.id=d.person_id AND p.company_id=d.company_id')} FROM benefit_dependents d,scope WHERE d.company_id=scope.company_id
+ ${benefitElectionFactPrefix} p.id IS NULL OR engagement.id IS NULL OR engagement.person_id IS DISTINCT FROM e.person_id OR plan.id IS NULL OR plan.company_id IS DISTINCT FROM e.company_id OR plan.version<e.plan_version${benefitReleasedElectionHandoffPrefix} WHERE handoff.election_id=e.id AND handoff.company_id=e.company_id AND handoff.person_id=e.person_id AND handoff.engagement_id=e.engagement_id AND handoff.currency=e.currency AND handoff.source_election_version<=e.version AND handoff.employee_deduction_minor=e.employee_deduction_minor AND handoff.employer_cost_minor=e.employer_cost_minor AND handoff.effective_from=e.effective_from AND handoff.effective_to IS NOT DISTINCT FROM e.effective_to AND ${benefitExistsHead('benefit_election_events', `event WHERE event.election_id=e.id AND event.version=handoff.source_election_version AND event.action='release' AND event.status='released' AND event.actor_id=handoff.released_by`)})
+ OR (e.employee_deduction_minor+e.employer_cost_minor>0 AND (e.effective_to IS NULL OR e.effective_to>=scope.today))))
+ FROM benefit_elections e CROSS JOIN scope LEFT JOIN (${people.people}) p ON p.id=e.person_id AND p.company_id=e.company_id LEFT JOIN (${people.engagements}) engagement ON engagement.id=e.engagement_id AND engagement.company_id=e.company_id LEFT JOIN benefit_plans plan ON plan.id=e.plan_id LEFT JOIN benefit_enrollment_windows win ON win.id=e.window_id WHERE e.company_id=scope.company_id
+ UNION ALL ${benefitPayrollInputOwnerPredicate}
+ FROM benefit_payroll_inputs h CROSS JOIN scope LEFT JOIN benefit_elections e ON e.id=h.election_id WHERE h.company_id=scope.company_id
+ ${benefitFactFinalSelect('scope.is_base AND COALESCE(facts.pending,true)',' CROSS JOIN scope ORDER BY kind,id')}`).bind(input.companyId,input.packageId==='people',input.now).all<{kind:string;id:string;version:number;state:string;image:unknown;pending:boolean}>()).results;
+ return {companyId:input.companyId,packageId:input.packageId,moduleId:"benefits",observedAt:input.now,revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageId:input.packageId,packageVersion:input.packageVersion,facts})).digest("hex"),outstanding:facts.filter(fact=>fact.pending).length};
+}

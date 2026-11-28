@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "People Payroll now has owner-local native Company payroll summary and run-list reads, an owner-local HTTP router, and a fail-closed Next transport/SSR cutover; shared composition mounting, command writes, run-detail reads, expense/directory/pay-group closure and browser acceptance remain open",
+  "capability": "people-payroll-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "a6c4f5d8a5f683c0243d7624482199d338ff7b46",
+  "scope": {
+    "workflows": [
+      "people_payroll/payroll-summaries",
+      "people_payroll/feature-payroll-runs"
+    ],
+    "workflowBoundary": "The posted payroll summary and the scoped run list are the qualified read slice. Payroll run creation/calculation/cancellation/posting, run detail, payslips, expense, leave, directory and pay-group configuration are not claimed.",
+    "domain": "Payroll read actor policy (Company scope, payroll.read/payroll.payment.read, selected-context expiry), calendar YYYY-MM validation, bounded and validated summary/run row facts.",
+    "application": "Summary and run-list read use cases. Summary requires payroll.read and rejects branch/department scope. Run list permits payroll.payment.read but returns only posted runs with payment-batch facts and redacted totals; payroll.read returns all Company runs. No silent TypeScript owner-read fallback.",
+    "adapters": "Own SQL over hr_payroll_runs, hr_payroll_items and the owner's hr_payment_batches join. The caller's serializable Holding transaction is required. No IAM, purchase, Finance or workflow SQL is invented; no owner write is performed.",
+    "http": "Owner-local GET router for /api/v1/holdings/{holding_slug}/people/payroll/summary (optional payMonth) and /people/payroll/runs. Exact Host/Holding targets, duplicate-query rejection, bounded private/no-store JSON and business-error status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company scope, purchase admission and serializable owner read.",
+    "transport": "Fail-closed Next client validates the configured Holding origin, loopback private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435/3200-3299, timeout, cookie/context CAS headers, selected branch/department workspace headers, exact row/context shapes, duplicate keys and bounded bodies.",
+    "ssr": "The People Payroll dashboard reads summary and runs through the native transport, and the People REST GET summary/runs routes do the same. Unset ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG produces explicit NATIVE_PEOPLE_PAYROLL_UNAVAILABLE 503s; there is no fallback to the replaced TypeScript readers.",
+    "purchaseAndIdentity": "The retained withPayrollPurchasedRead preflight still checks the Commercial people.payroll capability and current Identity assignment before the native read. This is a preflight, not an atomic owner unit; the composition backend must repeat current authority and admission on its own transaction.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, command/idempotency receipt, audit/outbox effect, Finance guard, run detail, payslip, expense, directory, pay-group write, jobs or production acceptance."
+  },
+  "changedFiles": [
+    "packages/server-people_payroll/Cargo.toml",
+    "packages/server-people_payroll/src/domain/mod.rs",
+    "packages/server-people_payroll/src/domain/payroll_summary.rs",
+    "packages/server-people_payroll/src/application/mod.rs",
+    "packages/server-people_payroll/src/application/payroll_summary.rs",
+    "packages/server-people_payroll/src/adapters/mod.rs",
+    "packages/server-people_payroll/src/adapters/payroll_summary_read.rs",
+    "packages/server-people_payroll/src/adapters/payroll_summary_http.rs",
+    "packages/server-people_payroll/src/public/mod.rs",
+    "packages/server-people_payroll/src/public/payroll_summary.rs",
+    "packages/server-people_payroll/src/public/payroll_summary_http.rs",
+    "tests/unit/people_payroll/rust-payroll-summary.test.rs",
+    "tests/integration/people_payroll/rust-payroll-summary-postgres.test.rs",
+    "packages/feature-people_payroll/package.json",
+    "packages/feature-people_payroll/src/public/native-payroll-summary.ts",
+    "packages/feature-people_payroll/src/public/native-payroll-summary-page.ts",
+    "packages/feature-people_payroll/src/public/native-payroll-summary-owned.ts",
+    "packages/feature-people_payroll/src/adapters/server/next-native-payroll-summary.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/people/payroll/screen.tsx",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
+    "tests/unit/people_payroll/native-payroll-summary-transport.test.ts",
+    "tests/catalogue/suite-manifest.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-people-payroll --locked",
+      "result": "29 passed, 0 failed, 0 ignored across 8 targets",
+      "targets": {
+        "lib": "3 passed (router target configuration, private headers and actual loopback request/query/error mapping)",
+        "identity_facts": "2 passed (existing)",
+        "identity_facts_postgres": "7 passed (existing)",
+        "invitation_person_link": "1 passed (existing)",
+        "invitation_person_link_postgres": "4 passed (existing)",
+        "payroll_accounting": "6 passed (existing)",
+        "payroll_summary": "4 passed (Company/permission/expiry/month policy, payment-only read, source-shape rejection, actual router)",
+        "payroll_summary_postgres": "2 passed"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-people-payroll --all-targets --locked",
+      "result": "pass; no erpx-server-people-payroll warning"
+    },
+    "postgres": {
+      "suite": "people_payroll.rust-payroll-summary-postgres.integration",
+      "cases": [
+        "posted Company runs aggregate by pay month and currency with actual item totals; draft and foreign Company runs are excluded",
+        "optional payMonth narrows the summary and an invalid calendar month is INVALID_PAY_MONTH",
+        "payment-only read returns only posted runs, includes the latest non-cancelled payment batch, and redacts totals",
+        "payroll.read run list includes preview runs and retains totals; a foreign Company reads only its own source",
+        "missing permission, branch/department scope, expired selected context and payment-only summary fail closed",
+        "a reader outside a transaction, or inside a non-serializable transaction, fails closed",
+        "a posted run inserted inside an owner transaction is visible to the read and disappears after the transaction aborts; committed readback does not create or delete runs"
+      ],
+      "fixture": "Real migrated PostgreSQL, disposable leased erpx_dev_rust_* database, seeded People/engagement/pay-group/run/item/payment-batch rows, no owner write in the read path."
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards summary without/with payMonth and the runs kind to the recording backend",
+        "duplicate payMonth is 422 PEOPLE_PAYROLL_REQUEST_INVALID; unknown Host/Holding is 404; backend conflict is 409 PAYROLL_READ_CHANGED",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets and non-HTTPS origins fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/people_payroll/native-payroll-summary-transport.test.ts --config tests/config/vitest.unit.config.mts: 8 passed",
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-people_payroll/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass",
+        "tsc --noEmit -p apps/people/tsconfig.json: pass"
+      ],
+      "eslint": "targeted new transport/page/owned route and test files: no errors; only the repository's existing Next pages-directory warning"
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "architecture": "node_modules/.bin/tsx scripts/architecture/check.ts: no people_payroll path in the violation list; the overall check still exits 1 on unrelated/concurrent paths outside this owner.",
+      "catalogue": "loadCatalogue + validateCatalogue via tsx: 841 suites valid; the three new people_payroll suites are present",
+      "runnerLimit": "bun is not installed in this worktree, so the repository's Bun catalogue runner could not be executed. The catalogue was parsed and fully validated through its TypeScript validator instead."
+    },
+    "browser": "not run; no browser, Next dev server, public URL or authenticated SSR render was executed. No workflow is claimed browser-verified."
+  },
+  "preExistingFailures": {
+    "rust_architecture": "cargo test -p erpx-server-runtime --test rust_architecture --locked fails on portable-layer findings in support/brand/manage_erpx/legal/maintenance paths, including concurrent uncommitted work; no people_payroll path appears in the failure list.",
+    "runtime_foundation": "cargo test -p erpx-server-runtime --test runtime_foundation --locked fails because the committed owner registry already contains active owners; this slice does not change docs/status or that test.",
+    "handling": "No unrelated owner or shared-runtime test was edited to hide these failures."
+  },
+  "sharedCompositionDelta": {
+    "ownerPublicApi": [
+      "erpx_server_people_payroll::public::payroll_summary::{PayrollReadActor, PayrollMonth, PayrollSummaryRow, PayrollRunRow, PayrollReadRepository, PgPayrollRead, payroll_summary, payroll_runs}",
+      "erpx_server_people_payroll::public::payroll_summary_http::{people_payroll_router, PayrollReadHttpTarget, PayrollReadHttpBackend, PayrollReadHttpRequest, PayrollReadHttpKind, PayrollReadHttpResponse}"
+    ],
+    "backendRequired": "Implement PayrollReadHttpBackend in src/composition: parse the normal Account/Holding request, call the retained HoldingWorkAuthorizer with payroll.read (summary) or payroll.read/payroll.payment.read (runs), require the configured Holding/Company, run one serializable transaction, supply a 15-field rendered context, build PayrollReadActor from the current authority, call the owner read functions, and map PgTransactionError to BusinessError.",
+    "privateDevelopmentApi": [
+      "Build one PayrollReadHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_people_payroll::public::payroll_summary_http::people_payroll_router(targets).map_err(|_| \"PRIVATE_API_PEOPLE_PAYROLL_CONFIGURATION_INVALID\")?);",
+      "Mount /people/payroll/summary and /people/payroll/runs before the generic 404 fallback."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app. Unset configuration intentionally returns 503.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo files, package lockfiles, docs/status/** and other owners' implementation. No shared schema migration was added."
+  },
+  "legacyInventory": {
+    "removedOwnerReadConsumers": [
+      "The People Payroll dashboard no longer imports payrollSummary, listPayrollRuns or payrollRunsPage; it reads the native summary and run list and fails closed without native configuration.",
+      "The People REST GET paths /people/payroll/summary and /people/payroll/runs no longer call the TypeScript readers."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-people_payroll/src/application/people-payroll.ts, adapters/people-payroll.ts and public/people-payroll.ts retain payrollSummary, listPayrollRuns and payrollRunsPage for the history page, other consumers and existing integration tests.",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/people/payroll/history/screen.tsx still uses payrollRunsPage/listPayrollRuns and its cursor pagination.",
+      "Payroll run detail, runs commands (create/calculate/approve/cancel/post), payslips, expenses, leave, directory, pay groups and country packs remain TypeScript or existing owner paths.",
+      "The retained withPayrollPurchasedRead preflight remains in the Next owned module and is not an atomic substitute for the composition backend's own current-authority and purchase check."
+    ]
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no production/private route serves the owner router yet. The HTTP test backend is a recording fake.",
+    "This is a read-only slice. No command, CAS write, idempotency receipt, audit/outbox event or same-transaction Finance guard was added; those concerns do not apply to the qualified reads and remain required before any payroll write cutover.",
+    "The Next purchase/Identity preflight and the native read are separate transactions. A composition mount must keep the authoritative purchase and current-IAM check inside the owner read transaction.",
+    "The history page and run detail remain on the TypeScript owner implementation; no complete payroll-runs workflow is claimed.",
+    "No browser, authenticated page, Next dev server or public URL verification was run. No business-owner completion flag is changed by this subagent.",
+    "No root Cargo.toml, Cargo.lock, package lockfile, src/composition/**, docs/status/** or other owner implementation was edited. Cargo.lock is unchanged.",
+    "Hosted CI, staging, private production and Cloudflare were not accessed.",
+    "Other agents' concurrent uncommitted work in this shared worktree was preserved and not included in this slice's changed files."
+  ]
+}

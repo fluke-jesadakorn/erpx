@@ -1,0 +1,11 @@
+import { pmsRecordPropertyJoinSql } from "../pms-read-tail-r45-sql";
+/** A single source identity for PMS records, bank reviews and charge corrections. */
+export const pmsSourcesSql = `${pmsRecordPropertyJoinSql('sourceIdentity')}
+  UNION ALL
+  SELECT t.id,t.property_id,'transfer',jsonb_build_object('state',t.state,'recordedBy',t.recorded_by,
+    'guestAccountId',t.guest_account_id),t.version,t.updated_at,p.company_id,p.branch_id,p.name,p.business_date
+  FROM pms_transfer_requests t JOIN pms_properties p ON p.id=t.property_id AND p.company_id=t.company_id
+  UNION ALL
+  SELECT c.id,c.property_id,'correction',jsonb_build_object('state',c.status,'requestedBy',c.requested_by,
+    'guestAccountId',c.guest_account_id),c.version,c.updated_at,p.company_id,p.branch_id,p.name,p.business_date
+  FROM pms_charge_corrections c JOIN pms_properties p ON p.id=c.property_id AND p.company_id=c.company_id`;

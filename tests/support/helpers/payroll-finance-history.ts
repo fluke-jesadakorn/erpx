@@ -1,18 +1,19 @@
 import {expect,vi} from "vitest";
-import type {WorkContext,AccountAccessContext} from "@erpx/server-identity_access/public/authorization";
-import {workspaceGrantsForAccount} from "@erpx/server-identity_access/public/authorization";
-import {accountWorkModuleAccess} from "@erpx/server-identity_access/public/work-module-access";
-import {createProductWorkspace} from "@erpx/server-identity_access/application/product-workspace";
-import {productWorkspaceTarget} from "@erpx/server-identity_access/domain/product-workspace";
-import {initializeWorkSelection,readWorkSelection,selectWorkRole} from "@erpx/server-work_projection/public/work-role-store";
-import {readCompanyPurchaseFacts} from "@erpx/server-commercial/public/package-grants";
-import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
-import {financeDocumentFlow,financeDocumentPresentationAccess,financeSourceDocumentBackdrop,journalRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
-import {bookRuleSchema,prepareBookRule,decideBookRule} from "@erpx/server-finance/public/finance-books";
-import {createJournal,createJournalSchema,importBankStatement} from '@erpx/server-finance/public/finance';
-import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";
-import {ApiError} from "@erpx/server-runtime/public/http";
-import {attachmentContent,bindRecordAttachmentSet} from "@erpx/server-files/public/attachments/service";
+import type {WorkContext,AccountAccessContext} from "@erpx/identity-access-server/public/authorization";
+import {workspaceGrantsForAccount} from "@erpx/identity-access-server/public/authorization";
+import {accountWorkModuleAccess} from "@erpx/identity-access-server/public/work-module-access";
+import {createProductWorkspace} from "@erpx/identity-access-server/application/product-workspace";
+import {productWorkspaceTarget} from "@erpx/identity-access-server/domain/product-workspace";
+import {initializeWorkSelection,readWorkSelection,selectWorkRole} from "@erpx/work-projection-server/public/work-role-store";
+import {readCompanyPurchaseFacts} from "@erpx/commercial-server/public/package-grants";
+import {financeProductDocumentEntry} from "@erpx/finance-server/public/document-purchases";
+import {financeDocumentFlow,financeDocumentPresentationAccess,financeSourceDocumentBackdrop,journalRecordWorkspace} from "@erpx/finance-server/public/record-presentation";
+import {bookRuleSchema,prepareBookRule,decideBookRule} from "@erpx/finance-server/public/finance-books";
+import {seedFinanceJournal} from "./finance-journal-seed";
+import {importBankStatement} from '@erpx/finance-server/public/finance';
+import {journalDetail,ledgerWorkspace} from "@erpx/finance-server/public/ledger";
+import {ApiError} from "@erpx/platform-runtime-server/public/http";
+import {attachmentContent,bindRecordAttachmentSet} from "@erpx/files-server/public/attachments/service";
 import {env} from "../runtime-env";
 import {expenseDb as db,key,type expenseFixture} from "./expense-fixture";
 import {attachmentBindingState,seedAttachmentSet} from "./attachment-v2";
@@ -35,7 +36,7 @@ export async function preparePayrollProjection(f:Fixture,preparer:WorkContext,ap
 /** Exercise original owner readers, normal versioned role selection and the
  * original Files transaction using real Payroll-produced ledger identities. */
 export async function assertPayrollFinanceHistory(f:Fixture,actor:WorkContext,payrollActor:WorkContext,runId:string,primaryIds:string[],book:{chart:string;openingId:string}){
- const forged=await createJournal(actor,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-30",currency:"THB",sourceType:"payroll",sourceId:runId,memo:"A caller label cannot manufacture Payroll ledger ownership",lines:[{accountId:f.accounts.expense,debit:"1",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"1"}]}),key());
+ const forged=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:"2026-09-30",currency:"THB",sourceType:"payroll",sourceId:runId,memo:"A caller label cannot manufacture Payroll ledger ownership",key:key(),createdBy:actor.userId,lines:[{accountId:f.accounts.expense,debit:"1",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"1"}]});
  vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
  expect((await readCompanyPurchaseFacts(db,f.company)).grants.map(grant=>grant.packageId).sort()).toEqual(["people","people-payroll"]);
  const projections=(await db.prepare(`SELECT secondary_journal_id id FROM finance_book_postings WHERE primary_journal_id IN (${primaryIds.map(()=>"?").join(",")}) ORDER BY id`).bind(...primaryIds).all<{id:string}>()).results;

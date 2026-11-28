@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Projects graph read and milestone command lifecycle are PostgreSQL/HTTP-qualified; project graph/tasks/actuals/handoffs remain partially retained and no browser verification is claimed",
+  "capability": "projects-owner-closure-2",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Project graph projection, milestone/task/actual validation, CAS/version guards, task binding, dependency/actual graph, milestone command create/revise/transition and independent review.",
+    "application": "Project graph read use case with Company scope, selected-context closure, and bounded graph projection. Milestone command use cases with replay/CAS and retained guards.",
+    "adapters": "PostgreSQL adapter over project rows, milestones, tasks, actuals and their dependencies; HTTP router for graph and commands.",
+    "frontend": "No new SSR cutover in this slice; the existing native WBS detail read remains."
+  },
+  "tests": [
+    "projects.rust-project-graph: 10 passed",
+    "projects.rust-project-commands: 3 passed",
+    "projects.rust-project-graph-http: 6 passed",
+    "cargo test -p erpx-server-projects --locked: all targets passed"
+  ],
+  "limits": [
+    "No composition mount; the owner routers are not served by the private API.",
+    "No authenticated browser journey.",
+    "Project graph/tasks/actuals/handoffs and all other Projects commands remain on the retained TypeScript owner.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

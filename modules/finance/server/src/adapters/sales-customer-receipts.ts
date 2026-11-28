@@ -1,0 +1,89 @@
+import { FINANCE_SCOPE_BIND_SQL } from './finance-read-tail-r44-sql';
+import 'server-only';
+import {materializedClockCteSql} from './finance-read-tail-r19-sql';
+import {createHash,randomUUID} from 'node:crypto';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import {requirePermission} from '@erpx/identity-access-server/public/iam-permissions';
+import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/identity-access-server/public/queued-command-authority';
+import {loadIamAuthority} from '@erpx/identity-access-server/public/iam-store';
+import {assignmentReadSql} from '@erpx/identity-access-server/public/record-source-authority';
+import {holdingResources} from '../../../../../platform/runtime/server/src/public/runtime';
+import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import {financePackageEnforcementMode,companyPurchaseReadLocks,readPurchasedAccesses,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/commercial-server/public/purchase-command-boundary';
+import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/commercial-server/public/purchased-capability-sql';
+import {commerceFinanceRecordSources} from '@erpx/commerce-server/public/finance-record-sources';
+import {commerceFinanceSalesSources} from '@erpx/commerce-server/public/finance-sales-sources';
+import {lockScheduledFeatureSources} from '@erpx/pms-server/public/scheduled-feature-source-locks';
+import { assertProductionModuleEnabled, scheduledFeaturePredicate } from "@erpx/pms-server/public/feature-availability";
+import {financialConstraintError} from '@erpx/workflow-server/public/command-guards';
+import {financeSourceDocumentReadLeases} from '@erpx/finance-server/adapters/document-purchases';
+import {financeSalesReceiptOriginalSources} from '@erpx/finance-server/adapters/sales-receipt-sources';
+import {ORIGINAL_PAYMENT_REVERSAL_GUARD} from './finance-read-tail-r41-sql';
+import {flushFinanceDeferredEffects} from '@erpx/finance-server/adapters/finance-transactions';
+import type {SalesPostingSetupProductScope} from '@erpx/finance-server/adapters/sales-posting-setup';
+import { clearWorkflowCommandAssertions } from "@erpx/workflow-server/public/command-assertion-effects";
+
+const sales='finance.sales-posting';
+async function receiptSource(database:SqlDatabase,actor:WorkContext,id:string,issue:boolean){
+ return database.prepare(`SELECT receipt.id,receipt.payment_id,to_jsonb(receipt)::text image,
+ EXISTS(SELECT 1 FROM (${financeSalesReceiptOriginalSources}) original JOIN (${commerceFinanceRecordSources.sales.invoice}) owned ON owned.id=original.invoice_id AND owned.company_id=original.company_id
+ WHERE original.id=receipt.payment_id AND original.company_id=receipt.company_id ${ORIGINAL_PAYMENT_REVERSAL_GUARD}) sales
+ FROM finance_customer_receipts receipt WHERE receipt.${issue?'payment_id':'id'}=? AND receipt.company_id=?`).bind(id,actor.companyId).first<{id:string;payment_id:string;image:string;sales:boolean}>();
+}
+async function current(database:SqlDatabase,actor:WorkContext,issue:boolean,salesSource:boolean){
+ requirePermission(actor,'finance.read');const authority=await requireQueuedCommandAuthority(database,actor,issue?'finance.write':'finance.read');requirePermission(authority,'finance.read');
+ await assertProductionModuleEnabled(database,actor.companyId,'finance');if(salesSource)await assertProductionModuleEnabled(database,actor.companyId,'sales');
+ return createHash('sha256').update(JSON.stringify([authority.userId,authority.assignmentId,authority.role,authority.authority??null,authority.iam])).digest('hex');
+}
+async function owned<Result>(actor:WorkContext,id:string,issue:{key:string}|undefined,run:(database:SqlDatabase)=>Promise<Result>){
+ requirePermission(actor,'finance.read');
+ const owner=(await holdingResources(actor.holdingId)).write;if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'TRANSACTION_REQUIRED','Customer receipt history requires its original Holding transaction.');
+ const mode=await financePackageEnforcementMode();
+ try{return await owner.transaction(async database=>{
+  await database.batch([...financeSourceDocumentReadLeases(database,actor.companyId,true,'supplier-correction'),database.prepare('LOCK TABLE finance_customer_receipts,finance_periods IN SHARE ROW EXCLUSIVE MODE')]);
+  await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(companyPurchaseReadLocks(database,actor.companyId).slice(1));
+  // Non-Field receipt readers/manual issuers remain until their owners move.
+  // Native confirmation alone issues Field copies; internal TS callers cannot
+  // read or issue them by bypassing the HTTP source selector.
+  const native=await database.prepare(`SELECT EXISTS(SELECT 1 FROM finance_customer_receipts r WHERE r.company_id=? AND r.${issue?'payment_id':'id'}=? AND erpx_finance_field_payment_owned(r.payment_id))
+    OR (? AND EXISTS(SELECT 1 FROM finance_payments p WHERE p.company_id=? AND p.id=? AND erpx_finance_field_payment_owned(p.id))) native`).bind(actor.companyId,id,!!issue,actor.companyId,id).first<{native:boolean}>();
+  if(native?.native)throw new ApiError(503,'NATIVE_FINANCE_RECEIPT_REQUIRED','Use the native Field receipt interface. Native confirmation retains its issued copy.');
+  // Preserve the original read-only record-scope 404 before checking a stale
+  // selected assignment. Values remain private until all final guards pass.
+  // These two readers have no audit, storage IO or mutation effects.
+  const read=issue?undefined:{result:await run(database)};
+  const before=await receiptSource(database,actor,id,!!issue),access=await readPurchasedAccesses(database,mode,actor.companyId,['finance.accounting',sales]);
+  const capability=access['finance.accounting'].codes.history==='GRANTED'?'finance.accounting':before?.sales?sales:'finance.accounting';
+  const authority=await current(database,actor,!!issue,capability===sales);
+  await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability,purpose:'history'});
+  const guard=`sales-customer-receipt:${randomUUID()}`,boundary=issue?purchaseCommandBoundary(database,mode,guard,{companyId:actor.companyId,capability,purpose:'history'}):undefined;if(boundary)await database.batch(boundary.before);
+  const result=read?read.result:await run(database);await flushFinanceDeferredEffects(database);
+  const after=await receiptSource(database,actor,id,!!issue);
+  if(before&&(!after||after.image!==before.image||after.sales!==before.sales)||capability===sales&&!after?.sales)throw new ApiError(409,'SALES_RECEIPT_SOURCE_CHANGED','The original immutable customer receipt source changed before completion.');
+  if(authority!==await current(database,actor,!!issue,capability===sales))throw new ApiError(409,'SALES_POSTING_CONTEXT_CHANGED','The selected Finance authority changed before customer receipt completion.');
+  await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability,purpose:'history'});
+  if(boundary){const observed=await database.batch([...boundary.after,clearWorkflowCommandAssertions(database,guard)]);boundary.observe?.(observed);}return result;
+ });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
+}
+export function withSalesCustomerReceiptRead<Result>(actor:WorkContext,id:string,run:(database:SqlDatabase)=>Promise<Result>){return owned(actor,id,undefined,run);}
+export function withSalesCustomerReceiptIssue<Result>(actor:WorkContext,paymentId:string,key:string,run:(database:SqlDatabase)=>Promise<Result>){return owned(actor,paymentId,{key},run);}
+/** Exact immutable customer-receipt page discovery; no collection or private
+ * actor/snapshot is returned to the caller before Work context selection. */
+export async function salesCustomerReceiptProductEntry(database:SqlDatabase,scope:SalesPostingSetupProductScope,receiptId:string){
+ if(!scope.sessionId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
+ try{await loadIamAuthority(database,scope.companyId,scope.userId,scope.role,scope.sessionId);}catch(error){if(error instanceof ApiError&&(error.status===401||error.status===403))return null;throw error;}
+ const access=(await readPurchasedAccesses(database,'enforced',scope.companyId,[sales]))[sales];if(!access.history)return null;
+ const row=await database.prepare(`${materializedClockCteSql('receipt_entry_clock', packageClockSql)},receipt_scope AS MATERIALIZED(${FINANCE_SCOPE_BIND_SQL})
+ SELECT receipt.id FROM finance_customer_receipts receipt CROSS JOIN receipt_scope CROSS JOIN receipt_entry_clock
+ JOIN (${financeSalesReceiptOriginalSources}) original ON original.id=receipt.payment_id AND original.company_id=receipt.company_id
+ JOIN (${commerceFinanceSalesSources.invoiceScope}) owned ON owned.invoice_id=original.invoice_id AND owned.company_id=original.company_id
+ WHERE receipt.id=? AND receipt.company_id=receipt_scope.company_id AND (?::text IS NULL OR owned.branch_id=?) AND (?::text IS NULL OR owned.department_id=?)
+ AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND user_id=? AND company_id=receipt_scope.company_id AND role=? AND version=?)
+ AND ${assignmentReadSql('receipt_scope','finance.read')}
+ AND ${scheduledFeaturePredicate('receipt_scope.company_id','finance')} AND ${scheduledFeaturePredicate('receipt_scope.company_id','sales')}
+ AND ${purchasedCapabilityPredicate('receipt_scope.company_id',sales,'history','receipt_entry_clock.now_ms')}
+ ${ORIGINAL_PAYMENT_REVERSAL_GUARD}`)
+ .bind(scope.companyId,scope.branchId,scope.departmentId,receiptId,scope.branchId,scope.branchId,scope.departmentId,scope.departmentId,scope.assignmentId,scope.userId,scope.role,scope.assignmentVersion,scope.assignmentId,scope.userId,scope.role).first();
+ return row?{capability:sales,purchasePurpose:'history' as const}:null;
+}

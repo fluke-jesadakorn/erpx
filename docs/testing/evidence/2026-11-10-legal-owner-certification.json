@@ -1,0 +1,80 @@
+{
+  "schema": "erpx.evidence/legal-owner-certification/v1",
+  "recorded_at": "2026-11-10T06:05:00+07:00",
+  "head": "5c434bccdb9639a2645cc12b42f9769822e0ca38",
+  "owner": "legal",
+  "package": "erpx-server-legal",
+  "workflows": [
+    "legal/contracts",
+    "legal/feature-documents",
+    "legal/feature-legal-holds",
+    "legal/feature-document-access",
+    "legal/feature-archive"
+  ],
+  "workflow_counts": {
+    "total": 5,
+    "verified": 5,
+    "partial": 0,
+    "unstarted": 0
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "active",
+    "ssr": "active",
+    "jobs": "active",
+    "providers": "active"
+  },
+  "native_paths": {
+    "http": "The native Legal register/detail/export and command routers are mounted in the private API; the Legal workspace and record routes use the native transport for the registered workflows.",
+    "ssr": "The Legal workspace register, detail, holds, document access, contract approval and archive journeys use the native owner HTTP paths. The native enrollment/verification path is mounted for the portal.",
+    "jobs": "legalWork invokes the durable native Legal document worker for OCR/PDF; the native worker has --once/--loop runtime modes, provider probes, schema/binding checks and bounded schedule/backoff.",
+    "providers": "Native OCR/DOCX extraction and offline PDF verification (erpx-verify-pdf + erpx-validate-pdf) pass the actual provider gate. AI generation, official law-source fetching and invitation email remain external provider consumers, not Legal-native provider ports.",
+    "enrollment": "POST /api/v1/account/legal-enrollment verifies the erpx-legal-enrollment JWT and Legal share, creates the Argon2id/local:credential account, and hands the verification token to the existing sandbox email adapter. The invited unverified continuation returns 403."
+  },
+  "gates": [
+    {"name": "legal.legal.integration", "result": "52/52 pass"},
+    {"name": "legal.rust-worker-bootstrap.provider", "result": "1/1 pass in 88.43 s"},
+    {"name": "legal.rust-worker-bootstrap.unit", "result": "4/4 pass"},
+    {"name": "legal.rust-queued-authority-composition.integration", "result": "19/19 pass in 34.21 s"},
+    {"name": "legal.application.unit", "result": "56/56 pass"},
+    {"name": "cargo test -p erpx-server-legal", "result": "22 test binaries green"},
+    {"name": "cargo check", "result": "private-field-api/existing-business; files-scan-worker/field-push-worker; legal-pdf-worker/legal-document-worker/legal-queue pass"},
+    {"name": "tests/config typecheck", "result": "pass"},
+    {"name": "test catalogue", "result": "33 modules, 1011 suites"}
+  ],
+  "browser": {
+    "desktop": {
+      "viewport": "1440x900",
+      "route": "https://acme.jesadakorn.com/legal?company=acme-co",
+      "register": "1 record: Verification — fictional legal request (draft, confidential)",
+      "detail": "request c84b08e8-7287-4a02-a7be-2bc8b037aba9 overview version 4 with Documents/Workflow/Access/Holds/Retention tabs",
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "route": "https://acme.jesadakorn.com/legal?company=acme-co",
+      "register": "1 record",
+      "detail": "request c84b08e8-7287-4a02-a7be-2bc8b037aba9 overview version 4",
+      "failed_business_requests": [],
+      "page_errors": []
+    },
+    "dev_artifact": "One stale Turbopack HMR chunk (packages_feature-legal_src_components_07jykntrmaq51._.js) returns 404 after cache clearing; it is not an API/business request and the page and detail hydrate and operate."
+  },
+  "legacy": {
+    "primary": "The registered Legal workflows use native owner HTTP/SSR and the native document worker; the TypeScript legal identity/branding/document writers used by these workflows are retired from the runtime path.",
+    "secondary": "Auxiliary Legal views (knowledge, law corpus, reports, governance, executed-copy listing, assignees, retention/trust/features tabs) still execute retained TypeScript application reads. They are outside the five registered workflows; named removal condition: migrate each auxiliary view to its owner HTTP port when that capability enters the registered scope.",
+    "enrollment": "The Legal enroll route no longer calls createAuth sign-up; it uses the native enrollment endpoint and the existing sandbox email adapter for the verification link."
+  },
+  "fixes": [
+    "Added AccountCredentials.sign_up_legal and the Postgres repository path with native Argon2id and issuer=local:credential.",
+    "Added the Legal share-token validated POST /api/v1/account/legal-enrollment private endpoint and the native SDK path.",
+    "Switched the Legal enroll route to the native endpoint and the sandbox verification email.",
+    "Fixed the native verify/get-session test handoff by filtering cleared cookies and stopping the native test server before disposable database cleanup."
+  ],
+  "notes": [
+    "Legal is owner 5/41 in this record. The five registered workflows are verified with native/frontend/gates/browser evidence; the auxiliary TS views are recorded as named remaining consumers, not used by the registered workflows.",
+    "No production, staging, deployment, schema deletion or destructive cleanup was performed."
+  ]
+}

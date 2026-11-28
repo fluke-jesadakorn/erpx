@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Records now has a bounded native record-context read: one scoped workspace record plus its outgoing references, visible backlinks, principal mentions, suggestion metadata and transition timeline. The owner slice includes portable domain/application ports, a PostgreSQL adapter over the existing Records-owned tables, an owner-local HTTP router, a strict Next transport and configured GET cutover. The owner remains pending: registry list/search/paging, writes (create/update/archive/transition/reference/mention/suggestion), record-details supplements, attachments, recursive consumers and browser acceptance remain retained TypeScript. The native router is not mounted in shared composition.",
+  "capability": "records-record-context-read",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "b17293bc7",
+  "verificationHead": "b17293bc7 plus this uncommitted owner diff",
+  "scope": {
+    "workflowBoundary": "The qualified source slice is the existing GET /api/v1/holdings/{holding_slug}/records/{module}/{record_id} record-context read used by the record drawer. It returns the same record/detail keys as the retained reader: record, references, backlinks, mentions, suggestions and history. Registry list/search/paging, ?view=mention, every generic record write, record-details supplements, attachments, cross-owner consumers and all other Records workflows remain retained TypeScript.",
+    "domain": "Portable policy validates module/record identity bounds, selected scope (holding Company, exact branch, exact department), records.read, module access, non-archived/current status, bounded fields JSON, ordered/unique reference edges, bounded/unique backlinks, mention kinds/labels, suggestion JSON/state, transition timeline and exact wire keys. Bounds are 50 references, 50 backlinks, 200 mentions, 20 suggestions, 20 history rows, 64 fields, 64 KiB fields JSON and 16 KiB per suggestion JSON.",
+    "application": "record_context authorizes the current read fact, validates the module/record and module access, rechecks current assignment authority, asks the composition-owned cross-owner guard to admit the host record, reads the scoped row, filters every outgoing reference/backlink target through that guard, rejects source/guard failures closed, and returns the bounded document. The application opens no transaction and never reads HTTP.",
+    "adapters": "SQL is Records-owned: workspace_records, record_reference_edges, record_principal_mentions, record_field_suggestions and workspace_record_transitions. Current IAM is re-read through the existing assignments/iam_members/iam_assignment_active/iam_principal_active/iam_role_allows predicates. No other owner row is selected, linked or mutated. Cross-owner link admission is supplied by the public guard port; the crate contains no cross-owner SQL. The caller's serializable Holding transaction is mandatory and is not opened, committed or retried here.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/records/{module_id}/{record_id}. Exact registered Host/Holding targets, HTTPS origins, empty query and body, bounded path identifiers, private/no-store plus no-referrer/nosniff responses and bounded BusinessError status mapping. The composition backend owns Account session resolution, selected Company/branch/department scope, current IAM/module facts, cross-owner admission and the serializable owner unit.",
+    "transport": "ERPX_NATIVE_RECORDS_CONFIG is strictly validated: literal loopback private base, reserved ports 3000/3001/3100/3101/3103/5432/5433/5435/8080 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded Host/cookie/context values, exact data/context shapes, Company/context equality, unique ordered targets, denied-reference sentinel and a 2 MiB response bound. A configured failure never falls back to the retained reader.",
+    "nextCutover": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route.ts GET uses native context when ERPX_NATIVE_RECORDS_CONFIG is present and the normal WorkContext has authority/IAM facts. An absent configuration retains recordContext. Once configured, a malformed or failed native read is mapped to the existing ApiError response surface and never replaced by the retained reader. ?view=mention remains retained.",
+    "ssrLimit": "There is no dedicated SSR page that renders this record-context document today; the cutover is the Next server route consumed by the existing record drawer. The transport is server-only and available to an SSR consumer, but no SSR page render is claimed.",
+    "crossOwnerGuards": "The native layer never reads another owner's SQL. RecordContextGuard::authorize_source and target_visible must be implemented at composition using owning public ports. A denied target keeps the retained drawer behavior (reference becomes Unavailable record, backlink is hidden). A guard transport/owner failure fails the whole read closed. The guard is not implemented or mounted in shared composition by this slice.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, catalogue acceptance qualification, list/search/paging, record write, reference/mention/suggestion command, attachment read, SSR page render, deployment, staging, private production or Cloudflare verification."
+  },
+  "changedFiles": [
+    "packages/server-records/Cargo.toml",
+    "packages/server-records/package.json",
+    "packages/server-records/src/lib.rs",
+    "packages/server-records/src/domain/mod.rs",
+    "packages/server-records/src/domain/record_context.rs",
+    "packages/server-records/src/application/mod.rs",
+    "packages/server-records/src/application/record_context.rs",
+    "packages/server-records/src/adapters/mod.rs",
+    "packages/server-records/src/adapters/record_context.rs",
+    "packages/server-records/src/adapters/record_context_http.rs",
+    "packages/server-records/src/public/mod.rs",
+    "packages/server-records/src/public/record_context.rs",
+    "packages/server-records/src/public/record_context_http.rs",
+    "packages/server-records/src/public/native-record-context.ts",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route.ts",
+    "tests/unit/shared.records/rust-record-context.test.rs",
+    "tests/unit/shared.records/rust-record-context-http.test.rs",
+    "tests/integration/shared.records/rust-record-context-postgres.test.rs",
+    "tests/unit/shared.records/native-record-context-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-records-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-records --locked",
+      "result": "23 passed, 0 failed, 0 ignored across 5 executed targets plus empty doc-tests (lib 2, business_evidence 5, record_context 7, record_context_http 3, record_context_postgres 6, doc-tests 0).",
+      "targets": {
+        "lib": "2 passed: request/module/scope validation and selected branch/department policy; permission, expiry and current render facts.",
+        "record_context": "7 passed: exact ordered document and denied sentinel; permission/module/expiry/changed-authority negatives; invalid module/id and missing record; source/target guard failures; foreign/duplicate/oversized sources; malformed fields/suggestions/history; branch/department containment.",
+        "record_context_http": "3 passed: exact distinct targets and HTTPS origins; actual loopback GET forwarding of Host/Holding/module/record/cookie; private/no-store/no-referrer/nosniff headers; unknown host/Holding/query/body and invalid path bounds; owner conflict 409.",
+        "record_context_postgres": "6 passed: scoped registry, ordered links, visible/denied backlinks, mentions, suggestion and timeline readback; foreign/archived/branch/department isolation; revoked/expired/limited/foreign assignment denial before source; source/target guard failures; 201-mention source bound; caller transaction/serializable guards."
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-records --all-targets --locked -- -D warnings",
+      "result": "pass"
+    },
+    "rustfmt": {
+      "command": "cargo fmt -p erpx-server-records -- --check",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "record_context_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with synthetic custom records_reader/limited_reader roles, current and revoked assignments, branch/department actors, Records rows for two Companies/branches/departments, archived rows, outgoing/backlink edges, mentions, one ready suggestion and two transitions. The owner reads only Records tables plus shared IAM predicates.",
+      "cases": [
+        "host record and links are Company/scope scoped; allowed targets return title/version, denied targets return Unavailable record/0/denied and denied backlinks are hidden",
+        "foreign Company, archived, other-branch and other-department records are not found within the selected scope",
+        "revoked assignment, expired member/role without records.read and foreign assignment are denied before source read",
+        "a denied cross-owner source and a failing target guard fail the whole read closed",
+        "more than 200 mentions are rejected as an invalid source",
+        "a caller outside a transaction and a caller inside read-committed fail closed before owner SQL"
+      ]
+    },
+    "typescript": {
+      "transportUnit": "vitest with a temporary server-only alias config: 5 passed (strict configuration, exact path/Host/cookie forwarding, changed-context/wrong-host/identifier rejection before transport, foreign/duplicate/extra/incoherent row rejection, owner failure mapping and no fallback). Bun 1.4.3 is not installed in this worktree, so the test ran through the installed Vitest binary under an ignored .scratch/records config; no suite manifest was edited.",
+      "existingRecords": "tests/unit/shared.records/record-services.test.ts: 29 passed. tests/unit/shared.records/record-drawer-routing.test.ts: 16 passed, 1 pre-existing environment failure ('Missing RecordDrawer test boundary stub: @erpx/ui/components/navigation-context') in the mounted-record-drawer case; the failure is an esbuild test-boundary stub, not this slice.",
+      "typechecks": [
+        "node_modules/.bin/tsc --noEmit --project tests/config/tsconfig.json: pass",
+        "node_modules/.bin/tsc --noEmit --project packages/server-records/tsconfig.json: no finding in changed files; repository-wide pre-existing CSS-module declaration failures remain outside this slice",
+        "node_modules/.bin/tsc --noEmit --project packages/workplace/tsconfig.json: no finding in the changed route; repository-wide pre-existing CSS-module declaration failures remain outside this slice"
+      ],
+      "eslint": "targeted changed TypeScript files: 0 errors, 0 warnings; only the repository's existing Next pages-directory configuration warning was printed.",
+      "runnerLimit": "No Bun executable is present in this worktree. No shared catalogue/register, suite manifest or lockfile was edited by this subagent."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "architecture": "node_modules/.bin/tsx scripts/architecture/check.ts: exit 1 with 20 pre-existing owner/module-private import findings in legal, pos, supply, workplace, assets, maintenance and quality files outside this slice; no finding names a changed Records file",
+      "diffCheck": "git diff --check on the changed Records/Workplace/test paths: pass"
+    },
+    "browser": "not run. No Next dev server, authenticated page render, public URL, staging, private production or Cloudflare route was accessed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed. The slice uses existing baseline workspace_records/record_reference_edges/record_principal_mentions/record_field_suggestions/workspace_record_transitions tables plus existing IAM predicates.",
+    "dependencyDelta": "No new external crate or version. packages/server-records/Cargo.toml now declares the existing workspace edges erpx-server-runtime, serde_json and sqlx for the owner adapter, plus uuid for the shared isolated-PostgreSQL fixture helper. Cargo updated only the erpx-server-records package entry in Cargo.lock to record those existing workspace edges; no root Cargo.toml, version, package lockfile or other owner manifest was edited.",
+    "compositionDelta": "No src/composition change and no router mount. The owner-local router and public ports are ready for a composition backend but are not mounted here.",
+    "publicPortsRequiredByComposition": [
+      "erpx_server_records::public::record_context::{RecordContextActor, RecordContextRepository, RecordContextGuard, PgRecordContext, record_context, RecordContextDocument, RecordRow, ReferenceEdge, BacklinkEdge, MentionRow, SuggestionRow, HistoryRow, LinkTarget}",
+      "erpx_server_records::public::record_context_http::{records_context_http_router, RecordsContextHttpTarget, RecordsContextHttpBackend, RecordsContextHttpRequest, RecordsContextHttpResponse, RecordsContextHttpCommand}"
+    ],
+    "backendRequired": "Implement RecordsContextHttpBackend in src/composition: resolve the normal Account session and selected Holding Company/branch/department, build the current RecordContextActor from sealed IAM/Work authority, implement RecordContextGuard::authorize_source/target_visible through the owning public ports (not cross-owner SQL), run record_context with PgRecordContext inside one serializable Holding transaction, map PgTransactionError to BusinessError, and return the exact document plus RecordContextActor::context_json(). Do not route any generic record write, list/search/paging, ?view=mention, record-details supplement or attachment request to this backend.",
+    "nextEnvironment": "Set ERPX_NATIVE_RECORDS_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app after the composition backend is mounted. The private development API mount was not edited by this subagent."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "No retained TypeScript source file or public export was deleted by this slice."
+    ],
+    "retained": [
+      "When ERPX_NATIVE_RECORDS_CONFIG is present, the existing record-context GET uses the native owner instead of the retained generic recordContext reader.",
+      "Without the configuration, the retained recordContext path remains the GET path.",
+      "?view=mention, list/search/paging, create/update/archive/transition/reference/mention/suggestion commands, record-details supplements, attachments, cross-owner consumers and every other Records workflow remain retained.",
+      "The retained UI route shape receives the same record/references/backlinks/mentions/suggestions/history keys and access sentinel when the native read succeeds."
+    ],
+    "cutover": "A configured native read failure is bounded and surfaced; it never silently reads the retained context. An unset configuration performs no native call."
+  },
+  "concurrentWork": {
+    "preserved": "This shared worktree contains concurrent uncommitted Finance, Commerce, Platform, Learning, Identity Access, Talent and other owner work. None of those files were edited or reverted by this slice. HEAD b17293bc7 was preserved and no commit, branch or worktree was created.",
+    "excluded": "No docs/status register, contracts file, shared composition, root Cargo.toml, package lockfile or other owner implementation was edited. A package-level Cargo dependency-edge update appeared in Cargo.lock as described above; no new external dependency/version was introduced."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No composition backend implements RecordsContextHttpBackend or mounts records_context_http_router, and no composition RecordContextGuard exists, so configured cutover is not runnable end-to-end.",
+      "The cross-owner guard must still be implemented with owning public ports; until then the native read cannot safely serve modules that require Commerce/Inventory/Finance/Support/Work admission.",
+      "No dedicated SSR page consumes record context; only the Next server route is cut over.",
+      "Registry list/search/paging, record writes and attachments remain retained; the owner cannot be marked complete.",
+      "No authenticated browser or deployment verification was performed."
+    ],
+    "nextAction": "Have the composition owner implement the current Records actor/guard from owning public ports and mount the router, then qualify the authenticated record drawer on the real browser. After that, extend the owner with list/search/paging and one write command (reference or transition) with receipt/audit/outbox/CAS, followed by record-details supplements and attachments. Browser acceptance remains deferred."
+  }
+}

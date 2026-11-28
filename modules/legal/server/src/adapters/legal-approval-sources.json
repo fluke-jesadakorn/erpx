@@ -1,0 +1,4 @@
+{
+  "reviewerMembership": "SELECT 1 FROM legal_members m JOIN ({assignments}) a ON a.user_id=m.user_id AND a.company_id=? WHERE m.item_id=? AND m.user_id=? AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? AND iam_role_allows(a.role,a.company_id,'legal.approve')",
+  "currentRoute": "EXISTS(SELECT 1 FROM ({approvalInstances}) approval_instances WHERE id=? AND state='pending' AND current_step=? AND version=?)"
+}

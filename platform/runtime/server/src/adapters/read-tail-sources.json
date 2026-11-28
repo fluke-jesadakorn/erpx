@@ -1,0 +1,11 @@
+{
+  "holdingBindings": "SELECT {columns} FROM holding_bindings{suffix}",
+  "executiveGenerationJobs": "SELECT {columns} FROM executive_generation_jobs{suffix}",
+  "runtimeHealth": "SELECT {columns} FROM runtime_health{suffix}",
+  "executiveExternalTokens": "SELECT {columns} FROM executive_external_tokens{suffix}",
+  "executiveReportShares": "SELECT {columns} FROM executive_report_shares{suffix}",
+  "executiveReportRevisions": "SELECT {columns} FROM executive_report_revisions WHERE report_id=?{suffix}",
+  "executiveReports": "SELECT {columns} FROM executive_reports{suffix}",
+  "reportLock": "SELECT id FROM executive_reports WHERE id=? FOR UPDATE",
+  "reportVersionGuard": "EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)"
+}

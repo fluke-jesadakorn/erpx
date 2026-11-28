@@ -1,0 +1,1 @@
+export {brandEvidenceMetrics,providerId,fields,inputSchema,parseCursor,encodeCursor,safeRevision,notFound,timeRange} from '@erpx/platform-runtime-server/domain/executive/brand-evidence';export type {BrandEvidenceMetric,BrandProfileRow,Cursor} from '@erpx/platform-runtime-server/domain/executive/brand-evidence';

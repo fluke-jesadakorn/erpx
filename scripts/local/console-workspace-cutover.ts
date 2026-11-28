@@ -1,4 +1,4 @@
-import { appDefinitions } from "@erpx/contracts/apps";
+import { appDefinitions } from "@erpx/platform-contracts/apps";
 
 /** Read-only development readiness, never production acceptance or authority. */
 export function consoleWorkspaceCutoverBlockers(activeApps: readonly string[], environment: Readonly<Record<string, string | undefined>>): string[] {

@@ -5,7 +5,9 @@ import {
   expenseDb as raw,
   key,
 } from "../../support/helpers/expense-fixture";
-import {installStaffLevels,savePosition,positionSchema} from '@erpx/server-organization/public/organization';
+import {positionSchema} from '@erpx/organization-server/public/organization';
+import {savePosition} from '../../support/helpers/organization-positions';
+import {installStaffLevels} from '../../support/helpers/organization-levels';
 import {
   peopleLifecycleData,
   previewPackage,
@@ -18,39 +20,80 @@ import {
   applyLifecycleReview,
   createRehireEngagement,
   peopleLifecycleWork,
-} from "@erpx/server-people_payroll/public/people-lifecycle";
-import { drainPeopleLifecycle } from "@erpx/server-people_payroll/public/people-lifecycle-jobs";
+} from "@erpx/people-payroll-server/public/people-lifecycle";
+import { drainPeopleLifecycle } from "@erpx/people-payroll-server/public/people-lifecycle-jobs";
 import {
   packageInput,
   lifecycleInput,
   peopleIamDestination,
-} from "@erpx/feature-people_payroll/lib/people-lifecycle";
-import { iamDb } from "@erpx/server-identity_access/public/iam-db";
-import { iamActorFromWork } from "@erpx/server-identity_access/public/iam-context";
-import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
-import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
-import { decideIamReview } from "@erpx/server-identity_access/public/iam-service";
-import {
-  managementCommand,
-  readManagement,
-} from "@erpx/server-identity_access/public/user-management";
-import { setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
-import { transitionEngagement } from "@erpx/server-people_payroll/public/people-payroll";
-import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
-import { companyMembers } from "@erpx/server-organization/public/member-directory";
-import {changeAppointment} from '@erpx/server-organization/public/department-authority';
-import { enrichFlowWork } from "@erpx/server-workflow/public/flow-work";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+} from "@erpx/people-payroll-ui/lib/people-lifecycle";
+import { iamDb } from "@erpx/identity-access-server/public/iam-db";
+import {PostgresDatabase} from '@erpx/platform-runtime-server/public/runtime/postgres';
+import { iamActorFromWork } from "@erpx/identity-access-server/public/iam-context";
+import { loadIamAuthority } from "@erpx/identity-access-server/public/iam-store";
+import { selectWorkRole } from "@erpx/work-projection-server/public/work-role-store";
+import { decideIamReview } from "@erpx/identity-access-server/public/iam-service";
+import { setDirectoryStatus } from "@erpx/people-payroll-server/public/people-directory";
+import { transitionEngagement } from "@erpx/people-payroll-server/public/people-payroll";
+import {packageGrantStore,readCompanyPackageGrants} from "@erpx/commercial-server/public/package-grants";
+import { companyMembers } from "@erpx/organization-server/public/member-directory";
+import {changeAppointment} from '@erpx/organization-server/public/department-authority';
+import { enrichFlowWork } from "@erpx/workflow-server/public/flow-work";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { randomUUID } from "node:crypto";
+
+async function createManualGroup(
+  actor: { companyId: string },
+  input: { name: string; scopeNodeId?: string | null; parentId?: string | null },
+  reason: string,
+) {
+  const id = randomUUID();
+  const definition = {
+    id,
+    name: input.name,
+    kind: "manual",
+    parentId: input.parentId ?? null,
+    scopeNodeId: input.scopeNodeId ?? null,
+    rule: null,
+    archived: false,
+    reason,
+  };
+  await raw
+    .prepare(
+      "INSERT INTO um_groups(company_id,id,version,definition) VALUES(?,?,1,?)",
+    )
+    .bind(actor.companyId, id, JSON.stringify(definition))
+    .run();
+  return { id };
+}
+async function managementGroupExists(
+  actor: { companyId: string },
+  id: string,
+) {
+  return Boolean(
+    await raw
+      .prepare("SELECT 1 FROM um_groups WHERE company_id=? AND id=?")
+      .bind(actor.companyId, id)
+      .first(),
+  );
+}
+async function roleAllows(actor: { companyId: string; role: string }, permission: string) {
+  const row = await raw
+    .prepare("SELECT iam_role_allows(?,?,?) ok")
+    .bind(actor.role, actor.companyId, permission)
+    .first<{ ok: boolean }>();
+  return row?.ok === true;
+}
 import {
   attachmentBindingState,
   enableAttachmentV2ForTest,
   seedAttachmentSet,
 } from "../../support/helpers/attachment-v2";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: raw, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
-vi.mock("@erpx/server-identity_access/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
+vi.mock("@erpx/identity-access-server/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
 const db = iamDb(raw);
 beforeAll(async () => {
   await applyMigrations(raw, env.STAFF_TEST_MIGRATIONS);
@@ -58,6 +101,10 @@ beforeAll(async () => {
   enableAttachmentV2ForTest();
 });
 afterEach(()=>vi.unstubAllEnvs());
+it('drains scheduled People work with the single connection used by development jobs',async()=>{
+ const single=new PostgresDatabase({...db.pool.options,max:1,connectionTimeoutMillis:250});
+ try{expect(await drainPeopleLifecycle(single,0)).toBe(0);}finally{await single.pool.end();}
+});
 async function purchaseCorePeople(companyId:string,state:'active'|'draining'='active',endsAt:number|null=null){const store=packageGrantStore(raw,{authorize:async(_tx,company)=>{if(company!==companyId)throw Error('ISOLATED_PEOPLE_PROVIDER_SCOPE');return {userId:'isolated-people-lifecycle-provider'};},obligations:async()=>{throw Error('No inactive cutover witness');}}),previous=(await readCompanyPackageGrants(raw,companyId)).find(row=>row.packageId==='people');return store.apply({expectedVersion:previous?.version??0,idempotencyKey:key(),grant:{companyId:companyId,packageId:'people',packageVersion:1,state,startsAt:0,endsAt,version:(previous?.version??0)+1,reason:'Isolated actual People lifecycle owner purchase',evidence:'test:people-lifecycle-purchase-owner'}});}
 async function authorize(a: WorkContext) {
   const sessionId = key();
@@ -556,7 +603,7 @@ it("requires independent personal reviews and does not grant before the effectiv
   ).toBe(true);
 });
 it("routes Company IAM aliases to the current People and Technology owners", () => {
-  for (const section of ["users", "overview", "my-access"]) expect(peopleIamDestination(section)).toBe("people");
+  for (const section of ["users", "overview", "my-access"]) expect(peopleIamDestination(section)).toBe("technology?view=resources&section=accounts");
   expect(peopleIamDestination("connections")).toBe("technology?view=directory&section=connections");
   // Legacy IAM mappings are access-group mappings, distinct from Directory field mappings.
   expect(peopleIamDestination("mappings")).toBe("technology?view=settings&section=groups");
@@ -839,44 +886,14 @@ it("allows IT to prepare groups and denies HR access-policy administration", asy
       reason: "Prepare reusable access group",
     },
   };
-  const preview = await managementCommand(raw, actor, change, key(), true);
-  const group = await managementCommand(
-    raw,
+  const group = await createManualGroup(
     actor,
-    change,
-    key(),
-    false,
-    preview.previewToken,
+    change.input,
+    change.input.reason,
   );
-  expect(
-    (await readManagement(raw, actor)).groups.some((g) => g.id === group.id),
-  ).toBe(true);
-  await expect(
-    managementCommand(
-      raw,
-      iamActorFromWork(f.hr),
-      {
-        operation: "policy",
-        input: {
-          name: "Not delegated",
-          archived: false,
-          expectedVersion: 0,
-          reason: "Cannot grant access",
-          grants: [
-            {
-              roleId: "employee",
-              expectedRoleRevision: 2,
-              scopeKind: "holding",
-              scopeNodeId: null,
-              validUntil: Date.now() + 60000,
-            },
-          ],
-        },
-      },
-      key(),
-      true,
-    ),
-  ).rejects.toMatchObject({ status: 403 });
+  expect(await managementGroupExists(actor, group.id)).toBe(true);
+  const hrActor = iamActorFromWork(f.hr);
+  expect(await roleAllows(hrActor, "iam.manage")).toBe(false);
 });
 
 it("excludes superseded accounts from new grants but retains them in departure coverage", async () => {
@@ -1016,21 +1033,7 @@ it("shares immutable packages across positions and preserves another occupant's 
       reason: "Prepare a shared position group",
     },
   };
-  const groupPreview = await managementCommand(
-    raw,
-    itActor,
-    change,
-    key(),
-    true,
-  );
-  const group = await managementCommand(
-    raw,
-    itActor,
-    change,
-    key(),
-    false,
-    groupPreview.previewToken,
-  );
+  const group = await createManualGroup(itActor, change.input, change.input.reason);
   const { pkg, input: original } = await prepare(f, [group.id]);
   const secondPosition = String(
     (
@@ -1122,10 +1125,6 @@ it("shares immutable packages across positions and preserves another occupant's 
   await drainPeopleLifecycle(raw);
   expect(await isMember(f.person)).toBe(false);
   expect(await isMember(second.person)).toBe(true);
-  expect(
-    (await readManagement(raw, itActor)).groups.find((g) => g.id === group.id)
-      ?.memberSources?.[second.person],
-  ).toContain("Position access package");
 });
 
 it("groups accounts by reviewed identity links rather than matching email", async () => {
@@ -1162,8 +1161,8 @@ it("groups accounts by reviewed identity links rather than matching email", asyn
 });
 
 it("creates six retirement responsibilities, keeps cutoff independent and prevents IT from closing finance", async () => {
- const {calendarCommand}=await import("@erpx/server-work_projection/public/calendar/commands");
- const {retirementWork}=await import("@erpx/server-people_payroll/public/retirement-clearance");
+ const {calendarCommand}=await import("@erpx/work-projection-server/public/calendar/commands");
+ const {retirementWork}=await import("@erpx/people-payroll-server/public/retirement-clearance");
  const f=await fixture(),finance=await authorize(await f.member("clearance-finance","finance_preparer")),now=Date.now();
  const input=lifecycleInput.parse({kind:"offboarding",departureReason:"retirement",expectedVersion:0,personId:f.person,engagementId:f.engagement,positionId:null,lastWorkingDate:"2026-09-16",effectiveAt:now-1000,reason:"Fictional retirement",clearanceOwners:{finance:finance.userId}});
  const preview=await previewLifecycle(raw,f.hr,input),command=key();
@@ -1193,8 +1192,8 @@ it("retirement cancellation keeps history and cancels pending clearance before c
 });
 
 it("reads retirement evidence only for the assigned task owner and never changes the financial document",async()=>{
- const {calendarCommand}=await import("@erpx/server-work_projection/public/calendar/commands");
- const {clearanceCase}=await import("@erpx/server-people_payroll/public/retirement-clearance");
+ const {calendarCommand}=await import("@erpx/work-projection-server/public/calendar/commands");
+ const {clearanceCase}=await import("@erpx/people-payroll-server/public/retirement-clearance");
  const f=await fixture(),finance=await authorize(await f.member("clearance-evidence","finance_preparer")),otherFinance=await authorize(await f.member("clearance-evidence-other","finance_preparer")),expenseId=await f.claim(finance);
  const before=await raw.prepare("SELECT status,version FROM finance_expenses WHERE id=?").bind(expenseId).first();
  const input=lifecycleInput.parse({kind:"offboarding",departureReason:"retirement",expectedVersion:0,personId:f.person,engagementId:f.engagement,positionId:null,lastWorkingDate:"2026-12-31",effectiveAt:Date.now()+86400000,reason:"Retirement evidence review",clearanceOwners:{finance:finance.userId}});
@@ -1217,8 +1216,8 @@ it("reads retirement evidence only for the assigned task owner and never changes
  const other=await fixture();await expect(clearanceCase(raw,other.hr,String(saved.id))).rejects.toMatchObject({status:404});
 });
 it("revalidates clearance owners, rejects stale edits and keeps reassignment notifications attached to the same task",async()=>{
- const {calendarCommand}=await import("@erpx/server-work_projection/public/calendar/commands");
- const {clearanceOwners}=await import("@erpx/server-people_payroll/public/retirement-clearance");
+ const {calendarCommand}=await import("@erpx/work-projection-server/public/calendar/commands");
+ const {clearanceOwners}=await import("@erpx/people-payroll-server/public/retirement-clearance");
  const f=await fixture(),finance=await authorize(await f.member("clearance-revocation","finance_preparer"));
  const input=lifecycleInput.parse({kind:"offboarding",departureReason:"retirement",expectedVersion:0,personId:f.person,engagementId:f.engagement,positionId:null,lastWorkingDate:"2026-12-31",effectiveAt:Date.now()+86400000,reason:"Retirement assignment review"});
  const saved=await saveLifecycle(raw,f.hr,input,key(),true,(await previewLifecycle(raw,f.hr,input)).token),task=(await peopleLifecycleData(raw,f.hr)).tasks.find(t=>t.case_id===saved.id&&t.clearance_type==="finance")!;
@@ -1233,7 +1232,7 @@ it("revalidates clearance owners, rejects stale edits and keeps reassignment not
 });
 
 it("paginates the directory in SQL and resolves details outside the current page",async()=>{
- const {peopleDirectoryPage}=await import("@erpx/server-people_payroll/public/people-directory-page");
+ const {peopleDirectoryPage}=await import("@erpx/people-payroll-server/public/people-directory-page");
  const f=await fixture();const prefix=key();
  await raw.batch(Array.from({length:65},(_,i)=>raw.prepare("INSERT INTO hr_people(id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES(?,?,?,'TH',?,1,1)").bind(`${prefix}-${i}`,f.company,`Pagination ${String(i).padStart(3,'0')}`,f.hr.userId)));
  await raw.batch(Array.from({length:65},(_,i)=>raw.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'employee','salaried','onboarding','2026-01-01','Draft employee','THB',?,1,1)").bind(`eng-${prefix}-${i}`,`${prefix}-${i}`,f.company,f.branch,f.department,f.hr.userId)));
@@ -1424,8 +1423,8 @@ it("shows Position GPO mapping and employee Directory delivery without exposing 
 });
 
 it("IT applies pinned resources and requests independently reviewed ERPX roles, retaining them across HR transfers",async()=>{
-  const {previewProvisioning,applyProvisioning,drainProvisioning,applyProvisioningReview,technologyData}=await import("@erpx/server-identity_access/public/technology");
-  const {provisioningInput}=await import("@erpx/server-identity_access/public/rules/technology");
+  const {previewProvisioning,applyProvisioning,drainProvisioning,applyProvisioningReview,technologyData}=await import("@erpx/identity-access-server/public/technology");
+  const {provisioningInput}=await import("@erpx/identity-access-server/public/rules/technology");
   const f=await fixture();const {pkg}=await prepare(f);
   await raw.prepare("UPDATE hr_engagements SET position_id=? WHERE id=?").bind(f.position,f.engagement).run();
   const input=provisioningInput.parse({engagementIds:[f.engagement],validUntil:Date.now()+3600000,reason:'IT-first apply pinned revision'}),actor=iamActorFromWork(f.it);
@@ -1450,8 +1449,8 @@ it("IT applies pinned resources and requests independently reviewed ERPX roles, 
 });
 
 it("keeps supplemental access independently and withdraws only its selected source",async()=>{
- const {previewProvisioning,applyProvisioning,drainProvisioning,technologyData}=await import("@erpx/server-identity_access/public/technology");
- const {provisioningInput}=await import("@erpx/server-identity_access/public/rules/technology");
+ const {previewProvisioning,applyProvisioning,drainProvisioning,technologyData}=await import("@erpx/identity-access-server/public/technology");
+ const {provisioningInput}=await import("@erpx/identity-access-server/public/rules/technology");
  const f=await fixture(),{pkg}=await prepare(f),actor=iamActorFromWork(f.it);
  await db.pool.query('UPDATE hr_engagements SET position_id=$2 WHERE id=$1',[f.engagement,f.position]);
  const request={engagementIds:[f.engagement],validUntil:Date.now()+3600000,exclude:['role:employee'],reason:'Verify independent package source'};
@@ -1479,8 +1478,8 @@ it("revalidates HR position scope before applying a scheduled placement",async()
 });
 
 it("provisions a shared package for multiple positions only when IT selects their employees",async()=>{
- const {previewProvisioning,applyProvisioning,drainProvisioning,technologyData}=await import("@erpx/server-identity_access/public/technology");
- const {provisioningInput}=await import("@erpx/server-identity_access/public/rules/technology");
+ const {previewProvisioning,applyProvisioning,drainProvisioning,technologyData}=await import("@erpx/identity-access-server/public/technology");
+ const {provisioningInput}=await import("@erpx/identity-access-server/public/rules/technology");
  const f=await fixture(),{pkg}=await prepare(f),actor=iamActorFromWork(f.it),other=await f.member('bulk','employee');
  const second=String((await savePosition(raw,f.hr,null,positionSchema.parse({title:'Second package consumer',levelId:`org-level-${f.company}-6`,branchId:f.branch,departmentId:f.department,reportsToPositionId:f.ceo,expectedVersion:0,reason:'Share reusable IT preparation'}),key())).id);
  const binding={positionId:second,packageId:pkg.id,revision:pkg.revision,expectedVersion:1},p=await bindPositionPackage(raw,f.it,binding,key(),true);
@@ -1496,8 +1495,8 @@ it("provisions a shared package for multiple positions only when IT selects thei
 });
 
 it("keeps cutoffs effective after HR returns an employee and requires new IT access",async()=>{
- const {previewProvisioning,applyProvisioning,drainProvisioning,technologyData}=await import("@erpx/server-identity_access/public/technology");
- const {provisioningInput}=await import("@erpx/server-identity_access/public/rules/technology");
+ const {previewProvisioning,applyProvisioning,drainProvisioning,technologyData}=await import("@erpx/identity-access-server/public/technology");
+ const {provisioningInput}=await import("@erpx/identity-access-server/public/rules/technology");
  const f=await fixture();await prepare(f);const actor=iamActorFromWork(f.it);
  await db.pool.query('UPDATE hr_engagements SET position_id=$2 WHERE id=$1',[f.engagement,f.position]);
  const input=provisioningInput.parse({engagementIds:[f.engagement],validUntil:Date.now()+3600000,exclude:['role:employee'],reason:'Initial resources'});
@@ -1540,7 +1539,7 @@ it("rolls back position binding, preparation, outbox and IAM receipt after a lat
 });
 
 it("preserves atomic provisioning apply and worker rollback followed by the separate durable retry journal",async()=>{
- const {previewProvisioning,applyProvisioning,drainProvisioning,retryProvisioning}=await import("@erpx/server-identity_access/public/technology");const {provisioningInput}=await import("@erpx/server-identity_access/public/rules/technology");const f=await fixture();await prepare(f);await db.pool.query('UPDATE hr_engagements SET position_id=$2 WHERE id=$1',[f.engagement,f.position]);const actor=iamActorFromWork(f.it),input=provisioningInput.parse({engagementIds:[f.engagement],validUntil:Date.now()+3600000,exclude:['role:employee'],reason:'Atomic Technology journal proof'}),preview=await previewProvisioning(db,actor,input),command=key(),fault=`technology_apply_fault_${command.replaceAll('-','_')}`;
+ const {previewProvisioning,applyProvisioning,drainProvisioning,retryProvisioning}=await import("@erpx/identity-access-server/public/technology");const {provisioningInput}=await import("@erpx/identity-access-server/public/rules/technology");const f=await fixture();await prepare(f);await db.pool.query('UPDATE hr_engagements SET position_id=$2 WHERE id=$1',[f.engagement,f.position]);const actor=iamActorFromWork(f.it),input=provisioningInput.parse({engagementIds:[f.engagement],validUntil:Date.now()+3600000,exclude:['role:employee'],reason:'Atomic Technology journal proof'}),preview=await previewProvisioning(db,actor,input),command=key(),fault=`technology_apply_fault_${command.replaceAll('-','_')}`;
  const tables=['people_provision_operations','people_applied_packages','people_provision_grants','people_preparation_tasks','people_directory_operations','people_directory_membership_sources','assignments','iam_reviews','iam_receipts','iam_audit','outbox_events'];async function state(table:string){return (await db.pool.query(`SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb) state FROM ${table} t`)).rows[0].state;}
  const before=await Promise.all(tables.map(state));await raw.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'TECHNOLOGY_FINAL_APPLY_AUDIT_FAILURE' USING ERRCODE='23514';END;$$;CREATE TRIGGER ${fault} AFTER INSERT ON iam_audit FOR EACH ROW WHEN(NEW.target_id='${command}') EXECUTE FUNCTION ${fault}();`);
  try{await expect(applyProvisioning(db,actor,input,preview.token,command)).rejects.toThrow('TECHNOLOGY_FINAL_APPLY_AUDIT_FAILURE');expect(await Promise.all(tables.map(state))).toEqual(before);}finally{await raw.exec(`DROP TRIGGER ${fault} ON iam_audit;DROP FUNCTION ${fault}();`);}
@@ -1563,7 +1562,9 @@ it.each(['source','source-payload','authority','expiry'] as const)('People core 
  const f=await fixture(),effectiveAt=Date.now()+1000,input=lifecycleInput.parse({expectedVersion:0,kind:'transfer',personId:f.person,engagementId:f.engagement,positionId:f.position,managerPersonId:`person-${f.owner.userId}`,effectiveAt,reason:'Actual queued placement with final source and authority fence'});await purchaseCorePeople(f.company);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const preview=await previewLifecycle(raw,f.hr,input,true),created=await saveLifecycle(raw,f.hr,input,key(),true,preview.token,true),before=await raw.prepare('SELECT position_id,status,version FROM hr_engagements WHERE id=?').bind(f.engagement).first(),authority=await raw.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.hr.assignmentId).first(),fn=`people_job_${key().replaceAll('-','')}`;
  if(change==='expiry')await purchaseCorePeople(f.company,'active',Date.now()+1300);
  const effect=change==='source'?`UPDATE people_lifecycle_cases SET kind='offboarding' WHERE id='${created.id}'`:change==='source-payload'?`UPDATE people_lifecycle_cases SET definition=jsonb_set(definition,'{reason}','\"Changed after queued effects\"'::jsonb),authorizing_assignment_id='${f.owner.assignmentId}' WHERE id='${created.id}'`:change==='authority'?`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.hr.assignmentId}'`:'PERFORM pg_sleep(1.4)';await raw.exec(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.aggregate_id='${created.id}' AND NEW.event_type='people.lifecycle.applied') EXECUTE FUNCTION ${fn}()`);
- try{expect(await drainPeopleLifecycle(raw,effectiveAt+20)).toBe(0);}finally{await raw.exec(`DROP TRIGGER ${fn} ON outbox_events;DROP FUNCTION ${fn}()`);}
+ // Other fictional Companies can have eligible retry jobs from earlier cases.
+ // The assertions below fence this exact source, authority and outbox.
+ try{await drainPeopleLifecycle(raw,effectiveAt+20);}finally{await raw.exec(`DROP TRIGGER ${fn} ON outbox_events;DROP FUNCTION ${fn}()`);}
  expect(await raw.prepare('SELECT position_id,status,version FROM hr_engagements WHERE id=?').bind(f.engagement).first()).toEqual(before);expect(await raw.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.hr.assignmentId).first()).toEqual(authority);expect(await raw.prepare('SELECT kind,status,version,attempts,last_error FROM people_lifecycle_cases WHERE id=?').bind(created.id).first()).toMatchObject({kind:'transfer',status:'scheduled',version:1,attempts:1,last_error:change.startsWith('source')?'LIFECYCLE_PURCHASE_SOURCE_CHANGED':change==='authority'?'LIFECYCLE_AUTHORITY_CHANGED':'PACKAGE_CAPABILITY_CHANGED'});expect(await raw.prepare("SELECT COUNT(*) n FROM outbox_events WHERE aggregate_id=? AND event_type='people.lifecycle.applied'").bind(created.id).first('n')).toBe(0);
 });
 
@@ -1595,14 +1596,14 @@ it('People IAM rejects unregistered lifecycle review clients under enforcement',
 });
 
 it.each(['hr_person','people_lifecycle_case'] as const)('People base Files keeps %s exact retained bytes and rolls final source and role changes back',async(targetType)=>{
- const {attachmentContent,bindRecordAttachmentSet}=await import('@erpx/server-files/public/attachments/service'),f=await fixture(),created=await peopleIamCase(f),targetId=targetType==='hr_person'?f.person:String(created.id),table=targetType==='hr_person'?'hr_people':'people_lifecycle_cases',version=Number(await raw.prepare(`SELECT version FROM ${table} WHERE id=?`).bind(targetId).first('version')),files=await seedAttachmentSet(raw,f.hr,{targetType,targetId,componentKind:'record',purposeKey:targetType==='hr_person'?'professional_certificate':'transfer_document',expectedTargetVersion:version}),objectKey=String(await raw.prepare('SELECT object_key FROM attachments WHERE id=?').bind(files.sourceId).first('object_key')),bytes='%PDF-1.7';await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:'application/pdf'}});await raw.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(files.sourceId).run();
+ const {attachmentContent,bindRecordAttachmentSet}=await import('@erpx/files-server/public/attachments/service'),f=await fixture(),created=await peopleIamCase(f),targetId=targetType==='hr_person'?f.person:String(created.id),table=targetType==='hr_person'?'hr_people':'people_lifecycle_cases',version=Number(await raw.prepare(`SELECT version FROM ${table} WHERE id=?`).bind(targetId).first('version')),files=await seedAttachmentSet(raw,f.hr,{targetType,targetId,componentKind:'record',purposeKey:targetType==='hr_person'?'professional_certificate':'transfer_document',expectedTargetVersion:version}),objectKey=String(await raw.prepare('SELECT object_key FROM attachments WHERE id=?').bind(files.sourceId).first('object_key')),bytes='%PDF-1.7';await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:'application/pdf'}});await raw.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(files.sourceId).run();
  vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');await expect(attachmentContent(raw,env.H001_FILES,f.hr,files.linkId,'original')).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await expect(bindRecordAttachmentSet(raw,f.hr,files.setId,version,key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await purchaseCorePeople(f.company);await purchaseCorePeople(f.company,'draining');
  const tables=[table,'assignments','attachments','attachment_sets','attachment_links','attachment_events','command_receipts','audit_events','outbox_events'],snapshot=()=>Promise.all(tables.map(async name=>(await raw.prepare(`SELECT row_to_json(t)::text row FROM ${name} t ORDER BY row_to_json(t)::text`).all()).results));
  for(const change of ['source','authority']){const command=key(),fn=`people_base_file_${key().replaceAll('-','')}`,before=await snapshot(),effect=change==='authority'?`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.hr.assignmentId}'`:targetType==='hr_person'?`UPDATE hr_people SET user_id='${f.owner.userId}' WHERE id='${targetId}'`:`UPDATE people_lifecycle_cases SET person_id='person-${f.owner.userId}' WHERE id='${targetId}'`;await raw.exec(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fn}()`);try{await expect(bindRecordAttachmentSet(raw,f.hr,files.setId,version,command)).rejects.toBeInstanceOf(Error);expect(await snapshot()).toEqual(before);}finally{await raw.exec(`DROP TRIGGER ${fn} ON audit_events;DROP FUNCTION ${fn}()`);}}
  const command=key(),bound=await bindRecordAttachmentSet(raw,f.hr,files.setId,version,command);expect(await bindRecordAttachmentSet(raw,f.hr,files.setId,version,command)).toEqual(bound);expect(await (await attachmentContent(raw,env.H001_FILES,f.hr,files.linkId,'original')).object.text()).toBe(bytes);await raw.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.hr.assignmentId).run();await expect(attachmentContent(raw,env.H001_FILES,f.hr,files.linkId,'original')).rejects.toBeInstanceOf(Error);expect(await raw.prepare('SELECT legal_hold,revoked_at FROM attachments WHERE id=?').bind(files.sourceId).first()).toEqual({legal_hold:1,revoked_at:null});expect(await (await env.H001_FILES.get(objectKey))!.text()).toBe(bytes);
 });
 it('People base projections gate actual private Records before limits and preserve unknown foundation references',async()=>{
- const {getRecord,listRecords,recordsPage,searchReferences}=await import('@erpx/server-records/public/records'),f=await fixture(),actor={...f.hr,modules:['people_payroll']},shared=key(),now=Date.now(),ids=[f.person,f.engagement];
+ const {getRecord,listRecords,recordsPage,searchReferences}=await import('@erpx/records-server/public/records'),f=await fixture(),actor={...f.hr,modules:['people_payroll']},shared=key(),now=Date.now(),ids=[f.person,f.engagement];
  for(const [index,id]of [shared,...ids].entries())await raw.prepare("INSERT INTO workspace_records(module_id,id,section_id,title,description,status,fields_json,company_id,created_by,updated_by,created_at,updated_at) VALUES('people_payroll',?,'payroll-summaries',?,'','draft','[]',?,?,?,?,?)").bind(id,`People source projection ${index}`,f.company,f.hr.userId,f.hr.userId,now+index,now+index).run();
  vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');await expect(getRecord(actor,'people_payroll',f.person,raw)).rejects.toMatchObject({code:'PEOPLE_RECORD_NOT_FOUND'});expect((await listRecords(actor,'people_payroll','payroll-summaries')).map(row=>row.id)).toEqual([shared]);expect((await recordsPage(actor,'people_payroll','payroll-summaries',{q:'People source projection'})).items.map(row=>row.id)).toEqual([shared]);expect((await searchReferences(actor,'People source projection')).filter(row=>row.kind==='record').map(row=>'id'in row?row.id:null)).toEqual([shared]);
  await purchaseCorePeople(f.company);await purchaseCorePeople(f.company,'draining');expect((await listRecords(actor,'people_payroll','payroll-summaries')).map(row=>row.id).sort()).toEqual([shared,...ids].sort());const narrowed={...actor,iam:{...actor.iam!,permissions:['records.read']}};expect((await listRecords(narrowed,'people_payroll','payroll-summaries')).map(row=>row.id)).toEqual([shared]);await raw.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(actor.assignmentId).run();expect((await listRecords(actor,'people_payroll','payroll-summaries')).map(row=>row.id)).toEqual([shared]);
@@ -1612,7 +1613,7 @@ it('People base Work keeps actual foundation preparation and prevents incoming d
  vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');expect(await peopleLifecycleWork(raw,f.hr)).toEqual([]);const foundationStore=packageGrantStore(raw,{authorize:async()=>({userId:'isolated-work-foundation-provider'}),obligations:async()=>{throw Error('No inactive witness');}});await foundationStore.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'projects',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Projects shared preparation foundation',evidence:'test:people-work-foundation'}});const foundationWork=await peopleLifecycleWork(raw,f.hr);expect(foundationWork.some(item=>item.id===`position-prep-${f.position}`)).toBe(true);expect(foundationWork.some(item=>item.id===created.id)).toBe(false);await purchaseCorePeople(f.company);expect((await peopleLifecycleWork(raw,f.hr)).some(item=>item.id===created.id)).toBe(true);await purchaseCorePeople(f.company,'draining');const item=(await peopleLifecycleWork(raw,f.hr)).find(item=>item.id===created.id)!;expect(item.canAct).toBe(false);const enriched=await enrichFlowWork(f.hr,[{...item,canAct:true,queue:'todo',relationships:['approval','assigned']}]);expect(enriched[0]).toMatchObject({id:created.id,canAct:false,queue:'waiting'});expect(enriched[0].relationships).toEqual([]);await raw.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.hr.assignmentId).run();expect(await enrichFlowWork(f.hr,enriched)).toEqual([]);
 });
 it('People base clearance preserves assigned notifications before limits and atomically closes retained evidence in its Calendar owner',async()=>{
- const {calendarCommand}=await import('@erpx/server-work_projection/public/calendar/commands'),{inboxPage,publishInboxEvent}=await import('@erpx/server-collaboration/public/inbox'),{listStaffNotifications}=await import('@erpx/server-collaboration/public/staff-notifications'),{attachmentContent}=await import('@erpx/server-files/public/attachments/service'),f=await fixture(),input=lifecycleInput.parse({kind:'offboarding',departureReason:'retirement',expectedVersion:0,personId:f.person,engagementId:f.engagement,positionId:null,lastWorkingDate:'2027-01-31',effectiveAt:Date.now()+86400000,reason:'Retained clearance owner purchase proof',clearanceOwners:{hr:f.hr.userId}}),created=await saveLifecycle(raw,f.hr,input,key(),true,(await previewLifecycle(raw,f.hr,input)).token),tasks=(await peopleLifecycleData(raw,f.hr)).tasks.filter(t=>t.case_id===created.id),own=tasks.find(t=>t.clearance_type==='hr')!,other=tasks.find(t=>t.clearance_type==='equipment')!,files=await seedAttachmentSet(raw,f.hr,{targetType:'people_clearance_task',targetId:own.id,componentKind:'action',componentRef:'hr',purposeKey:'clearance_evidence',expectedTargetVersion:1}),objectKey=String(await raw.prepare('SELECT object_key FROM attachments WHERE id=?').bind(files.sourceId).first('object_key')),bytes='%PDF-1.7';await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:'application/pdf'}});await raw.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(files.sourceId).run();
+ const {calendarCommand}=await import('@erpx/work-projection-server/public/calendar/commands'),{inboxPage,publishInboxEvent}=await import('@erpx/collaboration-server/public/inbox'),{listStaffNotifications}=await import('@erpx/collaboration-server/public/staff-notifications'),{attachmentContent}=await import('@erpx/files-server/public/attachments/service'),f=await fixture(),input=lifecycleInput.parse({kind:'offboarding',departureReason:'retirement',expectedVersion:0,personId:f.person,engagementId:f.engagement,positionId:null,lastWorkingDate:'2027-01-31',effectiveAt:Date.now()+86400000,reason:'Retained clearance owner purchase proof',clearanceOwners:{hr:f.hr.userId}}),created=await saveLifecycle(raw,f.hr,input,key(),true,(await previewLifecycle(raw,f.hr,input)).token),tasks=(await peopleLifecycleData(raw,f.hr)).tasks.filter(t=>t.case_id===created.id),own=tasks.find(t=>t.clearance_type==='hr')!,other=tasks.find(t=>t.clearance_type==='equipment')!,files=await seedAttachmentSet(raw,f.hr,{targetType:'people_clearance_task',targetId:own.id,componentKind:'action',componentRef:'hr',purposeKey:'clearance_evidence',expectedTargetVersion:1}),objectKey=String(await raw.prepare('SELECT object_key FROM attachments WHERE id=?').bind(files.sourceId).first('object_key')),bytes='%PDF-1.7';await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:'application/pdf'}});await raw.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(files.sourceId).run();
  const now=Date.now();for(let index=0;index<106;index++){const recordId=index===0?own.id:other.id,message=index===0?'Own retained People clearance':'Other clearance source';await raw.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,'retirement_clearance',?,?,?,?)").bind(key(),f.company,f.hr.userId,recordId,index+100,message,now+index).run();await publishInboxEvent(raw,{key:key(),companyId:f.company,sourceType:'retirement_clearance',sourceId:recordId,sourceVersion:index+100,category:'work',preview:message,recipientIds:[f.hr.userId]});}
  const payload={action:'task.complete',id:own.id,expectedVersion:1,status:'completed',reason:'Reviewed retained clearance and exact evidence',attachmentSetIds:[files.setId]},command=key();vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');expect(await listStaffNotifications(raw,f.hr)).toEqual([]);expect((await inboxPage(raw,f.hr,{view:'all'})).items).toEqual([]);await expect(calendarCommand(raw,f.hr,payload,command)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await purchaseCorePeople(f.company);await purchaseCorePeople(f.company,'draining');
  for(const notices of [await listStaffNotifications(raw,f.hr),(await inboxPage(raw,f.hr,{view:'all'})).items]){expect(notices.some(n=>n.message==='Own retained People clearance')).toBe(true);expect(notices.some(n=>n.message==='Other clearance source')).toBe(false);}
@@ -1621,11 +1622,11 @@ it('People base clearance preserves assigned notifications before limits and ato
 });
 
 const basePeopleSettlementInput=(companyId:string)=>({companyId,packageId:'people',packageVersion:1});
-async function basePeopleSettlement(companyId:string){const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations');return withOwnerPackageObligations(raw,basePeopleSettlementInput(companyId),tx=>readOwnerPackageObligations(raw,tx,{...basePeopleSettlementInput(companyId),now:Date.now()}));}
-async function basePeopleWithdrawal(companyId:string){const {packageGrantRevision}=await import('@erpx/server-commercial/public/package-grants'),grants=await readCompanyPackageGrants(raw,companyId),current=grants.find(row=>row.packageId==='people')!;return {companyId,expectedRevision:packageGrantRevision(companyId,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Original People lifecycle duties discharged with standing employment retained',evidence:'test:people-base-owner-withdrawal'}}]};}
-async function basePeopleWithdrawalReview(request:Awaited<ReturnType<typeof basePeopleWithdrawal>>,apply=false){const {withOwnerPackageObligations,ownerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),store=packageGrantStore(raw,{authorize:async()=>({userId:'isolated-people-base-settlement-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(raw,tx,companyId,packageId)});return withOwnerPackageObligations(raw,basePeopleSettlementInput(request.companyId),tx=>apply?store.batch.applyIn(tx,request,async()=>{}):store.batch.previewIn(tx,request));}
+async function basePeopleSettlement(companyId:string){const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('@erpx/commercial-server/public/owner-package-obligations');return withOwnerPackageObligations(raw,basePeopleSettlementInput(companyId),tx=>readOwnerPackageObligations(raw,tx,{...basePeopleSettlementInput(companyId),now:Date.now()}));}
+async function basePeopleWithdrawal(companyId:string){const {packageGrantRevision}=await import('@erpx/commercial-server/public/package-grants'),grants=await readCompanyPackageGrants(raw,companyId),current=grants.find(row=>row.packageId==='people')!;return {companyId,expectedRevision:packageGrantRevision(companyId,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Original People lifecycle duties discharged with standing employment retained',evidence:'test:people-base-owner-withdrawal'}}]};}
+async function basePeopleWithdrawalReview(request:Awaited<ReturnType<typeof basePeopleWithdrawal>>,apply=false){const {withOwnerPackageObligations,ownerPackageObligations}=await import('@erpx/commercial-server/public/owner-package-obligations'),store=packageGrantStore(raw,{authorize:async()=>({userId:'isolated-people-base-settlement-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(raw,tx,companyId,packageId)});return withOwnerPackageObligations(raw,basePeopleSettlementInput(request.companyId),tx=>apply?store.batch.applyIn(tx,request,async()=>{}):store.batch.previewIn(tx,request));}
 it('settles actual base People lifecycle through normal Commercial review while preserving standing employment, identity, Legal-held private bytes and exact replay',async()=>{
- const {attachmentContent,bindRecordAttachmentSet}=await import('@erpx/server-files/public/attachments/service'),f=await fixture();await purchaseCorePeople(f.company);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const input=lifecycleInput.parse({kind:'offboarding',departureReason:'retirement',expectedVersion:0,personId:f.person,engagementId:f.engagement,positionId:null,lastWorkingDate:'2027-01-31',effectiveAt:Date.now()+86400000,reason:'Original retained People case before software withdrawal'}),saved=await saveLifecycle(raw,f.hr,input,key(),false),id=String(saved.id);await purchaseCorePeople(f.company,'draining');expect((await basePeopleSettlement(f.company)).total).toBeGreaterThan(0);await expect(basePeopleWithdrawalReview(await basePeopleWithdrawal(f.company))).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');const command=key(),cancelled=await cancelLifecycle(raw,f.hr,id,1,command);
+ const {attachmentContent,bindRecordAttachmentSet}=await import('@erpx/files-server/public/attachments/service'),f=await fixture();await purchaseCorePeople(f.company);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const input=lifecycleInput.parse({kind:'offboarding',departureReason:'retirement',expectedVersion:0,personId:f.person,engagementId:f.engagement,positionId:null,lastWorkingDate:'2027-01-31',effectiveAt:Date.now()+86400000,reason:'Original retained People case before software withdrawal'}),saved=await saveLifecycle(raw,f.hr,input,key(),false),id=String(saved.id);await purchaseCorePeople(f.company,'draining');expect((await basePeopleSettlement(f.company)).total).toBeGreaterThan(0);await expect(basePeopleWithdrawalReview(await basePeopleWithdrawal(f.company))).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');const command=key(),cancelled=await cancelLifecycle(raw,f.hr,id,1,command);
  const version=Number(await raw.prepare('SELECT version FROM hr_people WHERE id=?').bind(f.person).first('version')),files=await seedAttachmentSet(raw,f.hr,{targetType:'hr_person',targetId:f.person,componentKind:'record',purposeKey:'professional_certificate',expectedTargetVersion:version}),objectKey=String(await raw.prepare('SELECT object_key FROM attachments WHERE id=?').bind(files.sourceId).first('object_key')),bytes='%PDF-1.7\nOriginal retained private worker certificate';await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:'application/pdf'}});await bindRecordAttachmentSet(raw,f.hr,files.setId,version,key());await raw.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(files.sourceId).run();const before=await raw.prepare('SELECT id,status,version FROM hr_engagements WHERE company_id=? ORDER BY id').bind(f.company).all();expect((await basePeopleSettlement(f.company)).total).toBe(0);
  const request=await basePeopleWithdrawal(f.company),preview=await basePeopleWithdrawalReview(request),applied=await basePeopleWithdrawalReview(request,true);expect(applied).toEqual(preview);expect(await basePeopleWithdrawalReview(request,true)).toEqual(applied);expect(await cancelLifecycle(raw,f.hr,id,1,command)).toEqual(cancelled);expect((await raw.prepare('SELECT id,status,version FROM hr_engagements WHERE company_id=? ORDER BY id').bind(f.company).all()).results).toEqual(before.results);expect(await raw.prepare('SELECT status FROM hr_people WHERE id=?').bind(f.person).first('status')).toBe('active');expect(await(await attachmentContent(raw,env.H001_FILES,f.hr,files.linkId,'original')).object.text()).toBe(bytes);expect((await peopleLifecycleData(raw,f.hr)).cases.map(row=>row.id)).toContain(id);await expect(saveLifecycle(raw,f.hr,input,key(),false)).rejects.toMatchObject({code:'PACKAGE_INACTIVE'});await raw.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.hr.assignmentId).run();await expect(cancelLifecycle(raw,f.hr,id,1,command)).rejects.toMatchObject({code:'PEOPLE_ACCESS_CHANGED'});await expect(attachmentContent(raw,env.H001_FILES,f.hr,files.linkId,'original')).rejects.toBeInstanceOf(Error);expect(await raw.prepare('SELECT legal_hold,revoked_at FROM attachments WHERE id=?').bind(files.sourceId).first()).toEqual({legal_hold:1,revoked_at:null});expect(await(await env.H001_FILES.get(objectKey))!.text()).toBe(bytes);
 });

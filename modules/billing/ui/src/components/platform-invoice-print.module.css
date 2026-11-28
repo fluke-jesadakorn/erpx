@@ -1,0 +1,19 @@
+.document { padding: 2rem; width: min(100%, 50rem); margin: 1.5rem auto; color: var(--ui-ink); background: var(--ui-card); }
+.header { display: flex; justify-content: space-between; align-items: start; gap: 1rem; border-bottom: 1px solid currentColor; padding-bottom: 1rem; }
+.header p, .header h1 { margin: 0 0 .35rem; }
+.header h1 { font-size: clamp(1.6rem, 4vw, 2.25rem); font-weight: 720; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .85rem; margin-block: 1.5rem; }
+.facts dt { font-weight: 650; }
+.facts dd { margin: .25rem 0 0; }
+.lines { border-collapse: collapse; width: 100%; }
+.lines th, .lines td { padding: .65rem .4rem; border-bottom: 1px solid var(--ui-line); text-align: start; vertical-align: top; }
+.lines tr > :last-child { text-align: end; white-space: nowrap; }
+.lines tfoot { font-weight: 700; }
+@page erpx-platform-invoice { size: A4 portrait; margin: 14mm; background: white; }
+@media print {
+  :global(html):has(.document), :global(body):has(.document) { color-scheme: light; background: white !important; }
+  :global(body):has(.document) :global([data-work-entry-navigation]) { display: none; }
+  .document { page: erpx-platform-invoice; width: 100%; padding: 0; margin: 0; color: black; background: white; }
+  .header :global(.no-print) { display: none; }
+  .lines tr { break-inside: avoid; }
+}

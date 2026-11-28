@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { moduleRegistry } from "@erpx/catalogue/module-registry";
-import { appDefinition } from "@erpx/contracts/apps";
-import { developmentProductOrigin, destinationProduct, futureProductOrigin, modulePlacement, productIds, products, sharedHostKeys, validateProductRegistry } from "@erpx/contracts/product-registry";
-import { configuredProductOrigin, configuredProductHandoff, productHostConfiguration, productHostForHost, trustedProductOrigin } from "@erpx/feature-runtime/lib/product-hosts";
-import { productPageAllowed } from "@erpx/feature-runtime/lib/product-route-policy";
-import { officeApiAllowed, pmsProductOperationAllowed, calendarProductActionAllowed } from "@erpx/feature-runtime/lib/product-api-policy";
-import { canonicalUiHref, destinations } from "@erpx/feature-work_projection/lib/destination-registry";
+import { moduleRegistry } from "@erpx/platform-catalogue/module-registry";
+import { appDefinition } from "@erpx/platform-contracts/apps";
+import { developmentProductOrigin, destinationProduct, futureProductOrigin, modulePlacement, productIds, products, sharedHostKeys, validateProductRegistry } from "@erpx/platform-contracts/product-registry";
+import { configuredProductOrigin, configuredProductHandoff, productHostConfiguration, productHostForHost, trustedProductOrigin } from "@erpx/platform-runtime-ui/lib/product-hosts";
+import { productPageAllowed } from "@erpx/platform-runtime-ui/lib/product-route-policy";
+import { officeApiAllowed, pmsProductOperationAllowed, calendarProductActionAllowed } from "@erpx/platform-runtime-ui/lib/product-api-policy";
+import { canonicalUiHref, destinations } from "@erpx/work-projection-ui/lib/destination-registry";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -33,7 +33,7 @@ describe("product registry", () => {
   it("maps all 33 original modules and 22 exact hosts without granting provider authority", () => {
     expect(moduleRegistry).toHaveLength(33);
     expect(validateProductRegistry(moduleRegistry.map(module => module.id))).toEqual([]);
-    expect([...productIds, ...sharedHostKeys]).toHaveLength(22);
+    expect([...productIds, ...sharedHostKeys]).toHaveLength(21);
     expect(modulePlacement.platform_administration).toBe("provider");
     expect(modulePlacement.manage_erpx).toBe("provider");
   });
@@ -44,26 +44,26 @@ describe("product registry", () => {
   });
   it("uses the most specific product destination and preserves record-owner paths", () => {
     expect(destinationProduct("knowledge/learning/courses")).toBe("learn");
-    expect(destinationProduct("knowledge/handbook/published")).toBe("work");
+    expect(destinationProduct("knowledge/handbook/published")).toBe("apps");
     expect(destinationProduct("customers-sales/customers/service/cases/records/ticket/t1/summary")).toBe("support");
     expect(destinationProduct("services/legal/mine")).toBe("legal");
     expect(destinationProduct("erpx-management/billing")).toBeUndefined();
-    expect(destinationProduct("insights/executive/reports/original")).toBe("work");
+    expect(destinationProduct("insights/executive/reports/original")).toBe("apps");
     for (const destination of destinations.filter(item => !item.path.startsWith("administration") && !item.path.startsWith("erpx-management")))
       expect(destinationProduct(destination.path), destination.path).toBeDefined();
   });
   it("keeps included conversation and own workforce routes on Work without opening owner collections", () => {
     for (const path of ["posts/post1", "leave", "leave/new", "overtime", "overtime/new", "overtime/ot1/overview", "tasks/people_payroll/leave1/overview"]) {
       for (const scope of ["", "branches/main/", "branches/main/departments/it/"]) {
-        expect(productPageAllowed("work", `/holdings/acme/${scope}${path}`)).toBe(true);
+        expect(productPageAllowed("apps", `/holdings/acme/${scope}${path}`)).toBe(true);
         expect(productPageAllowed("finance", `/holdings/acme/${scope}${path}`)).toBe(false);
       }
     }
     for (const path of ["posts", "posts/new", "posts/post1/moderation", "tasks/people_payroll", "tasks/people_payroll/leave1/private", "overtime/ot1/approve", "leave/private"])
-      expect(productPageAllowed("work", `/holdings/acme/${path}`)).toBe(false);
+      expect(productPageAllowed("apps", `/holdings/acme/${path}`)).toBe(false);
   });
   it("trusts owned exact development origins only after both independent flags", () => {
-    expect(developmentProductOrigin("work")).toBe("https://work-dev-erpx.jesadakorn.com");
+    expect(developmentProductOrigin("apps")).toBe("https://apps-dev-erpx.jesadakorn.com");
     for (const key of [...productIds, ...sharedHostKeys]) {
       expect(configuredProductOrigin(key, enabled)).toBe(developmentProductOrigin(key));
       expect(productHostForHost(new URL(developmentProductOrigin(key)).host, enabled)).toBe(key);
@@ -225,7 +225,7 @@ describe("product API ownership", () => {
   const offices = products.filter(entry => entry.shell === "office").map(entry => entry.id);
   const scopes = ["", "branches/main/", "departments/team/", "branches/main/departments/team/"];
   it("denies unrelated owner commands on every Office surface before dispatch, including unknown and public endpoints", () => {
-    const commands = {work:"operations",finance:"finance/journals",people:"people/payroll/runs",sales:"crm",supply:"stock-counts",assets:"maintenance",projects:"projects",recruit:"talent",learn:"learning",support:"support/incidents",service:"field-service",legal:"legal",manufacturing:"production",admin:"agents"} as const;
+    const commands = {apps:"operations",finance:"finance/journals",people:"people/payroll/runs",sales:"crm",supply:"stock-counts",assets:"maintenance",projects:"projects",recruit:"talent",learn:"learning",support:"support/incidents",service:"field-service",legal:"legal",manufacturing:"production",admin:"agents"} as const;
     for (const [owner, command] of Object.entries(commands)) for (const scope of scopes) for (const host of [...offices, "admin"] as const) {
       const path = `/api/v1/holdings/acme/${scope}${command}`;
       expect(productPageAllowed(host, path, "POST"), `${host}: ${path}`).toBe(host === owner);
@@ -236,7 +236,7 @@ describe("product API ownership", () => {
   });
   it("preserves actual same-origin dependencies without exposing their management collections", () => {
     const dependencies = [
-      ["work", "leave-requests/leave1/approve"], ["work", "overtime-requests/request1/transition"], ["work", "expenses/expense1/approve"],
+      ["apps", "leave-requests/leave1/approve"], ["apps", "overtime-requests/request1/transition"], ["apps", "expenses/expense1/approve"],
       ["projects", "staff-tasks/task1/transition"], ["projects", "finance/project-cost-allocations"], ["projects", "finance/project-cost-allocations/cost1/review"],
       ["sales", "finance/sales/customers"], ["sales", "commerce/pricing"], ["supply", "commerce/orders/order1/fulfill"],
       ["recruit", "people/hire-handoffs/consume"], ["people", "iam/assignments"],
@@ -246,7 +246,7 @@ describe("product API ownership", () => {
     ] as const;
     for (const [host, resource] of dependencies) for (const scope of scopes)
       expect(productPageAllowed(host, `/api/v1/holdings/acme/${scope}${resource}`, "POST"), `${host}: ${resource}`).toBe(true);
-    for (const [host, resource] of [["projects", "finance/journals"], ["recruit", "people/payroll/runs"], ["work", "leave/admin"], ["admin", "pos/sale/pay"], ["finance", "pos/sale/pay"], ["finance", "pms/reports"], ["admin", "people/payroll/runs"]] as const)
+    for (const [host, resource] of [["projects", "finance/journals"], ["recruit", "people/payroll/runs"], ["apps", "leave/admin"], ["admin", "pos/sale/pay"], ["finance", "pos/sale/pay"], ["finance", "pms/reports"], ["admin", "people/payroll/runs"]] as const)
       expect(productPageAllowed(host, `/api/v1/holdings/acme/${resource}`, "POST"), `${host}: ${resource}`).toBe(false);
     expect(productPageAllowed("finance", "/api/v1/holdings/acme/hospitality/setup", "GET")).toBe(true);
     expect(productPageAllowed("finance", "/api/v1/holdings/acme/pms", "GET")).toBe(false);
@@ -270,9 +270,9 @@ describe("product API ownership", () => {
       expect(productPageAllowed(host, `/api/v1/holdings/acme/records/${module}`, "POST")).toBe(true);
       expect(productPageAllowed("sales", `/api/v1/holdings/acme/records/${module}`, "POST")).toBe(false);
     }
-    expect(productPageAllowed("work", "/api/v1/holdings/acme/records/people_payroll/leave1", "GET")).toBe(true);
-    expect(productPageAllowed("work", "/api/v1/holdings/acme/records/people_payroll", "GET")).toBe(false);
-    expect(productPageAllowed("work", "/api/v1/holdings/acme/records/people_payroll/leave1/transition", "POST")).toBe(false);
+    expect(productPageAllowed("apps", "/api/v1/holdings/acme/records/people_payroll/leave1", "GET")).toBe(true);
+    expect(productPageAllowed("apps", "/api/v1/holdings/acme/records/people_payroll", "GET")).toBe(false);
+    expect(productPageAllowed("apps", "/api/v1/holdings/acme/records/people_payroll/leave1/transition", "POST")).toBe(false);
     expect(productPageAllowed("finance", "/api/v1/holdings/acme/records/unknown", "POST")).toBe(false);
     for (const path of ["/api/v1/holdings/acme/branches", "/api/v1/holdings/acme/branches/main/departments", "/api/v1/holdings/acme/branches//finance/journals", "/api/v1/holdings/acme/finance%2fjournals"])
       expect(officeApiAllowed("finance", path, "POST")).toBe(false);
@@ -288,12 +288,12 @@ describe("product API ownership", () => {
   it("keeps Company Executive and its scoped MCP on Work while retaining separate provider Executive authority", () => {
     for (const host of [...productIds, ...sharedHostKeys]) {
       for (const path of ["/api/v1/holdings/acme/executive/reports", "/api/v1/holdings/acme/executive/connections", "/api/mcp/executive"])
-        expect(productPageAllowed(host, path, "POST"), `${host}: ${path}`).toBe(host === "work");
+        expect(productPageAllowed(host, path, "POST"), `${host}: ${path}`).toBe(host === "apps");
       expect(productPageAllowed(host, "/api/v1/platform/executive", "POST")).toBe(host === "admin");
     }
     for (const action of ["task.plan", "task.complete", "shift.reschedule"]) expect(calendarProductActionAllowed("people", action)).toBe(true);
     for (const action of ["appointment.save", "announcement.publish", "task.new", null, {}]) expect(calendarProductActionAllowed("people", action)).toBe(false);
-    expect(calendarProductActionAllowed("work", "appointment.save")).toBe(true);
+    expect(calendarProductActionAllowed("apps", "appointment.save")).toBe(true);
     expect(productPageAllowed("people", "/api/v1/holdings/acme/calendar/appointments", "POST")).toBe(false);
   });
   it("retains only the original Admin Commercial MFA verification dependency without opening Account security management",()=>{
@@ -305,15 +305,15 @@ describe("product API ownership", () => {
   });
 });
 it('opens only canonical Work Routine collection and native overview under Operations readiness without buying or releasing Projects',async()=>{
- const {productDestinationAvailable}=await import('@erpx/server-work_projection/public/rules/product-landings'),context={role:'custom_original_routine',permissions:['records.read'],scopeKind:'holding' as const,modules:[],readyModules:['operations'],capabilities:['work.advanced-routines'],beta:false};
- for(const path of['projects-routines/routines','projects-routines/routines/routine-original','projects-routines/routines/routine-original/overview']){expect(productDestinationAvailable('work',path,context)).toBe(true);expect(productDestinationAvailable('work',path,{...context,beta:true})).toBe(false);expect(productDestinationAvailable('work',path,{...context,permissions:[]})).toBe(false);expect(productDestinationAvailable('work',path,{...context,readyModules:['projects']})).toBe(false);expect(productDestinationAvailable('work',path,{...context,capabilities:['work.actions']})).toBe(false);}
- for(const path of['projects-routines/routines/new','projects-routines/routines/routine-original/private','projects-routines/routines/routine-original/overview/more','projects-routines/routines/../operations','projects-routines/operations','projects-routines/projects'])expect(productDestinationAvailable('work',path,context)).toBe(false);
+ const {productDestinationAvailable}=await import('@erpx/work-projection-server/public/rules/product-landings'),context={role:'custom_original_routine',permissions:['records.read'],scopeKind:'holding' as const,modules:[],readyModules:['operations'],capabilities:['work.advanced-routines'],beta:false};
+ for(const path of['projects-routines/routines','projects-routines/routines/routine-original','projects-routines/routines/routine-original/overview']){expect(productDestinationAvailable('apps',path,context)).toBe(true);expect(productDestinationAvailable('apps',path,{...context,beta:true})).toBe(false);expect(productDestinationAvailable('apps',path,{...context,permissions:[]})).toBe(false);expect(productDestinationAvailable('apps',path,{...context,readyModules:['projects']})).toBe(false);expect(productDestinationAvailable('apps',path,{...context,capabilities:['work.actions']})).toBe(false);}
+ for(const path of['projects-routines/routines/new','projects-routines/routines/routine-original/private','projects-routines/routines/routine-original/overview/more','projects-routines/routines/../operations','projects-routines/operations','projects-routines/projects'])expect(productDestinationAvailable('apps',path,context)).toBe(false);
 });
 it('classifies only exact native conversation and personal workforce pages without a broad posts or generic-task product prefix',async()=>{
- const {productEntryCapability}=await import('@erpx/server-commercial/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@erpx/server-work_projection/public/rules/product-landings');
- for(const path of ['posts/actual-post','leave','leave/new','overtime','overtime/new','overtime/actual-id/overview','tasks/people_payroll/actual-id/overview'])expect(destinationProduct(path)).toBe('work');
+ const {productEntryCapability}=await import('@erpx/commercial-server/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@erpx/work-projection-server/public/rules/product-landings');
+ for(const path of ['posts/actual-post','leave','leave/new','overtime','overtime/new','overtime/actual-id/overview','tasks/people_payroll/actual-id/overview'])expect(destinationProduct(path)).toBe('apps');
  for(const path of ['posts','posts/new','posts/actual-id/comments','posts/../admin','tasks/people_payroll','tasks/people_payroll/new','tasks/people_payroll/actual-id/private','leave/admin'])expect(destinationProduct(path)).toBeUndefined();
- const context={role:'employee',permissions:[],scopeKind:'holding' as const,modules:[],readyModules:['operations','collaboration'],capabilities:['work.today']};expect(productEntryCapability('work','posts/actual-post')).toBe('work.social');expect(productDestinationAvailable('work','posts/actual-post',context)).toBe(false);expect(productDestinationAvailable('work','posts/actual-post',{...context,capabilities:['work.social']})).toBe(true);expect(productDestinationAvailable('work','posts/actual-post',{...context,capabilities:['work.social'],readyModules:['operations']})).toBe(false);expect(productEntryCapability('work','leave')).toBe('people.workforce');
+ const context={role:'employee',permissions:[],scopeKind:'holding' as const,modules:[],readyModules:['operations','collaboration'],capabilities:['work.today']};expect(productEntryCapability('apps','posts/actual-post')).toBe('work.social');expect(productDestinationAvailable('apps','posts/actual-post',context)).toBe(false);expect(productDestinationAvailable('apps','posts/actual-post',{...context,capabilities:['work.social']})).toBe(true);expect(productDestinationAvailable('apps','posts/actual-post',{...context,capabilities:['work.social'],readyModules:['operations']})).toBe(false);expect(productEntryCapability('apps','leave')).toBe('people.workforce');
 });
 
 
@@ -338,7 +338,7 @@ it('keeps the named initial physical Count and record-only Flow on the exact Sal
   for(const method of ['PUT','PATCH','DELETE','OPTIONS'])expect(productPageAllowed(host,base,method)).toBe(false);
   expect(productPageAllowed(host,`/api/v1/holdings/acme/${scope}flows/stock_count/count-original`,'POST')).toBe(host==='supply');
  }
- const {initialPhysicalStockCountEntry:entry,initialPhysicalStockCountLanding:landing}=await import('@erpx/server-inventory/public/rules/initial-physical-stock-count');
+ const {initialPhysicalStockCountEntry:entry,initialPhysicalStockCountLanding:landing}=await import('@erpx/inventory-server/public/rules/initial-physical-stock-count');
  expect(entry(landing)).toEqual({});expect(entry(`${landing}/count-original%3Akey`)).toEqual({countId:'count-original:key'});
  for(const suffix of ['count-a%2Fb','count-a%5Cb','count-a%00','count-a/flow','count-%2561','count-%','../count-a'])expect(entry(`${landing}/${suffix}`)).toBeNull();
 });
@@ -348,7 +348,7 @@ it('closes Manufacturing posting setup and its original Finance continuations be
  const base='/api/v1/holdings/acme/production/posting-setup';
  const allowed=(suffix:string,method:string)=>suffix===''&&['GET','HEAD','POST'].includes(method)||suffix==='/prerequisites'&&['GET','HEAD'].includes(method)||['/charts','/accounts','/periods','/rates'].includes(suffix)&&method==='POST'||suffix==='/profiles'&&['GET','HEAD','POST'].includes(method)||suffix==='/profiles/original/decide'&&method==='POST';
  for(const host of [...productIds,...sharedHostKeys])for(const suffix of ['','/prerequisites','/charts','/accounts','/periods','/rates','/profiles','/profiles/original/decide','/extra','/charts/extra','/profiles/original','/profiles/original/decide/extra'])for(const method of ['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'])expect(productPageAllowed(host,base+suffix,method),`${host}:${suffix}:${method}`).toBe(host==='manufacturing'&&allowed(suffix,method));
- const {manufacturingPostingSetupLanding:landing,manufacturingPostingSetupEntry:entry}=await import('@erpx/server-manufacturing/public/rules/posting-setup-entry');expect(entry(landing)).toBe(true);
+ const {manufacturingPostingSetupLanding:landing,manufacturingPostingSetupEntry:entry}=await import('@erpx/manufacturing-server/public/rules/posting-setup-entry');expect(entry(landing)).toBe(true);
  for(const suffix of ['/','/extra','?profile=other','#profile','%2Fextra','\\extra'])expect(entry(landing+suffix)).toBe(false);
  expect(entry('production/manufacturing')).toBe(false);
 });
@@ -364,7 +364,7 @@ it('closes Manufacturing physical Counts, Flow and original master constructors 
   for(const method of ['PUT','PATCH','DELETE','OPTIONS'])expect(productPageAllowed(host,base,method)).toBe(false);
   expect(productPageAllowed(host,`/api/v1/holdings/acme/${scope}flows/stock_count/count-original`,'POST')).toBe(host==='supply');
  }
- const {manufacturingInitialPhysicalStockCountEntry:entry,manufacturingInitialPhysicalStockCountLanding:landing}=await import('@erpx/server-inventory/public/rules/manufacturing-initial-physical-stock-count');expect(entry(landing)).toEqual({});expect(entry(`${landing}/count-real%3Akey`)).toEqual({countId:'count-real:key'});
+ const {manufacturingInitialPhysicalStockCountEntry:entry,manufacturingInitialPhysicalStockCountLanding:landing}=await import('@erpx/inventory-server/public/rules/manufacturing-initial-physical-stock-count');expect(entry(landing)).toEqual({});expect(entry(`${landing}/count-real%3Akey`)).toEqual({countId:'count-real:key'});
  for(const suffix of ['count-a%2Fb','count-a%5Cb','count-a%00','count-a%7f','count-a/flow','count-%2561','count-%','../count-a'])expect(entry(`${landing}/${suffix}`)).toBeNull();
  expect(entry('customers-sales/sales/settings/initial-stock/count-real')).toBeNull();
 });
@@ -388,7 +388,7 @@ it("closes POS startup transports before the broad Front owner family for every 
 
 
 it('registers POS startup links with their original source and preserves scoped filters and fragments',async()=>{
- const {sourcePath,selectionForPath}=await import('@erpx/feature-work_projection/lib/destination-registry');
+ const {sourcePath,selectionForPath}=await import('@erpx/work-projection-ui/lib/destination-registry');
  for(const scope of ['','branches/main/','departments/team/','branches/main/departments/team/']){
   const base=`/holdings/acme/${scope}`,target=`${base}pos/settings/startup?tag=one&tag=two#drawer`;
   expect(canonicalUiHref(`${base}pos?tab=settings&setup=startup&tag=one&tag=two#drawer`)).toBe(target);
@@ -425,7 +425,7 @@ it('uses decoded Assets financial selectors without admitting reserved static ID
 
 
 it('keeps Assets accounting entry confined to one original decoded owner record',async()=>{
- const {assetsFinancialLanding:landing,assetsFinancialEntry:entry}=await import('@erpx/server-finance/public/rules/assets-financial-entry');
+ const {assetsFinancialLanding:landing,assetsFinancialEntry:entry}=await import('@erpx/finance-server/public/rules/assets-financial-entry');
  expect(entry(landing)).toEqual({});expect(entry(landing+'/asset-original:key')).toEqual({assetId:'asset-original:key'});
  for(const suffix of ['/', '/.', '/..','/asset/extra','/asset%2Fextra','/asset%252Fextra','/asset?query','/asset#part','/asset'+String.fromCharCode(127)])expect(entry(landing+suffix),suffix).toBeNull();
  expect(entry('finance/assets/asset-original')).toBeNull();
@@ -447,7 +447,7 @@ it('closes POS initial physical Count and Flow to their named transport without 
 
 
 it('registers Assets accounting links with the original Assets source while retaining scoped filters and fragment',async()=>{
- const {sourcePath,selectionForPath}=await import('@erpx/feature-work_projection/lib/destination-registry');
+ const {sourcePath,selectionForPath}=await import('@erpx/work-projection-ui/lib/destination-registry');
  for(const scope of ['','branches/main/','departments/team/','branches/main/departments/team/']){
   const base=`/holdings/acme/${scope}`,target=`${base}services/assets/accounting?tag=one&tag=two#editor`;
   expect(canonicalUiHref(`${base}assets?view=accounting&tag=one&tag=two#editor`)).toBe(target);expect(sourcePath('services/assets/accounting')).toBe('assets');expect(selectionForPath(new URL(target,'https://path.invalid').pathname)).toEqual({view:'accounting'});expect(destinationProduct('services/assets/accounting')).toBe('assets');
@@ -455,7 +455,7 @@ it('registers Assets accounting links with the original Assets source while reta
 });
 
 it('parses only exact POS initial Count destinations and retains their native Count identity',async()=>{
- const {posInitialPhysicalStockCountEntry:entry,posInitialPhysicalStockCountLanding:landing}=await import('@erpx/server-inventory/public/rules/pos-initial-physical-stock-count');
+ const {posInitialPhysicalStockCountEntry:entry,posInitialPhysicalStockCountLanding:landing}=await import('@erpx/inventory-server/public/rules/pos-initial-physical-stock-count');
  expect(entry(landing)).toEqual({});expect(entry(landing+'/count-original%3Akey')).toEqual({countId:'count-original:key'});
  for(const suffix of ['count-a%2Fb','count-a%5Cb','count-a%00','count-a%7f','count-a/flow','count-%2561','count-%','../count-a'])expect(entry(`${landing}/${suffix}`)).toBeNull();
  expect(entry('production/manufacturing/settings/initial-stock')).toBeNull();expect(entry('customers-sales/sales/settings/initial-stock')).toBeNull();
@@ -463,7 +463,7 @@ it('parses only exact POS initial Count destinations and retains their native Co
 
 
 it('registers POS initial physical Stock with the original POS source and preserves filters',async()=>{
- const {sourcePath}=await import('@erpx/feature-work_projection/lib/destination-registry');
+ const {sourcePath}=await import('@erpx/work-projection-ui/lib/destination-registry');
  const target='/holdings/acme/branches/main/pos/settings/initial-stock?tag=one&tag=two#count';expect(canonicalUiHref('/holdings/acme/branches/main/pos?tab=settings&setup=initial-stock&tag=one&tag=two#count')).toBe(target);expect(sourcePath('pos/settings/initial-stock')).toBe('pos');
 });
 
@@ -497,7 +497,7 @@ it('closes Service physical Count and record Flow without granting generic Suppl
 
 
 it('keeps owner-proven setup out of generic Maintenance and Service discovery',async()=>{
- const {destinationAvailable}=await import('@erpx/feature-work_projection/lib/destination-access');
+ const {destinationAvailable}=await import('@erpx/work-projection-ui/lib/destination-access');
  const accounting=destinations.find(item=>item.path==='services/assets/accounting')!;
  for(const path of ['services/field-service/settings/parts','services/field-service/settings/initial-stock'])expect(destinationAvailable({role:'custom',permissions:['records.read'],scopeKind:'holding',workspaceBase:'',moduleIds:['field_service'],availableAppIds:['field-service']},destinations.find(item=>item.path===path)!)).toBe(false);
  expect(destinationAvailable({role:'custom',permissions:['records.read'],scopeKind:'holding',workspaceBase:'',moduleIds:['maintenance'],availableAppIds:['maintenance']},accounting)).toBe(false);
@@ -505,15 +505,15 @@ it('keeps owner-proven setup out of generic Maintenance and Service discovery',a
 
 
 it('registers Service setup and initial physical Count without changing its native source or query identity',async()=>{
- const {sourcePath}=await import('@erpx/feature-work_projection/lib/destination-registry'),{productEntryCapability}=await import('@erpx/server-commercial/public/rules/product-entry-capability');
+ const {sourcePath}=await import('@erpx/work-projection-ui/lib/destination-registry'),{productEntryCapability}=await import('@erpx/commercial-server/public/rules/product-entry-capability');
  for(const scope of ['','branches/main/','departments/team/','branches/main/departments/team/'])for(const [selector,path] of [['parts-setup','services/field-service/settings/parts'],['initial-stock','services/field-service/settings/initial-stock']]){
   const base=`/holdings/acme/${scope}`;expect(canonicalUiHref(`${base}field-service?view=${selector}&tag=one&tag=two#drawer`)).toBe(`${base}${path}?tag=one&tag=two#drawer`);expect(sourcePath(path)).toBe('field-service');expect(destinationProduct(path)).toBe('service');expect(productEntryCapability('service',path)).toBe('service.parts-assets');
  }
- const {serviceInitialPhysicalStockCountEntry:entry,serviceInitialPhysicalStockCountLanding:landing}=await import('@erpx/server-inventory/public/rules/service-initial-physical-stock-count');expect(entry(landing)).toEqual({});expect(entry(landing+'/count-original%3Akey')).toEqual({countId:'count-original:key'});for(const suffix of ['count-a%2Fb','count-a%5Cb','count-a%00','count-a%7f','count-a/flow','count-%2561','count-%','../count-a'])expect(entry(`${landing}/${suffix}`)).toBeNull();
+ const {serviceInitialPhysicalStockCountEntry:entry,serviceInitialPhysicalStockCountLanding:landing}=await import('@erpx/inventory-server/public/rules/service-initial-physical-stock-count');expect(entry(landing)).toEqual({});expect(entry(landing+'/count-original%3Akey')).toEqual({countId:'count-original:key'});for(const suffix of ['count-a%2Fb','count-a%5Cb','count-a%00','count-a%7f','count-a/flow','count-%2561','count-%','../count-a'])expect(entry(`${landing}/${suffix}`)).toBeNull();
 });
 
 it('closes Projects worker preparation to the exact named transport and keeps its generic discovery unavailable',async()=>{
- const {projectWorkerStartupLanding:landing,projectWorkerStartupEntry:entry,projectWorkerPresentationAllowed:present}=await import('@erpx/server-people_payroll/public/rules/project-worker-startup-entry'),{productEntryCapability}=await import('@erpx/server-commercial/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@erpx/server-work_projection/public/rules/product-landings');
+ const {projectWorkerStartupLanding:landing,projectWorkerStartupEntry:entry,projectWorkerPresentationAllowed:present}=await import('@erpx/people-payroll-server/public/rules/project-worker-startup-entry'),{productEntryCapability}=await import('@erpx/commercial-server/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@erpx/work-projection-server/public/rules/product-landings');
  expect(entry(landing)).toEqual({});expect(entry(landing+'/person-real%3Aoriginal')).toEqual({personId:'person-real:original'});
  for(const suffix of ['/new','/person-real/extra','/%2f','/%5c','/%252f','/%00','/%','/..'])expect(entry(landing+suffix)).toBeNull();
  const context={role:'holding_owner',scopeKind:'holding' as const,permissions:['people.manage','organization.manage'],modules:['projects'],readyModules:['projects','people_payroll'],capabilities:['projects.wbs','people.worker-reference'],beta:false};expect(present(context)).toBe(true);expect(productEntryCapability('projects',landing)).toBe('people.worker-reference');expect(productDestinationAvailable('projects',landing,context)).toBe(false);expect(productDestinationAvailable('projects',landing+'/person-real',context)).toBe(false);expect(destinations.find(row=>row.path===landing)).toMatchObject({source:'projects',selection:{view:'worker-preparation'}});
@@ -524,7 +524,7 @@ it('closes Projects worker preparation to the exact named transport and keeps it
 });
 
 it('closes Learning worker preparation to the exact named transport and keeps its generic discovery unavailable',async()=>{
- const {learningWorkerStartupLanding:landing,learningWorkerStartupEntry:entry,learningWorkerPresentationAllowed:present}=await import('@erpx/server-people_payroll/public/rules/learning-worker-startup-entry'),{productEntryCapability}=await import('@erpx/server-commercial/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@erpx/server-work_projection/public/rules/product-landings');
+ const {learningWorkerStartupLanding:landing,learningWorkerStartupEntry:entry,learningWorkerPresentationAllowed:present}=await import('@erpx/people-payroll-server/public/rules/learning-worker-startup-entry'),{productEntryCapability}=await import('@erpx/commercial-server/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@erpx/work-projection-server/public/rules/product-landings');
  expect(entry(landing)).toEqual({});expect(entry(landing+'/person-real%3Aoriginal')).toEqual({personId:'person-real:original'});
  for(const suffix of ['/new','/person-real/extra','/%2f','/%5c','/%252f','/%00','/%','/..'])expect(entry(landing+suffix)).toBeNull();
  const context={role:'holding_owner',scopeKind:'holding' as const,permissions:['people.manage','organization.manage'],modules:['learning'],readyModules:['learning','people_payroll'],capabilities:['learn.assignments','people.learner-reference'],beta:false};expect(present(context)).toBe(true);expect(productEntryCapability('learn',landing)).toBe('people.learner-reference');expect(productDestinationAvailable('learn',landing,context)).toBe(false);expect(productDestinationAvailable('learn',landing+'/person-real',context)).toBe(false);expect(destinations.find(row=>row.path===landing)).toMatchObject({source:'knowledge',selection:{view:'worker-preparation'}});
@@ -540,7 +540,7 @@ it('keeps ticket-bound Helpdesk Portal staff commands on their exact owner host 
   const base=`/api/v1/holdings/acme/${scope}support/ticket-portal`;
   for(const [suffix,method] of [['','GET'],['','HEAD'],['','POST'],['/binding-original','GET'],['/binding-original','HEAD'],['/binding-original/decisions','POST'],['/binding-original/responses','POST']]){
    expect(productPageAllowed('support',base+suffix,method)).toBe(true);
-   for(const host of ['sales','service','admin','portal','account','work'] as const)expect(productPageAllowed(host,base+suffix,method)).toBe(false);
+   for(const host of ['sales','service','admin','portal','account','apps'] as const)expect(productPageAllowed(host,base+suffix,method)).toBe(false);
   }
   for(const [suffix,method] of [['','DELETE'],['/binding-original','POST'],['/binding-original/decisions','GET'],['/binding-original/responses','PATCH'],['/binding-original/close','POST'],['/binding-original/responses/extra','POST'],['//decisions','POST'],['/%2f/decisions','POST']])expect(productPageAllowed('support',base+suffix,method)).toBe(false);
  }
@@ -550,7 +550,7 @@ it('separates verified Support ticket transport from staff, Sales and unknown pu
  const base='/api/customer-portal/acme/tickets';
  for(const [suffix,method] of [['','GET'],['','HEAD'],['/binding-original/acknowledgements','POST'],['/binding-original/files/link-original/content','GET'],['/binding-original/files/link-original/content','HEAD']]){
   expect(productPageAllowed('portal',base+suffix,method)).toBe(true);
-  for(const host of ['support','sales','service','admin','account','work','legal-portal'] as const)expect(productPageAllowed(host,base+suffix,method)).toBe(false);
+  for(const host of ['support','sales','service','admin','account','apps','legal-portal'] as const)expect(productPageAllowed(host,base+suffix,method)).toBe(false);
  }
  for(const [suffix,method] of [['','POST'],['/binding-original','GET'],['/binding-original/acknowledgements','GET'],['/binding-original/responses','POST'],['/binding-original/close','POST'],['/binding-original/files/link-original/content','POST'],['/binding-original/files/link-original/content/extra','GET'],['/%2f/acknowledgements','POST'],['/%255c/acknowledgements','POST'],['//acknowledgements','POST']])expect(productPageAllowed('portal',base+suffix,method)).toBe(false);
  expect(productPageAllowed('portal','/api/customer-portal/acme/%74ickets/binding-original/close','POST')).toBe(false);
@@ -559,7 +559,7 @@ it('separates verified Support ticket transport from staff, Sales and unknown pu
 
 
 it('retains the real Helpdesk Portal binding page instead of interpreting it as a Support ticket record',async()=>{
- const {supportTicketPortalEntry:entry,supportTicketPortalLanding:landing}=await import('@erpx/server-support/public/rules/ticket-portal-entry'),{productEntryCapability}=await import('@erpx/server-commercial/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@erpx/server-work_projection/public/rules/product-landings');
+ const {supportTicketPortalEntry:entry,supportTicketPortalLanding:landing}=await import('@erpx/support-server/public/rules/ticket-portal-entry'),{productEntryCapability}=await import('@erpx/commercial-server/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@erpx/work-projection-server/public/rules/product-landings');
  expect(entry(landing)).toEqual({});expect(entry(landing+'/support-portal-original%3Akey')).toEqual({bindingId:'support-portal-original:key'});
  const ownerContext={role:'support_agent',permissions:['support.read'],scopeKind:'holding' as const,modules:['support'],readyModules:['support'],capabilities:['support.tickets','support.portal']};
  expect(productEntryCapability('support',landing)).toBe('support.portal');expect(productEntryCapability('support',landing+'/binding-original')).toBe('support.portal');
@@ -580,9 +580,9 @@ it('retains the real Helpdesk Portal binding page instead of interpreting it as 
 });
 
 it('keeps Payroll posting prerequisites on their exact canonical owner page while preserving query and fragment bytes',async()=>{
- const {payrollPostingPrerequisitesEntry:entry,payrollPostingPrerequisitesLanding:landing,payrollPostingPrerequisitesPresentationAllowed:present}=await import('@erpx/server-finance/public/rules/payroll-posting-prerequisites-entry'),query='?payGroupId=group-original&tag=one&tag=two#references';
+ const {payrollPostingPrerequisitesEntry:entry,payrollPostingPrerequisitesLanding:landing,payrollPostingPrerequisitesPresentationAllowed:present}=await import('@erpx/finance-server/public/rules/payroll-posting-prerequisites-entry'),query='?payGroupId=group-original&tag=one&tag=two#references';
  expect(entry(landing)).toBe(true);for(const path of [landing+'/','landing',landing+'/charts',landing+'/new',landing+'?payGroupId=forged',landing+'#references',landing.replace('/posting',''),landing.replace('/posting','/posting-extra')])expect(entry(path)).toBe(false);
- expect(canonicalUiHref('/holdings/acme/people/payroll/settings/posting'+query)).toBe('/holdings/acme/'+landing+query);expect(canonicalUiHref('/holdings/acme/'+landing+query)).toBe('/holdings/acme/'+landing+query);expect(destinationProduct(landing)).toBe('people');expect(productPageAllowed('people','/holdings/acme/'+landing+query)).toBe(true);for(const host of ['finance','work','admin','learn','projects'] as const)expect(productPageAllowed(host,'/holdings/acme/'+landing+query)).toBe(false);
+ expect(canonicalUiHref('/holdings/acme/people/payroll/settings/posting'+query)).toBe('/holdings/acme/'+landing+query);expect(canonicalUiHref('/holdings/acme/'+landing+query)).toBe('/holdings/acme/'+landing+query);expect(destinationProduct(landing)).toBe('people');expect(productPageAllowed('people','/holdings/acme/'+landing+query)).toBe(true);for(const host of ['finance','apps','admin','learn','projects'] as const)expect(productPageAllowed(host,'/holdings/acme/'+landing+query)).toBe(false);
  const context={scopeKind:'holding',modules:['finance'],permissions:['finance.approve']};expect(present(context)).toBe(true);for(const patch of [{modules:[]},{modules:['people_payroll']},{permissions:['finance.read','finance.write']},{scopeKind:'branch'},{scopeKind:'department'},{beta:true}])expect(present({...context,...patch})).toBe(false);
 });
 it('closes Payroll prerequisite transport to the exact People reference actions without generic Finance or residual child authority',()=>{
@@ -593,8 +593,8 @@ it('closes Payroll prerequisite transport to the exact People reference actions 
  expect(productPageAllowed('people','/api/v1/holdings/acme/people/payroll/%70osting-prerequisites/%63harts','POST')).toBe(true);expect(productPageAllowed('people','/api/v1/holdings/acme/people/payroll/%2570osting-prerequisites/charts','POST')).toBe(false);expect(productPageAllowed('people','/api/v1/holdings/acme/people/%2570ayroll/posting-prerequisites/charts','POST')).toBe(false);
 });
 
-import {createPayrollPostingPrerequisiteCommands as payrollReferenceCommands,payrollPostingRequest as payrollReferenceRequest,type PayrollPostingRequest as PayrollOwnerReferenceRequest} from '@erpx/feature-people_payroll/lib/payroll-posting-prerequisites-command';
-import type {PayrollPostingPrerequisitesView as PayrollOwnerReferences} from '@erpx/server-finance/public/payroll-posting-prerequisites';
+import {createPayrollPostingPrerequisiteCommands as payrollReferenceCommands,payrollPostingRequest as payrollReferenceRequest,type PayrollPostingRequest as PayrollOwnerReferenceRequest} from '@erpx/people-payroll-ui/lib/payroll-posting-prerequisites-command';
+import type {PayrollPostingPrerequisitesView as PayrollOwnerReferences} from '@erpx/finance-server/public/payroll-posting-prerequisites';
 it('uses the actual Payroll UI command URLs for all four named constructors, native confirmation and selected-group refresh',async()=>{
  const group={id:'group-original',name:'Actual group',currency:'THB',status:'active' as const},chart={id:'chart-original',name:'Actual chart',baseCurrency:'THB'},view:PayrollOwnerReferences={companyId:'company',available:true,contextKey:'a'.repeat(64),selection:group,groups:[group],canCreateChart:true,canCreateAccount:true,canCreatePeriod:true,canConfirmRate:true,charts:[chart],accounts:[],periods:[],rates:[],unavailableReason:null},requests:PayrollOwnerReferenceRequest[]=[payrollReferenceRequest(view,'charts',{name:'Actual new chart'}),payrollReferenceRequest(view,'accounts',{chartId:chart.id,name:'Actual liability',code:'2100',purpose:'liability'}),payrollReferenceRequest(view,'periods',{name:'Actual open period',startDate:'2026-10-01',endDate:'2026-10-31'}),payrollReferenceRequest(view,'rates',{effectiveDate:'2026-10-01',currencyPerUsd:'32.10',note:'Actual confirmed rate'})],singular={charts:'chart',accounts:'account',periods:'period',rates:'rate'} as const;
  for(const request of requests){const id={charts:'chart-native-original',accounts:'acct-native-original',periods:'period-native-original',rates:'fx-native-original'}[request.kind],receipt={...request.body.input,id,...(request.kind==='rates'?{confirmedAt:123}:{companyId:'company',version:request.kind==='periods'?0:1,...(request.kind==='periods'?{state:'open'}:{})})},next:PayrollOwnerReferences={...view,charts:request.kind==='charts'?[chart,{id,name:request.body.input.name,baseCurrency:'THB'}]:[chart],accounts:request.kind==='accounts'?[{id,chartId:chart.id,code:request.body.input.code,name:request.body.input.name,category:request.body.input.category,currency:'THB',controlKind:'none'}]:[],periods:request.kind==='periods'?[{id,name:request.body.input.name,startDate:request.body.input.startDate,endDate:request.body.input.endDate,state:'open',version:0}]:[],rates:request.kind==='rates'?[{id,currency:'THB',effectiveDate:request.body.input.effectiveDate,currencyPerUsd:request.body.input.currencyPerUsd,confirmedAt:123}]:[]},seen:{url:string;method:string;body:unknown;key:string|null}[]=[];
@@ -604,7 +604,7 @@ it('uses the actual Payroll UI command URLs for all four named constructors, nat
 });
 
 it('keeps Expense setup on its exact Finance owner destination with unchanged query/hash and no adjacent page aliases',async()=>{
- const {expensePostingPrerequisitesEntry:entry,expensePostingPrerequisitesLanding:landing,expensePostingPrerequisitesPresentationAllowed:present}=await import('@erpx/server-finance/public/rules/expense-posting-prerequisites-entry'),query='?tag=one&tag=two#references';expect(entry(landing)).toBe(true);for(const path of [landing+'/',landing+'/new',landing+'/accounts',landing+'/mapping',landing+query,'finance/setup','finance/settings','finance/setup/expenses-extra'])expect(entry(path)).toBe(false);expect(canonicalUiHref('/holdings/acme/'+landing+query)).toBe('/holdings/acme/'+landing+query);expect(destinationProduct(landing)).toBe('finance');expect(destinations.find(row=>row.path===landing)).toMatchObject({source:'finance/setup/expenses'});expect(productPageAllowed('finance','/holdings/acme/'+landing+query)).toBe(true);for(const host of [...productIds,...sharedHostKeys].filter(host=>host!=='finance'))expect(productPageAllowed(host,'/holdings/acme/'+landing+query)).toBe(false);
+ const {expensePostingPrerequisitesEntry:entry,expensePostingPrerequisitesLanding:landing,expensePostingPrerequisitesPresentationAllowed:present}=await import('@erpx/finance-server/public/rules/expense-posting-prerequisites-entry'),query='?tag=one&tag=two#references';expect(entry(landing)).toBe(true);for(const path of [landing+'/',landing+'/new',landing+'/accounts',landing+'/mapping',landing+query,'finance/setup','finance/settings','finance/setup/expenses-extra'])expect(entry(path)).toBe(false);expect(canonicalUiHref('/holdings/acme/'+landing+query)).toBe('/holdings/acme/'+landing+query);expect(destinationProduct(landing)).toBe('finance');expect(destinations.find(row=>row.path===landing)).toMatchObject({source:'finance/setup/expenses'});expect(productPageAllowed('finance','/holdings/acme/'+landing+query)).toBe(true);for(const host of [...productIds,...sharedHostKeys].filter(host=>host!=='finance'))expect(productPageAllowed(host,'/holdings/acme/'+landing+query)).toBe(false);
  const context={scopeKind:'holding',modules:['finance'],permissions:['finance.read','finance.write']};expect(present(context)).toBe(true);expect(present({...context,permissions:['finance.read','finance.approve']})).toBe(true);for(const patch of [{modules:[]},{modules:['people_payroll']},{permissions:['finance.read']},{permissions:['finance.write']},{permissions:['finance.approve']},{scopeKind:'branch'},{scopeKind:'department'},{beta:true}])expect(present({...context,...patch})).toBe(false);
 });
 it('closes Expense setup transport to its exact Finance constructors/confirmation/mapping including residual encoded root and family names',()=>{
@@ -612,7 +612,7 @@ it('closes Expense setup transport to its exact Finance constructors/confirmatio
  for(const [suffix,method]of [['','POST'],['','PATCH'],['','DELETE'],['/charts','GET'],['/accounts','HEAD'],['/periods','PUT'],['/rates','DELETE'],['/confirmations','GET'],['/mapping','GET'],['/mapping','OPTIONS'],['/charts/record','POST'],['/accounts/record','GET'],['/references','GET'],['/confirmations/key','POST'],['-extra/charts','POST'],['//charts','POST'],['/%2fcharts','POST'],['/%255ccharts','POST']])expect(productPageAllowed('finance',base+suffix,method),suffix+':'+method).toBe(false);
  for(const path of ['%2566inance/expense-setup/charts','finance/%2565xpense-setup/charts','%2566inance/%2565xpense-setup/charts','finance/expense-setup/%2563harts','finance/expense-setup/%255cmapping','finance/expense-setup/mapping/extra'])expect(productPageAllowed('finance','/api/v1/holdings/acme/'+path,'POST'),path).toBe(false);expect(productPageAllowed('finance','/api/v1/holdings/acme/%66inance/%65xpense-setup/%63harts','POST')).toBe(true);expect(productPageAllowed('finance','/api/v1/holdings/acme/finance/expense-setup/%6dapping','POST')).toBe(true);
 });
-import {createExpenseSetupCommands as expenseOwnerCommands,expensePostingRequest as expenseOwnerRequest,expensePostingRoles as expenseOwnerRoles,type ExpenseSetupSnapshot as ExpenseOwnerSnapshot,type ExpenseSetupRequest as ExpenseOwnerRequest} from '@erpx/feature-finance/lib/expense-posting-setup-command';
+import {createExpenseSetupCommands as expenseOwnerCommands,expensePostingRequest as expenseOwnerRequest,expensePostingRoles as expenseOwnerRoles,type ExpenseSetupSnapshot as ExpenseOwnerSnapshot,type ExpenseSetupRequest as ExpenseOwnerRequest} from '@erpx/finance-ui/lib/expense-posting-setup-command';
 it('uses the actual Expense UI URLs for all original reference constructors/native confirmations and distinct initial mapping without generic Finance resources',async()=>{
  const chart={id:'chart-actual',name:'Actual chart',baseCurrency:'THB'},accounts=expenseOwnerRoles.map(([field,category,controlKind],index)=>({id:field+'-actual',chartId:chart.id,code:String(1000+index),name:'Actual '+field,category,currency:'THB',controlKind})),configuration={chartId:chart.id,currency:'THB',...Object.fromEntries(expenseOwnerRoles.map(([field])=>[field,field+'-actual']))}as NonNullable<ExpenseOwnerSnapshot['mapping']['configuration']>,view:ExpenseOwnerSnapshot={prerequisites:{companyId:'company',available:true,configured:false,contextKey:'a'.repeat(64),defaultCurrency:'USD',currencies:['THB','USD'],canCreateChart:true,canCreateAccount:true,canCreatePeriod:true,canConfirmRate:true,charts:[chart],accounts,periods:[],rates:[],unavailableReason:null},mapping:{companyId:'company',available:true,configured:false,version:0,canConfigure:true,contextKey:'b'.repeat(64),configuration:null,charts:[chart],accounts,expectedSalesDefaults:null,approvedSalesDefaults:null,unavailableReason:null}},requests:ExpenseOwnerRequest[]=[expenseOwnerRequest(view,'charts',{name:'Actual new chart',baseCurrency:'THB'}),expenseOwnerRequest(view,'accounts',{chartId:chart.id,name:'Actual payable',code:'2100',purpose:'payable',currency:'THB'}),expenseOwnerRequest(view,'periods',{name:'Actual period',startDate:'2026-10-01',endDate:'2026-10-31'}),expenseOwnerRequest(view,'rates',{currency:'THB',effectiveDate:'2026-10-01',currencyPerUsd:'32.10',note:'Actual confirmed rate'}),expenseOwnerRequest(view,'mapping',{...configuration,reason:'Reviewed nine original roles'})],singular={charts:'chart',accounts:'account',periods:'period',rates:'rate'}as const;
  for(const request of requests){const id=request.kind==='mapping'?'company':{charts:'chart-native-original',accounts:'acct-native-original',periods:'period-native-original',rates:'fx-native-original'}[request.kind],receipt=request.kind==='mapping'?{id,status:'configured',version:1}:request.kind==='rates'?{id,currency:'THB',effectiveDate:request.body.input.effectiveDate,currencyPerUsd:request.body.input.currencyPerUsd,confirmedAt:123}:{...request.body.input,id,companyId:'company',version:request.kind==='periods'?0:1,...(request.kind==='periods'?{state:'open'}:{})},next:ExpenseOwnerSnapshot=request.kind==='mapping'?{prerequisites:{...view.prerequisites,configured:true,canCreateChart:false},mapping:{...view.mapping,configured:true,version:1,canConfigure:false,configuration}}:view,seen:{url:string;method:string;body:unknown;key:string|null}[]=[],commands=expenseOwnerCommands(()=>({base:'/holdings/acme',view}),async(url,init)=>{const method=init?.method??'GET',key=new Headers(init?.headers).get('Idempotency-Key');seen.push({url:String(url),method,body:init?.body?JSON.parse(String(init.body)):null,key});return Response.json({data:String(url).endsWith('/confirmations')&&request.kind!=='mapping'?{kind:singular[request.kind],commandId:key,companyId:'company',id,status:request.kind==='rates'?'confirmed':request.kind==='periods'?'open':'active',version:request.kind==='rates'?null:request.kind==='periods'?0:1}:method==='POST'?receipt:next});});await commands.submit(request);const base='/api/v1/holdings/acme/finance/expense-setup';expect(seen.map(row=>[row.method,row.url])).toEqual([['POST',base+'/'+request.kind],...(request.kind==='mapping'?[]:[['POST',base+'/confirmations']]),['GET',base]]);expect(seen[0].body).toEqual(request.body);if(request.kind!=='mapping'){expect(seen[1].body).toEqual({kind:singular[request.kind],request:request.body});expect(seen[1].key).toBe(seen[0].key);}for(const row of seen){expect(productPageAllowed('finance',new URL(row.url,'https://finance.example.test').pathname,row.method)).toBe(true);expect(productPageAllowed('people',new URL(row.url,'https://finance.example.test').pathname,row.method)).toBe(false);}
@@ -637,21 +637,18 @@ it("isolates the service-only Sales catalogue across every product/shared host a
   }
 });
 
-
-it('admits only declared account-switcher routes and methods',()=>{
- for(const host of ['apps','admin','finance','people','pos','pms'] as const){
-  for(const path of ['/account/continue','/api/v1/account/switcher-context']){
-   expect(productPageAllowed(host,path,'GET')).toBe(true);
-   expect(productPageAllowed(host,path,'HEAD')).toBe(true);
-   expect(productPageAllowed(host,path,'POST')).toBe(false);
-  }
-  expect(productPageAllowed(host,'/api/v1/account/role-selection','POST')).toBe(true);
-  expect(productPageAllowed(host,'/api/v1/account/role-selection','GET')).toBe(false);
-  if(host!=='pos'&&host!=='pms')expect(productPageAllowed(host,'/account/continue/extra','GET')).toBe(false);
- }
- for(const host of ['booking','portal','legal-portal','forms'] as const){
-  expect(productPageAllowed(host,'/account/continue','GET')).toBe(false);
-  expect(productPageAllowed(host,'/api/v1/account/switcher-context','GET')).toBe(false);
-  expect(productPageAllowed(host,'/api/v1/account/role-selection','POST')).toBe(false);
- }
+it("admits current People profile links through the same directory policy", async () => {
+  const { productDestinationAvailable } = await import("@erpx/work-projection-server/public/rules/product-landings");
+  const directory = "people-organization/people/directory";
+  const context = {
+    role: "holding_owner", scopeKind: "branch" as const, beta: false,
+    modules: ["people_payroll"], readyModules: ["people_payroll"],
+    capabilities: ["people.directory"], permissions: ["people.read"],
+  };
+  expect(productDestinationAvailable("people", directory + "/current", context)).toBe(true);
+  expect(productDestinationAvailable("people", directory + "/person/demo-engagement/profile", context)).toBe(true);
+  expect(productDestinationAvailable("people", directory + "/person/demo-engagement/profile", {
+    ...context, permissions: [],
+  })).toBe(false);
+  expect(productDestinationAvailable("people", directory + "/person/demo-engagement/private", context)).toBe(false);
 });

@@ -3,12 +3,13 @@ import {build} from 'esbuild';
 import {chromium,expect as browserExpect} from '@playwright/test';
 import {existsSync,readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
-import {recordTarget,recordDrawerHref,recordCanonicalHref,withoutRecordDrawer} from '@erpx/feature-records/lib/record-drawer';
-import {canonicalUiHref,destinations,destinationTrail} from '@erpx/feature-work_projection/lib/destination-registry';
-import {canonicalDestinationLinks} from '@erpx/feature-work_projection/lib/destination-links';
-import {destinationProduct} from '@erpx/contracts/product-registry';
-import {productPageAllowed} from '@erpx/feature-runtime/lib/product-route-policy';
-import {productEntryCapability} from '@erpx/server-commercial/public/rules/product-entry-capability';
+import {recordTarget,recordDrawerHref,recordCanonicalHref,withoutRecordDrawer,followupCreationHref} from '@erpx/records-ui/lib/record-drawer';
+import {canonicalUiHref,destinations,destinationTrail} from '@erpx/work-projection-ui/lib/destination-registry';
+import {canonicalDestinationLinks} from '@erpx/work-projection-ui/lib/destination-links';
+import {destinationProduct} from '@erpx/platform-contracts/product-registry';
+import {productPageAllowed} from '@erpx/platform-runtime-ui/lib/product-route-policy';
+import {productEntryCapability} from '@erpx/commercial-server/public/rules/product-entry-capability';
+import {productNavigationHref} from '@erpx/work-projection-ui/lib/product-navigation';
 const recordDrawerHarness=vi.hoisted(()=>({active:false,states:[] as unknown[],stateCursor:0,refs:[] as {current:unknown}[],refCursor:0,effects:[] as (()=>void|(()=>void))[],contentNode:undefined as unknown}));
 vi.mock('react',async importOriginal=>{
  const actual=await importOriginal<typeof import('react')>();
@@ -31,17 +32,84 @@ vi.mock('react',async importOriginal=>{
  };
 });
 vi.mock('react-dom',()=>({createPortal:(children:unknown)=>children}));
-vi.mock("@erpx/ui/components/workspace",()=>({WorkspaceDetail:(props:{children?:unknown})=>props.children}));
-vi.mock("@erpx/ui/components/workspace-overlay",()=>({useWorkspaceOverlay:()=>({editors:0})}));
-vi.mock("@erpx/feature-records/components/record-workspace",()=>({useRecordWorkspace:()=>({host:null})}));
-vi.mock("@erpx/feature-shared/lib/destination-search",()=>({useSearchParams:()=>({get:()=>null})}));
-vi.mock("@erpx/feature-shared/lib/destination-router",()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn(),back:vi.fn()})}));
-vi.mock("@erpx/ui/components/dialog",()=>({Dialog:(props:{children?:unknown})=>props.children}));
-vi.mock("@erpx/ui/components/button",()=>({Button:(props:{children?:unknown})=>props.children}));
-vi.mock("@erpx/ui/components/record-context",()=>({EmbeddedRecord:(props:{children?:unknown})=>props.children}));
-vi.mock("@erpx/feature-work_projection/lib/context-switch",()=>({registerUnsavedWork:()=>()=>{}}));
-import {RecordDrawer} from '@erpx/feature-records/components/record-drawer';
+vi.mock("@erpx/platform-ui/components/workspace",()=>({WorkspaceDetail:(props:{children?:unknown})=>props.children}));
+vi.mock("@erpx/platform-ui/components/workspace-overlay",()=>({useWorkspaceOverlay:()=>({editors:0})}));
+vi.mock("@erpx/records-ui/components/record-workspace",()=>({useRecordWorkspace:()=>({host:null})}));
+vi.mock("@erpx/platform-shared-ui/lib/destination-search",()=>({useSearchParams:()=>({get:()=>null})}));
+vi.mock("@erpx/platform-shared-ui/lib/destination-router",()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn(),back:vi.fn()})}));
+vi.mock("@erpx/platform-ui/components/dialog",()=>({Dialog:(props:{children?:unknown})=>props.children}));
+vi.mock("@erpx/platform-ui/components/button",()=>({Button:(props:{children?:unknown})=>props.children}));
+vi.mock("@erpx/platform-ui/components/record-context",()=>({EmbeddedRecord:(props:{children?:unknown})=>props.children}));
+vi.mock("@erpx/work-projection-ui/lib/context-switch",()=>({registerUnsavedWork:()=>()=>{}}));
+import {RecordDrawer} from '@erpx/records-ui/components/record-drawer';
 const base='/holdings/acme';
+it('opens a quotation in the selected Company and preserves the exact public list return',()=>{
+  vi.stubEnv('ERPX_COMPANY_ADDRESS_ROUTING','acme');
+  try {
+    const current='/acme-co/bangkok/sales/documents/quote?tag=a&tag=b';
+    const selectedBase=`${base}/branches/bangkok`;
+    const target={kind:'order' as const,id:'quote-1',args:{view:'quote'}};
+    const owner=recordDrawerHref(current,target,'acme',selectedBase,'acme-co');
+    const scope={audience:'sales' as const,holdingSlug:'acme',companySlug:'acme-co'};
+    const opened=new URL(productNavigationHref(owner,scope).href);
+    expect(opened.pathname).toBe('/acme-co/bangkok/sales/documents/quote/quote-1/overview');
+    expect(opened.searchParams.get('returnTo')).toBe(current);
+    expect(recordDrawerHref(current,target,'acme',`${base}/branches/other`,'acme-co')).toBe(current);
+    expect(recordDrawerHref(current,target,'acme',selectedBase,'other-company')).toBe(current);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+
+it('opens an order-scoped follow-up creation drawer from a genuine quotation',()=>{
+ vi.stubEnv('ERPX_COMPANY_ADDRESS_ROUTING','acme');
+ try {
+  const href=followupCreationHref(base,'quote-1');
+  expect(href).toBe(`${base}/customers-sales/sales/followups?new=1&orderId=quote-1`);
+  expect(canonicalUiHref(href)).toBe(href);
+  // Creation is a collection action, never a record ID that could be forged.
+  expect(recordTarget(href,base)).toBeNull();
+  const scope={audience:'sales' as const,holdingSlug:'acme',companySlug:'acme-co'};
+  const navigation=productNavigationHref(href,scope),opened=new URL(navigation.href);
+  expect(opened.pathname).toBe('/acme-co/sales/followups');
+  expect(opened.searchParams.get('new')).toBe('1');
+  expect(opened.searchParams.get('orderId')).toBe('quote-1');
+  // Same-app navigation keeps the Sales client runtime, so the form drawer hydrates.
+  expect(navigation.handoff).toBe(false);
+ } finally {
+  vi.unstubAllEnvs();
+ }
+});
+
+it('wires the quoted-order CTA to a scoped, hydrated follow-up creation drawer',()=>{
+ const presenter=readFileSync('platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen.tsx','utf8');
+ expect(presenter).toContain('customerFollowupWorkspace(actor, id)');
+ expect(presenter).toContain('{canAssignFollowup && (');
+ expect(presenter).toContain('followupCreationHref(base, id)');
+ expect(presenter).not.toMatch(/canAssignFollowup[^\n]*purchase\?\.newWork/);
+ const view=readFileSync('modules/sales/ui/src/components/customers/sales-views.tsx','utf8');
+ expect(view).toContain('linkedSource ? { ...query, kind: "all" } : query');
+ expect(view).toContain('newForm = query.new === "1" && (data.canCreateFollowup || linkedSource)');
+ expect(view).toContain('showCreate && <HubCreate');
+ expect(view).toMatch(/<CustomerFollowupForm base=\{base\} order=\{source\.order\}[^\n]*inlineCreate \/>/);
+});
+
+it('opens distinct Support cases from the product entry and returns to its original filters',()=>{
+ const current='/support?company=company&tag=one&tag=two#list';
+ const first=recordDrawerHref(current,{kind:'support_ticket',id:'ticket:one%'},'acme',base),second=recordDrawerHref(current,{kind:'support_ticket',id:'ticket-two'},'acme',base);
+ expect(new URL(first,'https://erpx.invalid').pathname).toBe(`${base}/customers-sales/customers/service/cases/ticket%3Aone%25/overview`);
+ expect(new URL(second,'https://erpx.invalid').pathname).toBe(`${base}/customers-sales/customers/service/cases/ticket-two/overview`);
+ expect(withoutRecordDrawer(first,'acme')).toBe(current);expect(withoutRecordDrawer(second,'acme')).toBe(current);
+ expect(recordDrawerHref('https://acme.jesadakorn.com/support?company=company',{kind:'support_ticket',id:'ticket-two'},'acme',base)).toContain('ticket-two/overview');
+ const nested=recordDrawerHref('/support?company=company&returnTo=%2F%2Fevil.example&detailId=old', {kind:'support_ticket',id:'ticket-two'},'acme',base);expect(withoutRecordDrawer(nested,'acme')).toBe('/support?company=company');
+});
+it('rejects forged product entry origins and scope bases without changing normal workspace routing',()=>{
+ const target={kind:'support_ticket' as const,id:'ticket'};
+ for(const current of ['https://evil.example/support','//evil.example/support','/\\evil.example/support','/\\acme.jesadakorn.com/support','/support%2fescape'])expect(recordDrawerHref(current,target,'acme',base)).toBe(current);
+ for(const foreign of ['/holdings/northstar','/holdings/acme/branches/main','/holdings/acme/departments/ops'])expect(recordDrawerHref('/support?company=company',target,'acme',foreign)).toBe('/support?company=company');
+ for(const scope of [`${base}/branches/main`,`${base}/branches/main/departments/ops`]){const normal=`${scope}/customers-sales/customers/service/cases?q=one`,detail=new URL(recordDrawerHref(normal,target,'acme',scope),'https://erpx.invalid');expect(withoutRecordDrawer(detail.pathname+detail.search,'acme')).toBe(normal);detail.searchParams.set('returnTo','/support?company=company');expect(withoutRecordDrawer(detail.pathname+detail.search,'acme')).not.toBe('/support?company=company');}
+ const detail=new URL(recordDrawerHref('/support?company=company',target,'acme',base),'https://erpx.invalid');for(const bad of ['//evil.example/','/\\evil.example/','/finance?company=company']){detail.searchParams.set('returnTo',bad);expect(withoutRecordDrawer(detail.pathname+detail.search,'acme')).not.toBe(bad);}
+});
 it('keeps repeated collection filters, pagination and focus fragment when closing a path drawer',()=>{
  const current=`${base}/projects-routines/projects?q=desk&filter=a&filter=b&cursor=page2#projects`;
  const selected=recordDrawerHref(current,{kind:'project',id:'project:line / encoded',args:{section:'documents'}});
@@ -85,7 +153,8 @@ it('keeps legacy organization settings navigation on the organization workspace'
 it('provides distinct Server Component pages and clickable breadcrumb parents for every destination',()=>{
  const paths=destinations.map(destination=>destination.path);
  expect(new Set(paths).size).toBe(paths.length);
- for(const path of paths){const file=`apps/compat/src/app/holdings/[holdingSlug]/${path}/page.tsx`;expect(existsSync(file),path).toBe(true);expect(readFileSync(file,'utf8')).not.toMatch(/^['"]use client['"]/);for(const crumb of destinationTrail(base,path).slice(0,-1))expect(existsSync(`apps/compat/src/app/holdings/[holdingSlug]/${crumb.href!.slice(base.length+1)}/page.tsx`),crumb.href).toBe(true);}
+ const page=(path:string)=>{const owner=destinationProduct(path),owned=`apps/${owner==='apps'?'launcher':owner}/src/app/holdings/[holdingSlug]/${path}/page.tsx`;return existsSync(owned)?owned:`apps/compat/src/app/holdings/[holdingSlug]/${path}/page.tsx`;};
+ for(const path of paths){const file=page(path);expect(existsSync(file),path).toBe(true);expect(readFileSync(file,'utf8')).not.toMatch(/^['"]use client['"]/);for(const crumb of destinationTrail(base,path).slice(0,-1))expect(existsSync(page(crumb.href!.slice(base.length+1))),crumb.href).toBe(true);}
  expect(existsSync('src/app/holdings/[holdingSlug]/technology/page.tsx')).toBe(false);
  expect(existsSync('src/app/platform/billing/page.tsx')).toBe(false);
 });
@@ -169,22 +238,23 @@ it('keeps a newer RecordDrawer edit dirty when the original command acknowledgem
 
 it('keeps a newer edit dirty after a late acknowledgement in a mounted React RecordDrawer',async()=>{
  const stubs:Record<string,string>={
-  "@erpx/ui/components/workspace":'export function WorkspaceDetail({children}){return children;}',
-  "@erpx/ui/components/workspace-overlay":'export function useWorkspaceOverlay(){return {editors:0};}',
-  '@erpx/feature-records/components/record-workspace':'export function useRecordWorkspace(){return {host:null};}',
-  "@erpx/feature-shared/lib/destination-search":'export function useSearchParams(){return {get:()=>null};}',
-  "@erpx/feature-shared/lib/destination-router":'export function useRouter(){return {push(){},pushPreservingQuery(){},replace(){},refresh(){},back(){}};}',
-  "@erpx/ui/components/dialog":'export function Dialog({children,title}){return <div role="dialog" aria-label={title}>{children}</div>;}',
-  "@erpx/ui/components/button":'export function Button({children,onClick,type="button"}){return <button type={type} onClick={onClick}>{children}</button>;}',
-  '@erpx/ui/components/record-context':'export function EmbeddedRecord({children}){return children;}',
-  "@erpx/feature-work_projection/lib/context-switch":'export function registerUnsavedWork(){return ()=>{};}',
-  "@erpx/feature-records/lib/record-drawer":'export function recordDrawerHref(){return "/record";} export function withoutRecordDrawer(){return "/list";}',
+  "@erpx/platform-ui/components/workspace":'export function WorkspaceDetail({children}){return children;}',
+  "@erpx/platform-ui/components/workspace-overlay":'export function useWorkspaceOverlay(){return {editors:0};}',
+  '@erpx/records-ui/components/record-workspace':'export function useRecordWorkspace(){return {host:null};}',
+  "@erpx/platform-shared-ui/lib/destination-search":'export function useSearchParams(){return {get:()=>null};}',
+  "@erpx/platform-shared-ui/lib/destination-router":'export function useRouter(){return {push(){},pushPreservingQuery(){},replace(){},refresh(){},back(){}};}',
+  "@erpx/platform-ui/components/dialog":'export function Dialog({children,title}){return <div role="dialog" aria-label={title}>{children}</div>;}',
+  "@erpx/platform-ui/components/button":'export function Button({children,onClick,type="button"}){return <button type={type} onClick={onClick}>{children}</button>;}',
+  '@erpx/platform-ui/components/record-context':'export function EmbeddedRecord({children}){return children;}',
+  '@erpx/platform-ui/components/navigation-context':'export function NavigationLink({children,href,...rest}){return <a href={href} {...rest}>{children}</a>;} export function UiNavigationProvider({children}){return children;}',
+  "@erpx/work-projection-ui/lib/context-switch":'export function registerUnsavedWork(){return ()=>{};}',
+  "@erpx/records-ui/lib/record-drawer":'export function recordDrawerHref(){return "/record";} export function withoutRecordDrawer(){return "/list";}',
  };
  const bundle=await build({
   stdin:{sourcefile:'record-drawer-mounted-harness.tsx',loader:'tsx',resolveDir:process.cwd(),contents:`
    import {createElement as h,useEffect,useState} from 'react';
    import {createRoot} from 'react-dom/client';
-   import {RecordDrawer} from './packages/feature-records/src/components/record-drawer';
+   import {RecordDrawer} from './modules/records/ui/src/components/record-drawer';
    function RecordDrawerHarness(){
     const [generation,setGeneration]=useState(0);
     useEffect(()=>{const replace=()=>setGeneration(value=>value+1);window.addEventListener('test:replace-record-form',replace);return()=>window.removeEventListener('test:replace-record-form',replace);},[]);
@@ -199,7 +269,7 @@ it('keeps a newer edit dirty after a late acknowledgement in a mounted React Rec
   bundle:true,write:false,platform:'browser',format:'iife',globalName:'RecordDrawerMountedHarness',target:'es2022',jsx:'automatic',loader:{'.css':'empty'},
   plugins:[{name:'record-drawer-mounted-boundary-stubs',setup(builder){
    builder.onResolve({filter:/^@(?:\/|erpx\/)/},args=>{if(args.path.endsWith('.css'))return undefined;if(!Object.hasOwn(stubs,args.path))throw new Error(`Missing RecordDrawer test boundary stub: ${args.path}`);return {path:args.path,namespace:'record-drawer-stub'};});
-   builder.onResolve({filter:/^\.\//},args=>args.importer.endsWith('/packages/feature-records/src/components/record-drawer.tsx')&&Object.hasOwn(stubs,args.path)?{path:args.path,namespace:'record-drawer-stub'}:undefined);
+   builder.onResolve({filter:/^\.\//},args=>args.importer.endsWith('/modules/records/ui/src/components/record-drawer.tsx')&&Object.hasOwn(stubs,args.path)?{path:args.path,namespace:'record-drawer-stub'}:undefined);
    builder.onLoad({filter:/.*/,namespace:'record-drawer-stub'},args=>({contents:stubs[args.path]!,loader:'tsx',resolveDir:process.cwd()}));
   }}]
  });

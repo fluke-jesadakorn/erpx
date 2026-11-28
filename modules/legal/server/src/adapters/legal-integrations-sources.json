@@ -1,0 +1,7 @@
+{
+  "tasks": "SELECT f.*,i.title record_title FROM {table} f JOIN legal_items i ON i.id=f.item_id WHERE {visibility} AND {purchase} AND f.owner_id=? AND f.state NOT IN ('completed','closed','cancelled','acknowledged','waived','accepted','billed') AND NOT(f.category='custody' AND f.state='received') ORDER BY f.due_date NULLS LAST,f.id LIMIT 200",
+  "approvals": "SELECT i.* FROM legal_items i JOIN ({approvalInstances}) ai ON ai.record_type='legal' AND ai.record_id=i.id AND ai.state='pending' JOIN ({approvalSteps}) st ON st.instance_id=ai.id AND st.ordinal=ai.current_step WHERE {visibility} AND {purchase} AND iam_same_person(st.approver_user_id,?,i.company_id) ORDER BY i.updated_at DESC LIMIT 200",
+  "calendarBase": "SELECT id,id item_id,title,description,due_date,timezone,department_id,branch_id,owner_id,state,version,company_id,classification,kind,created_by FROM legal_items",
+  "calendarFeature": "SELECT f.id,i.id item_id,f.title,i.description,f.due_date,i.timezone,i.department_id,i.branch_id,f.owner_id,f.state,f.version,i.company_id,i.classification,i.kind,i.created_by FROM {table} f JOIN legal_items i ON i.id=f.item_id",
+  "calendarRows": "SELECT i.* FROM ({sources}) i WHERE {visibility} AND {purchase} AND i.due_date>=? AND i.due_date<? AND i.state NOT IN ('archived','cancelled') AND (?='team' OR i.owner_id=?) AND (?='' OR strpos(lower(i.title),lower(?))>0) ORDER BY i.id LIMIT ?"
+}

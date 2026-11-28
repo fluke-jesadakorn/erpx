@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { packageReviewSigner } from "@erpx/server-commercial/adapters/package-review";
-import type { PackageGrantBatch } from "@erpx/server-commercial/public/package-grants";
+import { packageReviewSigner } from "@erpx/commercial-server/adapters/package-review";
+import type { PackageGrantBatch } from "@erpx/commercial-server/public/package-grants";
 const actor = { userId: "fixture-provider", sessionId: "fixture-admin-session", assignmentId: "fixture-platform-assignment", role: "platform_admin", roleRevision: 3 };
 const input: PackageGrantBatch = { companyId: "fixture-company", expectedRevision: "a".repeat(64), idempotencyKey: "fixture-idempotency-key", changes: [{ expectedVersion: 0,
   grant: { companyId: "fixture-company", packageId: "work", packageVersion: 1, version: 1, state: "active", startsAt: 1000, endsAt: null, reason: "Fictional reviewed reason", evidence: "test:review" } }] };

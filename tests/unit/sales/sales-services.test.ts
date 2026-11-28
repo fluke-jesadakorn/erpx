@@ -1,12 +1,13 @@
 import {afterEach,describe,expect,test} from 'vitest';
-import {createPriceListApplication,type PriceListRepository,type PriceListMutation} from "@erpx/server-sales/application/price-lists";
-import {createFollowupApplication,type FollowupRepository,type FollowupMutation} from "@erpx/server-sales/application/followups";
-import {createCustomerNoteApplication,type CustomerNoteRepository} from "@erpx/server-sales/application/notes";
-import {createSalesCustomerApplication,type SalesCustomerRepository} from "@erpx/server-sales/application/customers";
-import {createCustomerNotificationApplication,type CustomerNotificationRepository,type CustomerNotificationMutation} from "@erpx/server-sales/application/notifications";
-import {createCustomerDeliveryApplication,type CustomerDeliveryRepository} from "@erpx/server-sales/application/notification-delivery";
-import {customerNotificationRetryAt,type CustomerMail} from "@erpx/server-sales/domain/notifications";
-import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
+import {existsSync,readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {nativeApiPath} from '../../../scripts/local/native-api-proxy';
+import {expandNativeApiPaths,loadNativeApiPaths} from '../../../scripts/local/native-api-paths';
+import {activeHoldingHosts} from '../../../platform/contracts/src/holding-hosts';
+import {createPriceListApplication,type PriceListRepository,type PriceListMutation} from "@erpx/sales-server/application/price-lists";
+import {createFollowupApplication,type FollowupRepository} from "@erpx/sales-server/application/followups";
+import {createSalesCustomerApplication,type SalesCustomerRepository} from "@erpx/sales-server/application/customers";
+import type {WorkItem} from "@erpx/work-projection-ui/lib/work-item";
 
 const priceList={name:'Current customer prices',currency:'THB',customerId:null,validFrom:'2026-10-01',validUntil:'2026-10-31',maxAutoDiscountBps:500,items:[{productId:'product',price:'10.25',taxBps:700}]};
 function pricingFixture(overrides:Partial<PriceListRepository>={}){
@@ -34,32 +35,18 @@ describe('Sales price-list semantic ports',()=>{
  });
 });
 function followupFixture(overrides:Partial<FollowupRepository>={}){
- const mutations:FollowupMutation[]=[];const repository:FollowupRepository={async rows(){return [{id:'followup',order_id:'order',owner_id:'assigned',owner_eligible:1,status:'open',due_date:'2026-10-06'}];},async evidence(){return null;},async recipients(){return [];},async history(){return [];},async order(){return {id:'order',kind:'sales',branch_id:'branch',department_id:null};},async replay(){return null;},async commit(m){mutations.push(m);return m.result;},...overrides};
- const ports={actorId:'manager',canRead:true,canSell:true,canManage:true,authorize(){},clock:{now:()=>42},async repository(){return repository;}};return {repository,ports,mutations,app:createFollowupApplication(ports)};
+ const repository:FollowupRepository={async rows(){return [{id:'followup',order_id:'order',owner_id:'assigned',owner_eligible:1,status:'open',due_date:'2026-10-06'}];},async evidence(){return null;},async recipients(){return [];},async history(){return [];},async order(){return {id:'order',kind:'sales',branch_id:'branch',department_id:null};},...overrides};
+ const ports={actorId:'manager',canRead:true,canSell:true,canManage:true,authorize(){},clock:{now:()=>42},async repository(){return repository;}};return {repository,ports,app:createFollowupApplication(ports)};
 }
 describe('Sales follow-up and note semantics',()=>{
- test('a sales manager can reassign but cannot complete another assigned owner contact',async()=>{
-  const f=followupFixture();await expect(f.app.change('followup',{action:'complete',expectedVersion:1,reason:'Customer contacted'},'key')).rejects.toMatchObject({code:'CUSTOMER_FOLLOWUP_OWNER_REQUIRED'});
-  await f.app.change('followup',{action:'reassign',expectedVersion:1,ownerId:'replacement',dueDate:'2026-10-08',reason:'Current owner is unavailable'},'other');expect(f.mutations[0]).toMatchObject({owner:'replacement',due:'2026-10-08',status:'open'});
- });
  test('revoked recipient facts make work wait for reassignment',async()=>{
   const f=followupFixture({async rows(){return [{id:'followup',owner_id:'manager',owner_eligible:0,status:'open',due_date:'2026-10-06',updated_at:42}];}});
   expect(await f.app.work()).toEqual([expect.objectContaining({canAct:false,queue:'waiting',blocker:'Assigned owner is no longer eligible; a sales manager must reassign with a reason'})]);
  });
- test('a future contact time is rejected before receipt lookup or source access',async()=>{
-  const repository:CustomerNoteRepository={async order(){throw new Error('source unavailable');},async timeline(){throw new Error('source unavailable');},async customer(){return null;},async notes(){return [];},async history(){return [];},async note(){return null;},async replay(){throw new Error('must not replay');},async commit(){throw new Error('must not commit');}};
-  const app=createCustomerNoteApplication({canSell:true,canManage:false,branchId:null,departmentId:null,authorize(){},isSamePerson:()=>false,clock:{now:()=>42},async repository(){return repository;}});
-  await expect(app.create({orderId:'order',expectedVersion:1,channel:'phone',occurredAt:60043,body:'Discussed the delivery'},'key')).rejects.toMatchObject({code:'CONTACT_TIME_INVALID'});
- });
- test('standalone customer notes stay hidden from Branch and Department actors',async()=>{
-  const repository:CustomerNoteRepository={async order(){return {};},async timeline(){throw new Error('hidden source must not be read');},async customer(){return null;},async notes(){return [];},async history(){return [];},async note(){return {order_id:null,customer_id:'customer',created_by:'author',body:'Contact record'};},async replay(){return null;},async commit(){throw new Error('must not commit');}};
-  const app=createCustomerNoteApplication({canSell:true,canManage:true,branchId:'branch',departmentId:null,authorize(){},isSamePerson:()=>true,clock:{now:()=>42},async repository(){return repository;}});
-  await expect(app.change('note',{action:'archive',expectedVersion:1,reason:'Recorded separately'},'key')).rejects.toMatchObject({status:404,code:'CUSTOMER_NOTE_NOT_FOUND'});
- });
 });
 function hubFixture(overrides:Partial<SalesCustomerRepository>={}){
- const repository:SalesCustomerRepository={async orderCounts(){return [];},async followupHeads(){return [];},async opportunityCounts(){return [];},async supportCounts(){return [];},async directory(){return {items:[],nextCursor:null,previousCursor:null,hasMore:false};},async customer(){return null;},async orders(){return [];},async followups(){return [];},async opportunities(){return [];},async cases(){return [];},async supportSource(){return null;},async timeline(){throw new Error('missing timeline');},async notes(){throw new Error('missing notes');},async reviews(){return [];},async crmWork(){return [];},async followupWork(){return [];},async orderWork(){return [];},async followupIds(){return [];},...overrides};
- const access={today:true,pipeline:true,documents:true,pricing:false,reports:true,directory:true,contacts:true,support:true,reviews:false};const ports={authorize(){},async access(){return access;},canReadSupport:false,canCreateSupport:false,canSell:true,timelineUnavailable:()=>false,clock:{now:()=>42},async repository(){return repository;}};
+ const repository:SalesCustomerRepository={async orderCounts(){return [];},async followupHeads(){return [];},async opportunityCounts(){return [];},async supportCounts(){return [];},async directory(){return {items:[],nextCursor:null,previousCursor:null,hasMore:false};},async customer(){return null;},async orders(){return [];},async followups(){return [];},async opportunities(){return [];},async cases(){return [];},async supportSource(){return null;},async notes(){throw new Error('missing notes');},async reviews(){return [];},async crmWork(){return [];},async followupWork(){return [];},async orderWork(){return [];},async followupIds(){return [];},...overrides};
+ const access={today:true,pipeline:true,documents:true,pricing:false,reports:true,directory:true,contacts:true,support:true,reviews:false};const ports={authorize(){},async access(){return access;},canReadSupport:false,canCreateSupport:false,canSell:true,clock:{now:()=>42},async repository(){return repository;}};
  return {access,ports,repository,app:createSalesCustomerApplication(ports)};
 }
 describe('Sales customer projections',()=>{
@@ -77,35 +64,11 @@ describe('Sales customer projections',()=>{
   await expect(f.app.today({kind:'crm'})).rejects.toMatchObject({code:'SALES_TASK_ACCESS_DENIED'});
  });
 });
-const mail:CustomerMail={id:'mail',company_id:'company',fulfillment_id:'fulfillment',order_id:'order',party_id:'customer',party_version:1,recipient_email:'customer@example.invalid',subject:'Delivery recorded',body_text:'Immutable delivery snapshot',adapter:'resend',attempts:1};
-function deliveryFixture(overrides:Partial<CustomerDeliveryRepository>={}){
- const calls:string[]=[],failures:{retryAt:number;code:string}[]=[];const repository:CustomerDeliveryRepository={async lease(){return mail;},async current(){return {status:'active',notification_email:mail.recipient_email,notification_consent:'granted',adapter:'resend'};},async cancel(_mail,_lease,code){calls.push(code);},async sent(){calls.push('sent');},async failed(_mail,_lease,retryAt,code){failures.push({retryAt,code});},async next(){return null;},...overrides};
- const ports={repository,async send(message:CustomerMail){calls.push('send');expect(message.body_text).toBe(mail.body_text);return 'provider-id';}};return {repository,ports,calls,failures,app:createCustomerDeliveryApplication(ports)};
-}
-describe('Sales customer notification orchestration',()=>{
- test('current consent revocation cancels a leased message before contacting its provider',async()=>{
-  const f=deliveryFixture({async current(){return {status:'active',notification_email:mail.recipient_email,notification_consent:'revoked',adapter:'resend'};}});
-  await f.app.deliver('mail',100);expect(f.calls).toEqual(['CUSTOMER_CONSENT_OR_EMAIL_CHANGED']);expect(f.failures).toEqual([]);
- });
- test('provider failures schedule the immutable message with capped deterministic backoff',async()=>{
-  const f=deliveryFixture();f.ports.send=async()=>{throw new Error('CUSTOMER_EMAIL_DELIVERY_FAILED');};await expect(f.app.deliver('mail',100)).rejects.toThrow('CUSTOMER_EMAIL_DELIVERY_FAILED');
-  expect(f.failures).toEqual([{retryAt:2100,code:'CUSTOMER_EMAIL_DELIVERY_FAILED'}]);expect(customerNotificationRetryAt(100,20)).toBe(1024100);
- });
- test('drain bounds repeated provider failures to ten leased jobs',async()=>{
-  let leased=0;const f=deliveryFixture({async next(){return 'mail';},async lease(){leased++;return mail;}});f.ports.send=async()=>{throw new Error('provider unavailable');};await f.app.drain(100);expect(leased).toBe(10);expect(f.failures).toHaveLength(10);
- });
- test('queue replay returns before reading a customer whose consent has changed',async()=>{
-  const mutations:CustomerNotificationMutation[]=[];const repository:CustomerNotificationRepository={async productionEnabled(){},async settings(){return null;},async delivery(){throw new Error('changed customer must not be read');},async existing(){return null;},async lines(){return [];},async notification(){return null;},async replay(){return {id:'saved',status:'pending',version:1};},async commit(m){mutations.push(m);return m.result;}};
-  const app=createCustomerNotificationApplication({companyId:'company',authorize(){},clock:{now:()=>42},identifiers:{next:()=>{throw new Error('must not allocate another id');}},async repository(){return repository;}});
-  expect(await app.queue('delivery',{expectedVersion:1,note:'Record the carrier confirmation'},'key')).toEqual({id:'saved',status:'pending',version:1});expect(mutations).toEqual([]);
- });
-});
-
 import {vi} from 'vitest';
 import {createElement,isValidElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {CustomerFollowupForm} from '@erpx/feature-customer_360/components/customer-followups';
-import {SalesPricingConsole} from '@erpx/feature-sales/components/sales-pricing-console';
+import {CustomerFollowupForm} from '@erpx/customer-360-ui/components/customer-followups';
+import {SalesPricingConsole} from '@erpx/sales-ui/components/sales-pricing-console';
 vi.mock('next/navigation',async importOriginal=>({...await importOriginal<typeof import('next/navigation')>(),useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/acme/customer-followups/followup',useSearchParams:()=>new URLSearchParams()}));
 test('renders original Followup right-drawer triggers with source-specific new and settlement controls without mounting editor fields',()=>{
  const purchase={newWork:false,settleExisting:true,history:true,revision:'opaque-actual-quote'},order={id:'original-quote',version:1},create=renderToStaticMarkup(createElement(CustomerFollowupForm,{base:'/holdings/acme',order,recipients:[{id:'sales-owner',name:'Assigned original Sales owner'}],purchase})),detail={row:{id:'followup',order_id:'original-quote',owner_id:'sales-owner',due_date:'2026-10-20',version:2},history:[],recipients:[],canComplete:true,canManage:true,purchase},settle=renderToStaticMarkup(createElement(CustomerFollowupForm,{base:'/holdings/acme',detail,recipients:[]}));
@@ -117,8 +80,8 @@ test('renders Pricing new-work and retained cancellation controls from minimal s
  const disabled=(source:string,label:string)=>{const button=source.match(new RegExp(`<button([^>]*)>${label}</button>`));expect(button).not.toBeNull();return /\sdisabled(?:=|\s|$)/.test(button![1]);};expect(disabled(html,'Prepare price list')).toBe(true);expect(disabled(html,'Edit draft')).toBe(true);expect(disabled(html,'Review draft')).toBe(false);expect(html).toContain('Retained independent original pricing');expect(html).not.toContain('name="name"');expect(html).not.toContain('name="reason"');const history=render({...data,purchase:{...purchase,settleExisting:false}});expect(disabled(history,'Review draft')).toBe(true);const active=render({...data,purchase:{...purchase,newWork:true}});expect(disabled(active,'Prepare price list')).toBe(false);expect(disabled(active,'Edit draft')).toBe(false);for(const secret of ['company_package_grants','authority_json','assignments','source_witness'])expect(html+history+active).not.toContain(secret);
 });
 
-import {CustomerDeliveryNotification} from '@erpx/feature-commerce/components/commerce-controls';
-import {commerceCommandAllowed,commerceCommandPurpose,type CommercePurchaseControls} from '@erpx/feature-commerce/lib/purchase-controls';
+import {CustomerDeliveryNotification} from '@erpx/commerce-ui/components/commerce-controls';
+import {commerceCommandAllowed,commerceCommandPurpose,type CommercePurchaseControls} from '@erpx/commerce-ui/lib/purchase-controls';
 test('shows only minimal independent provider reconciliation controls and keeps unconfirmed provider truth closed',()=>{
  const props={base:'/holdings/acme',fulfillment:{id:'delivery',version:2},notification:{id:'notice',version:2,status:'unknown',recipient_email:'declared@example.invalid',attempts:1},customerEmail:'declared@example.invalid',customerConsent:'granted',adapter:'resend'},review=renderToStaticMarkup(createElement(CustomerDeliveryNotification,{...props,reconciliation:{attemptId:'opaque-original-attempt',hasProviderIdentity:true,canReview:true}}));expect(review).toContain('Reconcile provider result');expect(review).not.toContain('name="reason"');expect(review).not.toContain('opaque-original-attempt');const forbidden=renderToStaticMarkup(createElement(CustomerDeliveryNotification,{...props,reconciliation:{attemptId:'opaque-original-attempt',hasProviderIdentity:true,canReview:false}}));expect(forbidden).toContain('A different current Sales approver');expect(forbidden).not.toContain('Reconcile provider result');const unknown=renderToStaticMarkup(createElement(CustomerDeliveryNotification,{...props,reconciliation:{attemptId:'opaque-original-attempt',hasProviderIdentity:false,canReview:false}}));expect(unknown).toContain('provider message identity is unconfirmed');for(const secret of ['authority_json','source_hash','company_package_grants','assignment_id','provider_observation'])expect(review+forbidden+unknown).not.toContain(secret);
 });
@@ -126,10 +89,10 @@ test('keeps notification preparation active while original retry reconciliation 
  const active:CommercePurchaseControls={newWork:true,settleExisting:true,history:true,revision:'opaque',convertNewWork:true,stockNewWork:true,stockSettleExisting:true,financeSettleExisting:true,receivingSettleExisting:true},draining={...active,newWork:false},history={...draining,settleExisting:false};for(const [path,input] of [['fulfillments/delivery/notify',{}],['customer-notifications/settings',{adapter:'resend'}]] as const){expect(commerceCommandPurpose(path,input)).toBe('new-work');expect(commerceCommandAllowed(draining,path,input)).toBe(false);}for(const [path,input] of [['customer-notifications/notice/retry',{}],['customer-notifications/notice/reconcile',{}],['customer-notifications/settings',{adapter:'disabled'}]] as const){expect(commerceCommandPurpose(path,input)).toBe('settle-existing');expect(commerceCommandAllowed(draining,path,input)).toBe(true);expect(commerceCommandAllowed(history,path,input)).toBe(false);}expect(commerceCommandAllowed(undefined,'customer-notifications/notice/reconcile',{})).toBe(true);
 });
 
-import {EcommerceConsole} from '@erpx/feature-ecommerce/components/ecommerce-console';
-import {CustomerAccessConsole} from '@erpx/feature-customer_360/components/customer-access-console';
-import {CustomerPortalActions} from '@erpx/feature-customer_authority/components/customer-portal-actions';
-import {ecommerceCommandAllowed} from '@erpx/feature-ecommerce/lib/purchase-controls';
+import {EcommerceConsole} from '@erpx/ecommerce-ui/components/ecommerce-console';
+import {CustomerAccessConsole} from '@erpx/customer-360-ui/components/customer-access-console';
+import {CustomerPortalActions} from '@erpx/customer-authority-ui/components/customer-portal-actions';
+import {ecommerceCommandAllowed} from '@erpx/ecommerce-ui/lib/purchase-controls';
 test('renders Ecommerce guarded drawer triggers from actual active and settlement flags while retaining channel closure without source snapshots',()=>{
  const purchase={newWork:false,settleExisting:true,history:true,revision:'opaque-ecommerce',canReview:true},data={channels:[{id:'channel',name:'Original independently managed channel',status:'draft',version:1}],listings:[],carts:[{id:'original-cart',status:'open',version:2}],checkouts:[],products:[],parties:[],warehouses:[],purchase},render=(value:typeof data)=>renderToStaticMarkup(createElement(EcommerceConsole,{base:'/holdings/acme',data:value})),html=render(data),disabled=(source:string,label:string)=>{const button=source.match(new RegExp(`<button([^>]*)>${label}</button>`));expect(button).not.toBeNull();return /\sdisabled(?:=|\s|$)/.test(button![1]);};
  expect(disabled(html,'Create channel')).toBe(true);expect(disabled(html,'Record channel decision')).toBe(false);expect(disabled(html,'Create product listing')).toBe(true);expect(disabled(html,'Abandon open cart')).toBe(false);expect(disabled(render({...data,purchase:{...purchase,settleExisting:false}}),'Abandon open cart')).toBe(true);expect(ecommerceCommandAllowed(purchase,{entity:'cart',action:'abandon'})).toBe(true);expect(ecommerceCommandAllowed({...purchase,settleExisting:false},{entity:'cart',action:'abandon'})).toBe(false);expect(html).not.toContain('name="storefront"');expect(html).not.toContain('name="reason"');expect(disabled(render({...data,purchase:{...purchase,settleExisting:false}}),'Record channel decision')).toBe(true);for(const action of ['activate','publish','approve-order'])expect(ecommerceCommandAllowed(purchase,{entity:action==='approve-order'?'checkout':'channel',action})).toBe(false);for(const action of ['reject','retire','sync-fulfillment','request-return'])expect(ecommerceCommandAllowed(purchase,{entity:['reject','retire'].includes(action)?'channel':'checkout',action})).toBe(true);expect(ecommerceCommandAllowed({...purchase,newWork:true,canReview:false},{entity:'checkout',action:'approve-order'})).toBe(false);for(const secret of ['company_package_grants','authority_json','source_witness'])expect(html).not.toContain(secret);
@@ -142,8 +105,8 @@ test('public Portal history disables fresh actions and keeps message and clean p
  const html=renderToStaticMarkup(createElement(CustomerPortalActions,{holdingSlug:'acme',bindingId:'binding',bindingVersion:2,purchase:{settleExisting:false,history:true,revision:'opaque-purchase',identityRevision:'opaque-account'}}));expect(html).toMatch(/<button[^>]*disabled[^>]*>Acknowledge delivery<\/button>/);expect(html).toContain('Request support');expect(html).not.toContain('Describe what you need help with');expect(html).not.toContain('authority_json');expect(html).not.toContain('opaque-account');
 });
 
-import {PortalSupportResponseEditor} from '@erpx/feature-customer_authority/components/portal-support-response-editor';
-import {PortalSupportAcknowledgement} from '@erpx/feature-customer_authority/components/portal-support-acknowledgement';
+import {PortalSupportResponseEditor} from '@erpx/customer-authority-ui/components/portal-support-response-editor';
+import {PortalSupportAcknowledgement} from '@erpx/customer-authority-ui/components/portal-support-acknowledgement';
 test('keeps actual Portal responses and unavailable-access closure in guarded drawers and requires the exact response customer acknowledgement',()=>{
  const thread={requestId:'original-request',requestedAt:42,note:'Original verified customer request',response:{id:'original-response',version:2,message:'Actual independently reviewed Portal response',publishedAt:43},acknowledgedAt:null,closedAt:null},staff=renderToStaticMarkup(createElement(PortalSupportResponseEditor,{base:'/holdings/acme',bindingVersion:3,thread:{...thread,canRespond:true,canClose:false}})),closure=renderToStaticMarkup(createElement(PortalSupportResponseEditor,{base:'/holdings/acme',bindingVersion:4,thread:{...thread,canRespond:false,canClose:true}}));expect(staff).toContain('Correct Portal response');expect(staff).not.toContain('name="message"');expect(staff).not.toContain('name="reason"');expect(closure).toContain('Close unavailable Portal request');expect(closure).not.toContain('name="reason"');const publicHtml=renderToStaticMarkup(createElement(PortalSupportAcknowledgement,{holdingSlug:'acme',bindingId:'binding',bindingVersion:3,thread,purchase:{settleExisting:false,history:true,revision:'opaque',identityRevision:'opaque-account'}}));expect(publicHtml).toContain(thread.response.message);expect(publicHtml).toContain('revision 2');expect(publicHtml).toMatch(/<button[^>]*disabled[^>]*>Acknowledge this response<\/button>/);for(const secret of ['authority_json','actor_id','request_hash','opaque-account'])expect(publicHtml).not.toContain(secret);
 });
@@ -156,19 +119,23 @@ test('renders the CustomerAccess request fields inline inside an existing query 
 const servicePostingPorts=vi.hoisted(()=>({
  list:vi.fn(),overview:vi.fn(),legacyPage:vi.fn(),readiness:vi.fn(),editor:vi.fn(),purchase:vi.fn(),order:vi.fn(),setup:vi.fn(),actor:vi.fn(),release:vi.fn(),charts:vi.fn(),accounts:vi.fn(),periods:vi.fn(),rates:vi.fn(),defaults:vi.fn(),decision:vi.fn(),flow:vi.fn(),queries:vi.fn(),calls:[] as {name:string;props:unknown}[]
 }));
-vi.mock("@erpx/server-commerce/public/commerce",async()=>({commercePermissions:(await import('@erpx/server-commerce/domain/commerce')).commercePermissions,commerceSalesDocuments:servicePostingPorts.list,commerceOverview:servicePostingPorts.overview,commercePage:servicePostingPorts.legacyPage,getOrder:servicePostingPorts.order,workOrderRows:vi.fn()}));
-vi.mock("@erpx/server-commerce/public/sales-editor",()=>({salesEditorOptions:servicePostingPorts.editor}));
-vi.mock("@erpx/server-commerce/public/commerce-pages",()=>({commerceSalesDocuments:servicePostingPorts.list}));
-vi.mock("@erpx/server-commerce/public/commerce-order-read",()=>({getOrder:servicePostingPorts.order}));
-vi.mock("@erpx/server-commerce/public/purchase-controls",()=>({commercePurchaseControls:servicePostingPorts.purchase}));
-vi.mock("@erpx/server-finance/public/sales-posting-setup",async()=>({...await import('@erpx/server-finance/domain/sales-posting-setup'),salesPostingSetup:servicePostingPorts.setup,salesPostingDocumentReadiness:servicePostingPorts.readiness,createSalesPostingChart:servicePostingPorts.charts,createSalesPostingAccount:servicePostingPorts.accounts,createSalesPostingPeriod:servicePostingPorts.periods,confirmSalesPostingRate:servicePostingPorts.rates,prepareSalesPostingDefaults:servicePostingPorts.defaults,decideSalesPostingDefaults:servicePostingPorts.decision}));
-vi.mock("@erpx/feature-commerce/components/lazy-order-editor",()=>({OrderEditor:(props:unknown)=>{servicePostingPorts.calls.push({name:'OrderEditor',props});return createElement('span',{'data-sales-editor':'original-widget'},'Original Sales editor');}}));
-import {SalesDocumentsView} from '@erpx/feature-sales/components/customers/sales-views';
-const salesActor:import("@erpx/server-identity_access/public/authorization").WorkContext={companyId:'company',holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',branchId:null,departmentId:null,userId:'seller',name:'Sales owner',email:'seller@example.invalid',role:'sales',assignmentId:'sales-role',scope:{kind:'holding',holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},assignmentScope:'holding',inherited:false,modules:[],assignments:[],workspaces:[],iam:{roleRevision:1,identityVersion:1,permissions:['commerce.read','commerce.sales'],grantablePermissions:[],principalId:'principal',personId:null,freshUntil:null}};
+const nativeOrderPorts=vi.hoisted(()=>({detail:vi.fn()}));
+vi.mock("@erpx/sales-ui/public/native-commerce-orders-page",()=>({nativeCommerceOrderPage:nativeOrderPorts.detail}));
+vi.mock("@erpx/commerce-server/public/commerce",async()=>({commercePermissions:(await import('@erpx/commerce-server/domain/commerce')).commercePermissions,commerceSalesDocuments:servicePostingPorts.list,commerceOverview:servicePostingPorts.overview,commercePage:servicePostingPorts.legacyPage,getOrder:servicePostingPorts.order,workOrderRows:vi.fn()}));
+vi.mock("@erpx/commerce-server/public/sales-editor",()=>({salesEditorOptions:servicePostingPorts.editor}));
+vi.mock("@erpx/commerce-server/public/commerce-pages",()=>({commerceSalesDocuments:servicePostingPorts.list}));
+vi.mock("@erpx/commerce-server/public/commerce-order-read",()=>({getOrder:servicePostingPorts.order}));
+vi.mock("@erpx/commerce-server/public/purchase-controls",()=>({commercePurchaseControls:servicePostingPorts.purchase}));
+vi.mock("@erpx/finance-server/public/sales-posting-setup",async()=>({...await import('@erpx/finance-server/domain/sales-posting-setup'),salesPostingSetup:servicePostingPorts.setup,salesPostingDocumentReadiness:servicePostingPorts.readiness,createSalesPostingChart:servicePostingPorts.charts,createSalesPostingAccount:servicePostingPorts.accounts,createSalesPostingPeriod:servicePostingPorts.periods,confirmSalesPostingRate:servicePostingPorts.rates,prepareSalesPostingDefaults:servicePostingPorts.defaults,decideSalesPostingDefaults:servicePostingPorts.decision}));
+vi.mock("@erpx/commerce-ui/components/lazy-order-editor",()=>({OrderEditor:(props:unknown)=>{servicePostingPorts.calls.push({name:'OrderEditor',props});return createElement('span',{'data-sales-editor':'original-widget'},'Original Sales editor');}}));
+import {SalesDocumentsView} from '@erpx/sales-ui/components/customers/sales-views';
+const salesActor:import("@erpx/identity-access-server/public/authorization").WorkContext={companyId:'company',holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',branchId:null,departmentId:null,userId:'seller',name:'Sales owner',email:'seller@example.invalid',role:'sales',assignmentId:'sales-role',scope:{kind:'holding',holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'},assignmentScope:'holding',inherited:false,modules:[],assignments:[],workspaces:[],iam:{roleRevision:1,identityVersion:1,permissions:['commerce.read','commerce.sales'],grantablePermissions:[],principalId:'principal',personId:null,freshUntil:null}};
 function serviceList(){
  servicePostingPorts.calls.length=0;servicePostingPorts.list.mockReset().mockResolvedValue({items:[],nextCursor:null,previousCursor:null,hasMore:false});servicePostingPorts.legacyPage.mockReset().mockRejectedValue(Object.assign(Error('Configure accounts before processing orders'),{code:'COMMERCE_SETUP_REQUIRED',status:409}));servicePostingPorts.overview.mockReset().mockRejectedValue(Error('Broad overview must not be loaded'));
- servicePostingPorts.readiness.mockReset().mockResolvedValue({ready:false,reason:'sales-defaults-required'});servicePostingPorts.editor.mockReset().mockResolvedValue({products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:'THB'});servicePostingPorts.purchase.mockReset().mockResolvedValue({newWork:true,settleExisting:true,history:true,revision:'purchase'});servicePostingPorts.order.mockReset();
+ servicePostingPorts.readiness.mockReset().mockResolvedValue({ready:false,reason:'sales-defaults-required'});servicePostingPorts.editor.mockReset().mockResolvedValue({products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:'THB'});servicePostingPorts.purchase.mockReset().mockResolvedValue({newWork:true,settleExisting:true,history:true,revision:'purchase'});servicePostingPorts.order.mockReset();nativeOrderPorts.detail.mockReset().mockResolvedValue(undefined);
 }
+const retainedEditOrder=()=>({order:{id:'order-1',kind:'quote',state:'draft',version:2,party_id:'retained-partner',party_name:'Actual customer',number:'QT-1',currency:'THB',order_date:'2026-11-01',due_date:'2026-11-08',note:'retained note'},lines:[{id:'retained-line',product_id:'product',quantity_milli:1000,price_minor:100,tax_bps:700,subtotal_minor:100,tax_minor:7}]});
+const nativeEditOrder=()=>({order:{id:'order-1',company_id:'company',branch_id:null,department_id:null,kind:'quote',number:'QT-1',party_id:'native-partner',warehouse_id:null,currency:'THB',order_date:'2026-11-01',due_date:'2026-11-08',note:'native note',state:'draft',subtotal_minor:200,tax_minor:14,source_id:null,version:3,created_by:'seller',approved_by:null,created_at:1,updated_at:2,price_list_id:'list-1',price_list_version:1,discount_reason:null,discount_approval_required:0,discount_approved_by:null,discount_approved_at:null},lines:[{id:'native-line',order_id:'order-1',product_id:'product',description:'Native line',quantity_milli:2000,fulfilled_milli:0,price_minor:100,tax_bps:700,subtotal_minor:200,tax_minor:14,ordinal:1,list_price_minor:null,discount_bps:0,item_type:'service',sku:'SKU',unit:'unit',tracking_mode:'none'}]});
 test('Sales-only empty document list renders before service defaults without broad Commerce setup or Finance reference reads',async()=>{
  serviceList();const html=renderToStaticMarkup(await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',type:'quote'}}));expect(html).toContain('No sales documents match');expect(html).toContain('/customers-sales/sales/settings/posting');expect(servicePostingPorts.legacyPage).not.toHaveBeenCalled();expect(servicePostingPorts.overview).not.toHaveBeenCalled();expect(servicePostingPorts.editor).not.toHaveBeenCalled();expect(servicePostingPorts.list).toHaveBeenCalledExactlyOnceWith(salesActor,{view:'quote',q:'',cursor:undefined,status:''});
 });
@@ -176,11 +143,34 @@ test('explicit Sales editor keeps its original node blocked with empty reference
  serviceList();servicePostingPorts.readiness.mockResolvedValueOnce({ready:true,reason:null});await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',new:'1'}});const available=servicePostingPorts.editor.mock.calls.length;expect(available).toBe(1);
  const blocked=await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',new:'1'}});const nodes:unknown[]=[];const visit=(value:unknown)=>{if(Array.isArray(value)){value.forEach(visit);return;}if(isValidElement<{children?:unknown;initialOpen?:boolean}>(value)){nodes.push(value);visit(value.props.children);}};visit(blocked);expect(nodes.find(item=>isValidElement<{initialOpen?:boolean}>(item)&&item.props.initialOpen)).toMatchObject({props:{options:{products:[],parties:[],warehouses:[],nodes:[],priceLists:[],priceListItems:[],currency:''},initialOpen:true}});expect(servicePostingPorts.editor).toHaveBeenCalledTimes(1);expect(servicePostingPorts.overview).not.toHaveBeenCalled();
 });
+test('Sales edit draft uses native Commerce order facts and lines without the retained owner read',async()=>{
+ serviceList();servicePostingPorts.readiness.mockResolvedValueOnce({ready:true,reason:null});servicePostingPorts.order.mockResolvedValue(retainedEditOrder());nativeOrderPorts.detail.mockResolvedValue(nativeEditOrder());
+ const nodes:unknown[]=[];const visit=(value:unknown)=>{if(Array.isArray(value)){value.forEach(visit);return;}if(isValidElement<{children?:unknown;kind?:string;lines?:unknown}>(value)){nodes.push(value);visit(value.props.children);}};visit(await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',type:'quote',edit:'order-1'}}));
+ expect(nativeOrderPorts.detail).toHaveBeenCalledExactlyOnceWith(salesActor,'order-1');
+ expect(servicePostingPorts.order).not.toHaveBeenCalled();
+ const editor=nodes.find(value=>isValidElement<{kind?:string;lines?:unknown}>(value)&&value.props.kind==='quote'&&Array.isArray(value.props.lines)) as {props:Record<string,unknown>}|undefined;
+ expect(editor?.props).toMatchObject({kind:'quote',order:{id:'order-1',version:3,note:'native note',party_id:'native-partner',price_list_id:'list-1'},lines:[expect.objectContaining({product_id:'product',quantity_milli:2000,price_minor:100,tax_bps:700})]});
+});
+test('Sales edit draft keeps the retained order only when the native Commerce order selector is unset',async()=>{
+ serviceList();servicePostingPorts.readiness.mockResolvedValueOnce({ready:true,reason:null});servicePostingPorts.order.mockResolvedValue(retainedEditOrder());
+ const nodes:unknown[]=[];const visit=(value:unknown)=>{if(Array.isArray(value)){value.forEach(visit);return;}if(isValidElement<{children?:unknown;kind?:string;lines?:unknown}>(value)){nodes.push(value);visit(value.props.children);}};visit(await SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',type:'quote',edit:'order-1'}}));
+ expect(nativeOrderPorts.detail).toHaveBeenCalledExactlyOnceWith(salesActor,'order-1');
+ expect(servicePostingPorts.order).toHaveBeenCalledExactlyOnceWith(salesActor,'order-1');
+ const editor=nodes.find(value=>isValidElement<{kind?:string;lines?:unknown}>(value)&&value.props.kind==='quote'&&Array.isArray(value.props.lines)) as {props:Record<string,unknown>}|undefined;
+ expect(editor?.props).toMatchObject({order:{version:2,note:'retained note',party_id:'retained-partner'},lines:[expect.objectContaining({product_id:'product',quantity_milli:1000,price_minor:100,tax_bps:700})]});
+});
+test('Sales edit draft closes a configured native Commerce order failure instead of using retained lines',async()=>{
+ serviceList();servicePostingPorts.readiness.mockResolvedValueOnce({ready:true,reason:null});servicePostingPorts.order.mockResolvedValue(retainedEditOrder());nativeOrderPorts.detail.mockRejectedValue(new ApiError(503,'NATIVE_COMMERCE_ORDER_UNAVAILABLE','The native Commerce order service is unavailable.'));
+ await expect(SalesDocumentsView({actor:salesActor,base:'/holdings/acme',query:{view:'documents',type:'quote',edit:'order-1'}})).rejects.toMatchObject({status:503,code:'NATIVE_COMMERCE_ORDER_UNAVAILABLE'});
+ expect(nativeOrderPorts.detail).toHaveBeenCalledOnce();
+ expect(servicePostingPorts.order).not.toHaveBeenCalled();
+ expect(servicePostingPorts.calls.find(call=>call.name==='OrderEditor')).toBeUndefined();
+});
 
-import {SalesPostingSetup,SalesPostingFields} from '@erpx/feature-sales/components/sales-posting-setup';
-import {createSalesPostingCommands,validSalesPostingSetup,validSalesPostingReceipt,type SalesPostingRequest} from '@erpx/feature-sales/lib/posting-setup-command';
-import type {SalesPostingSetupView} from '@erpx/server-finance/public/sales-posting-setup';
-import {setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
+import {SalesPostingSetup,SalesPostingFields} from '@erpx/sales-ui/components/sales-posting-setup';
+import {createSalesPostingCommands,validSalesPostingSetup,validSalesPostingReceipt,type SalesPostingRequest} from '@erpx/sales-ui/lib/posting-setup-command';
+import type {SalesPostingSetupView} from '@erpx/finance-server/public/sales-posting-setup';
+import {setContextSwitching} from '@erpx/work-projection-ui/lib/context-switch';
 const salesSeed='a'.repeat(64);
 function salesSetup():SalesPostingSetupView{return {companyId:'company',available:true,contextKey:salesSeed,unavailableReason:null,canCreateChart:true,canCreateAccount:true,canCreatePeriod:true,canConfirmRate:false,canPrepareDefaults:true,charts:[{id:'chart',name:'Actual service chart',baseCurrency:'THB'}],accounts:[{id:'ar',chartId:'chart',code:'110',name:'Actual receivables',category:'asset',currency:'THB',controlKind:'receivable'},{id:'revenue',chartId:'chart',code:'410',name:'Actual service revenue',category:'revenue',currency:'THB',controlKind:'none'},{id:'vat',chartId:'chart',code:'210',name:'Actual output VAT',category:'liability',currency:'THB',controlKind:'none'}],periods:[{id:'period',name:'Actual open period',startDate:'2026-10-01',endDate:'2026-10-31',state:'open',version:0}],rates:[{id:'rate',currency:'THB',effectiveDate:'2026-10-01',currencyPerUsd:'35',confirmedAt:10}],defaults:[{id:'defaults',chartId:'chart',currency:'THB',receivableAccountId:'ar',revenueAccountId:'revenue',taxAccountId:'vat',status:'draft',version:1,reason:'Original independently reviewed source',reviewReason:null,canReview:false,canApprove:false,canReject:false,usable:false}]};}
 const salesRequests:SalesPostingRequest[]=[
@@ -247,12 +237,12 @@ test('owner receipt decoder refuses invented uniform versions, foreign Company a
  expect(validSalesPostingReceipt({...salesReceipt(salesRequests[2]),version:1},salesRequests[2],'company','original-key')).toBe(false);expect(validSalesPostingReceipt({...salesReceipt(salesRequests[0]),companyId:'foreign'},salesRequests[0],'company','original-key')).toBe(false);expect(validSalesPostingReceipt({...salesReceipt(salesRequests[5]),status:'rejected'},salesRequests[5],'company','original-key')).toBe(false);expect(validSalesPostingSetup(salesSetup(),'company')).toBe(true);expect(validSalesPostingSetup({...salesSetup(),defaults:[{...salesSetup().defaults[0],canReview:undefined}]},'company')).toBe(false);
 });
 
-vi.mock("@erpx/server-identity_access/public/authorization",async importOriginal=>({...await importOriginal<typeof import("@erpx/server-identity_access/public/authorization")>(),requireWorkContext:servicePostingPorts.actor}));
-vi.mock("@erpx/server-pms/public/feature-availability",async importOriginal=>({...await importOriginal<typeof import("@erpx/server-pms/public/feature-availability")>(),assertProductionModuleEnabled:servicePostingPorts.release}));
-vi.mock("@erpx/server-manage_erpx/public/public-origin",()=>({requestPublicOrigin:(request:Request)=>new URL(request.url).origin}));
-vi.mock("@erpx/server-work_projection/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
-import SalesPostingPage from '@erpx/feature-sales/routes/holdings/[holdingSlug]/customers-sales/sales/settings/posting/page';
-import {GET as salesSetupGET,POST as salesSetupPOST} from '@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route';
+vi.mock("@erpx/identity-access-server/public/authorization",async importOriginal=>({...await importOriginal<typeof import("@erpx/identity-access-server/public/authorization")>(),requireWorkContext:servicePostingPorts.actor}));
+vi.mock("@erpx/pms-server/public/feature-availability",async importOriginal=>({...await importOriginal<typeof import("@erpx/pms-server/public/feature-availability")>(),assertProductionModuleEnabled:servicePostingPorts.release}));
+vi.mock("@erpx/manage-erpx-server/public/public-origin",()=>({requestPublicOrigin:(request:Request)=>new URL(request.url).origin}));
+vi.mock("@erpx/work-projection-server/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
+import SalesPostingPage from '@erpx/sales-ui/routes/holdings/[holdingSlug]/customers-sales/sales/settings/posting/page';
+import {GET as salesSetupGET,POST as salesSetupPOST} from '@erpx/platform-workplace/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route';
 const salesContext=(path:string[])=>({params:Promise.resolve({holdingSlug:'acme',path})});
 const salesRequest=(path:string[],body:unknown,extraHeaders:Record<string,string>={})=>new Request(`https://sales-dev-erpx.jesadakorn.com/api/v1/holdings/acme/commerce/${path.join('/')}`,{method:'POST',headers:{Origin:'https://sales-dev-erpx.jesadakorn.com','Content-Type':'application/json','Idempotency-Key':'original-key',...extraHeaders},body:JSON.stringify(body)});
 function setupController(){goodsPostingPorts.read.mockReset().mockResolvedValue(goodsSetup());goodsPostingPorts.initialize.mockReset();servicePostingPorts.actor.mockReset().mockResolvedValue(salesActor);servicePostingPorts.setup.mockReset().mockResolvedValue(salesSetup());for(const name of ['charts','accounts','periods','rates','defaults','decision'] as const)servicePostingPorts[name].mockReset();}
@@ -273,13 +263,13 @@ test('new Sales controllers retain same-origin/current actor/strict original fie
  servicePostingPorts.actor.mockRejectedValueOnce(new ApiError(403,'WORK_ROLE_REQUIRED','Select a current role'));const denied=await salesSetupPOST(salesRequest(path,salesRequests[4].body),salesContext(path));expect(denied.status).toBe(403);expect(servicePostingPorts.defaults).not.toHaveBeenCalled();
 });
 
-import {ApiError} from '@erpx/server-runtime/public/http';
-import {createFinanceSalesCommands} from '@erpx/feature-finance/lib/sales-command';
-import {captureFinanceForm} from '@erpx/feature-finance/components/finance-draft-boundary';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import {createFinanceSalesCommands} from '@erpx/finance-ui/lib/sales-command';
+import {captureFinanceForm} from '@erpx/finance-ui/components/finance-draft-boundary';
 
 async function actualSalesSetupHandler(name:'request'|'submit'){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-sales/src/components/sales-posting-setup.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-sales-posting.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),matches:import('typescript').FunctionDeclaration[]=[],helpers:import('typescript').VariableDeclaration[]=[];
- const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text===name)matches.push(node);if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&['categories','controls'].includes(node.name.text))helpers.push(node);ts.forEachChild(node,visit);};visit(file);if(matches.length!==1)throw Error('Expected the original Sales setup callback');return ts.transpileModule(`${helpers.map(item=>`const ${item.getText(file)};`).join('\n')}\n${matches[0].getText(file)}`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../modules/sales/ui/src/components/sales-posting-setup.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-sales-posting.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),matches:import('typescript').FunctionDeclaration[]=[],helpers:import('typescript').VariableDeclaration[]=[];
+ const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text===name)matches.push(node);if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&['categories','controls'].includes(node.name.text))helpers.push(node);ts.forEachChild(node,visit);};visit(file);if(matches.length!==1)throw Error('Expected the original Sales setup callback');return ts.transpileModule(`${helpers.map(item=>`const ${item.getText(file)};`).join('\n')}\n${matches[0].getText(file)}`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
 }
 test.each(salesRequests)('actual $kind form callback builds only the original owner inputs and captured context',async request=>{
  const emitted=await actualSalesSetupHandler('request'),run=new Function('kind','fields','effectiveSeed','reviewId','reviewVersion','t',`${emitted}\nreturn request();`) as (...ports:unknown[])=>SalesPostingRequest,fields=Object.fromEntries(Object.entries(request.body.input).map(([key,value])=>[key,String(value)]));expect(run(request.kind,fields,{contextKey:salesSeed},request.kind==='decision'?request.id:'',request.kind==='decision'?request.body.input.expectedVersion:0,(_th:string,en:string)=>en)).toEqual(request);
@@ -292,9 +282,9 @@ test.each([false,true])('actual setup submit callback publishes the verified see
  try{await ready;if(newer){edit='later';revision.current++;}release();await pending;expect(state.refreshed).toEqual([{base:source.base,initial:salesSetup(),view:salesSetup()}]);expect(commands.current.pending()).toBe(false);expect(browser.events).toEqual(['erpx:record-command-saved','erpx:work-changed']);if(newer){expect(state.fields).toBeUndefined();expect(state.open).toBeUndefined();expect(state.notice.at(-1)).toMatchObject({text:expect.stringContaining('Newer edits remain')});}else{expect(state.fields).toEqual([{}]);expect(state.open).toEqual([false]);}}finally{release();}
 });
 
-async function originalSalesSendCode(){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-finance/src/components/sales-controls.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-sales-controls.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),found:import('typescript').FunctionDeclaration[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='send')found.push(node);ts.forEachChild(node,visit);};visit(file);expect(found).toHaveLength(1);return ts.transpileModule(found[0].getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;}
+async function originalSalesSendCode(){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../modules/finance/ui/src/components/sales-controls.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-sales-controls.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),found:import('typescript').FunctionDeclaration[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='send')found.push(node);ts.forEachChild(node,visit);};visit(file);expect(found).toHaveLength(1);return ts.transpileModule(found[0].getText(file),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;}
 test.each(['revision','stale','removed','generation'] as const)('actual original Sales command handler retains key/no events or navigation across late %s original JSON',async changed=>{
- const browser=salesBrowser(),{workFetch}=await import('@erpx/feature-work_projection/lib/work-fetch'),code=await originalSalesSendCode(),base='/holdings/acme',state:Record<string,unknown[]>={},set=(name:string)=>(value:unknown)=>{(state[name]??=[]).push(value);},router={push:vi.fn(),refresh:vi.fn()},body={};let release!:()=>void,started!:()=>void,first=true;
+ const browser=salesBrowser(),{workFetch}=await import('@erpx/work-projection-ui/lib/work-fetch'),code=await originalSalesSendCode(),base='/holdings/acme',state:Record<string,unknown[]>={},set=(name:string)=>(value:unknown)=>{(state[name]??=[]).push(value);},router={push:vi.fn(),refresh:vi.fn()},body={};let release!:()=>void,started!:()=>void,first=true;
  const ready=new Promise<void>(resolve=>{started=resolve;}),paused=new Promise<void>(resolve=>{release=resolve;});class OriginalJSON extends Response{override async json(){started();await paused;return super.json();}}
  const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>{const payload={data:{id:'customer-receipt-payment'}};if(first){first=false;return new OriginalJSON(JSON.stringify(payload),{headers:{'Content-Type':'application/json'}});}return Response.json(payload);});vi.stubGlobal('fetch',network);
  const commands={current:createFinanceSalesCommands(()=>({base}),workFetch)},destinationRef={current:undefined},pendingCompletion:{current:ReturnType<typeof captureFinanceForm>|undefined}={current:undefined},pendingToken={current:{}},trackCommandPending=vi.fn(),run=new Function('busy','commands','destinationRef','setPending','setError','setSaved','setUnresolved','captureFinanceForm','router','pendingCompletion','pendingToken','trackCommandPending',`${code}\nreturn send;`) as (...ports:unknown[])=>(path:string,input:unknown,destination?:(data:Record<string,unknown>)=>string)=>Promise<boolean>,send=run({current:false},commands,destinationRef,set('pending'),set('error'),set('saved'),set('unresolved'),captureFinanceForm,router,pendingCompletion,pendingToken,trackCommandPending),destination=(data:Record<string,unknown>)=>`${base}/finance/sales/receipts/${data.id}`;
@@ -317,9 +307,9 @@ test('Sales original helper refuses malformed receipt/source and preserves key u
 });
 
 
-vi.mock("@erpx/server-workflow/public/document-flow",()=>({documentFlow:servicePostingPorts.flow}));
-vi.mock("@erpx/server-commerce/public/presentation-queries",()=>({commercePresentationQueries:servicePostingPorts.queries}));
-import CanonicalSalesOrderPage from '@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen';
+vi.mock("@erpx/workflow-server/public/document-flow",()=>({documentFlow:servicePostingPorts.flow}));
+vi.mock("@erpx/commerce-server/public/presentation-queries",()=>({commercePresentationQueries:servicePostingPorts.queries}));
+import CanonicalSalesOrderPage from '@erpx/platform-workplace/routes/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen';
 test.each(['quote','sales'] as const)('actual canonical %s draft presenter uses only named minimal Sales editor references',async kind=>{
  serviceList();servicePostingPorts.actor.mockResolvedValue(salesActor);const order={id:'original-order',kind,state:'draft',version:1,party_id:'customer',number:'SOURCE-1',currency:'THB'},data={order,lines:[],children:[],customerNotificationSettings:null,customerNotifications:[],fulfillmentEvidence:[],fulfillmentLines:[],fulfillments:[],history:[],lotAllocations:[],lots:[],pendingDeliveryEvidence:[],reservations:[],returnLotAllocations:[],returnQualityHolds:[],returns:[]},minimal={currency:'THB',parties:[{id:'customer',name:'Actual customer',kind:'customer',status:'active',currency:'THB'}],products:[{id:'product',sku:'SOURCE',name:'Actual source goods',status:'active',item_type:'stock',price_minor:100,tax_bps:700}],warehouses:[],nodes:[],priceLists:[],priceListItems:[]};
  servicePostingPorts.order.mockResolvedValue(data);servicePostingPorts.editor.mockResolvedValue(minimal);servicePostingPorts.overview.mockResolvedValue({...minimal,orders:[{id:'unrelated'}],parties:[...minimal.parties,{id:'supplier',name:'Private supplier'}],stock:[{value_minor:1234}],moves:[{cost_minor:999}]});servicePostingPorts.flow.mockResolvedValue({canAct:false});servicePostingPorts.queries.mockResolvedValue({commerceEntrypointRecordFacts:()=>({linkedRequest:async()=>null})});
@@ -328,17 +318,17 @@ test.each(['quote','sales'] as const)('actual canonical %s draft presenter uses 
 });
 
 const goodsPostingPorts=vi.hoisted(()=>({read:vi.fn(),initialize:vi.fn()}));
-vi.mock("@erpx/server-commerce/public/sales-goods-posting-setup",async()=>({...await import('@erpx/server-commerce/domain/sales-goods-posting-setup'),salesGoodsPostingSetup:goodsPostingPorts.read,initializeSalesGoodsPostingSetup:goodsPostingPorts.initialize}));
-import type {SalesGoodsPostingSetupView,SalesGoodsPostingSetupInput} from '@erpx/server-commerce/public/sales-goods-posting-setup';
-import {salesGoodsAccountFields} from '@erpx/feature-sales/lib/goods-posting-command';
+vi.mock("@erpx/commerce-server/public/sales-goods-posting-setup",async()=>({...await import('@erpx/commerce-server/domain/sales-goods-posting-setup'),salesGoodsPostingSetup:goodsPostingPorts.read,initializeSalesGoodsPostingSetup:goodsPostingPorts.initialize}));
+import type {SalesGoodsPostingSetupView,SalesGoodsPostingSetupInput} from '@erpx/commerce-server/public/sales-goods-posting-setup';
+import {salesGoodsAccountFields} from '@erpx/sales-ui/lib/goods-posting-command';
 const goodsInput:SalesGoodsPostingSetupInput={expectedVersion:0,contextKey:'b'.repeat(64),expectedSalesDefaults:{id:'approved-defaults',version:2},chartId:'chart',currency:'THB',reason:'Reviewed real Goods source mapping',receivableAccountId:'goods-ar',payableAccountId:'goods-ap',revenueAccountId:'goods-revenue',inventoryAccountId:'goods-inventory',clearingAccountId:'goods-clearing',cogsAccountId:'goods-cogs',inputTaxAccountId:'goods-input-tax',outputTaxAccountId:'goods-output-tax',cashAccountId:'goods-bank'};
 function goodsSetup():SalesGoodsPostingSetupView{return {companyId:'company',available:true,configured:false,version:0,contextKey:goodsInput.contextKey,configuration:null,canConfigure:true,requiresApprovedDefaults:true,expectedSalesDefaults:goodsInput.expectedSalesDefaults,unavailableReason:null,charts:[{id:'chart',name:'Actual Goods chart',baseCurrency:'THB'}],accounts:salesGoodsAccountFields.map((field,index)=>({id:goodsInput[field],chartId:'chart',code:String(index+100),name:`Actual ${field}`,currency:'THB',category:field==='payableAccountId'||field==='clearingAccountId'||field==='outputTaxAccountId'?'liability':field==='revenueAccountId'?'revenue':field==='cogsAccountId'?'expense':'asset',controlKind:field==='receivableAccountId'?'receivable':field==='payableAccountId'?'payable':field==='cashAccountId'?'bank':'none'}))};}
 test('Sales setup actual server page supplies separate Goods snapshot beside its original service seed',async()=>{
  setupController();goodsPostingPorts.read.mockResolvedValue(goodsSetup());const page=await SalesPostingPage({params:Promise.resolve({holdingSlug:'acme'})});expect(page.props.initial).toEqual(salesSetup());expect(page.props.initialGoods).toEqual(goodsSetup());expect(goodsPostingPorts.read).toHaveBeenCalledExactlyOnceWith(salesActor);
 });
 
-import {SalesGoodsPostingSetup,SalesGoodsPostingFields} from '@erpx/feature-sales/components/sales-goods-posting-setup';
-import {createSalesGoodsCommands,validSalesGoodsSetup,readSalesGoodsSetup} from '@erpx/feature-sales/lib/goods-posting-command';
+import {SalesGoodsPostingSetup,SalesGoodsPostingFields} from '@erpx/sales-ui/components/sales-goods-posting-setup';
+import {createSalesGoodsCommands,validSalesGoodsSetup,readSalesGoodsSetup} from '@erpx/sales-ui/lib/goods-posting-command';
 function goodsConfigured():SalesGoodsPostingSetupView{const configuration={chartId:goodsInput.chartId,currency:goodsInput.currency,receivableAccountId:goodsInput.receivableAccountId,payableAccountId:goodsInput.payableAccountId,revenueAccountId:goodsInput.revenueAccountId,inventoryAccountId:goodsInput.inventoryAccountId,clearingAccountId:goodsInput.clearingAccountId,cogsAccountId:goodsInput.cogsAccountId,inputTaxAccountId:goodsInput.inputTaxAccountId,outputTaxAccountId:goodsInput.outputTaxAccountId,cashAccountId:goodsInput.cashAccountId};return {...goodsSetup(),configured:true,version:1,canConfigure:false,contextKey:'c'.repeat(64),configuration};}
 const emptyGoodsDraft=()=>({chartId:'',currency:'',reason:'',receivableAccountId:'',payableAccountId:'',revenueAccountId:'',inventoryAccountId:'',clearingAccountId:'',cogsAccountId:'',inputTaxAccountId:'',outputTaxAccountId:'',cashAccountId:''});
 test('Goods standard drawer uses a minimal SSR seed with no mount GET, no automatic accounts and explicit approved VAT continuity',()=>{
@@ -386,11 +376,11 @@ test('Goods controller exact root GET and POST keep original body/key/private ca
 });
 
 test('actual Goods refresh effect skips matching SSR mount and performs one explicit post-reference refresh',async()=>{
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-sales/src/components/sales-goods-posting-setup.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-goods-refresh.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),effects:import('typescript').ArrowFunction[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isCallExpression(node)&&ts.isIdentifier(node.expression)&&node.expression.text==='useEffect'&&ts.isArrowFunction(node.arguments[0])&&node.arguments[0].getText(file).includes('lastReload.current'))effects.push(node.arguments[0]);ts.forEachChild(node,visit);};visit(file);expect(effects).toHaveLength(1);const code=ts.transpileModule(`const effect=${effects[0].getText(file)};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../modules/sales/ui/src/components/sales-goods-posting-setup.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-goods-refresh.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),effects:import('typescript').ArrowFunction[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isCallExpression(node)&&ts.isIdentifier(node.expression)&&node.expression.text==='useEffect'&&ts.isArrowFunction(node.arguments[0])&&node.arguments[0].getText(file).includes('lastReload.current'))effects.push(node.arguments[0]);ts.forEachChild(node,visit);};visit(file);expect(effects).toHaveLength(1);const code=ts.transpileModule(`const effect=${effects[0].getText(file)};`,{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  salesBrowser();const network=vi.fn(async()=>Response.json({data:goodsSetup()}));vi.stubGlobal('fetch',network);const lastReload={current:0};let pending:Promise<SalesGoodsPostingSetupView>|undefined;const reload=(signal:AbortSignal)=>{pending=readSalesGoodsSetup(()=>({base:'/holdings/acme',companyId:'company',contextKey:goodsInput.contextKey}),undefined,signal);return pending;},run=new Function('lastReload','reloadToken','reload','AbortController',`${code}\nreturn effect();`) as (...ports:unknown[])=>undefined|(()=>void);
  expect(run(lastReload,0,reload,AbortController)).toBeUndefined();expect(network).not.toHaveBeenCalled();const cleanup=run(lastReload,1,reload,AbortController);await expect(pending).resolves.toEqual(goodsSetup());expect(network).toHaveBeenCalledTimes(1);expect(run(lastReload,1,reload,AbortController)).toBeUndefined();expect(network).toHaveBeenCalledTimes(1);cleanup?.();
 });
-async function actualGoodsSubmit(){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-sales/src/components/sales-goods-posting-setup.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-goods-submit.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),found:import('typescript').FunctionDeclaration[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='submit')found.push(node);ts.forEachChild(node,visit);};visit(file);expect(found).toHaveLength(1);return ts.transpileModule(found[0].getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;}
+async function actualGoodsSubmit(){const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../modules/sales/ui/src/components/sales-goods-posting-setup.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-goods-submit.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),found:import('typescript').FunctionDeclaration[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='submit')found.push(node);ts.forEachChild(node,visit);};visit(file);expect(found).toHaveLength(1);return ts.transpileModule(found[0].getText(file),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;}
 test.each([false,true])('Goods actual submit callback publishes only its typed current mapping and retains newer selections=%s',async newer=>{
  const browser=salesBrowser(),code=await actualGoodsSubmit(),source={base:'/holdings/acme',companyId:'company',contextKey:goodsInput.contextKey},commands={current:createSalesGoodsCommands(()=>source)},state:Record<string,unknown[]>={},set=(name:string)=>(value:unknown)=>{(state[name]??=[]).push(value);},revision={current:1};let edit='original',release!:()=>void,started!:()=>void,first=true;const ready=new Promise<void>(resolve=>{started=resolve;}),paused=new Promise<void>(resolve=>{release=resolve;});class OriginalJSON extends Response{override async json(){started();await paused;return super.json();}}
  vi.stubGlobal('fetch',vi.fn(async(_url:RequestInfo|URL,init?:RequestInit)=>{if(init?.method==='POST'&&first){first=false;return new OriginalJSON(JSON.stringify({data:{id:'company',status:'configured',version:1}}),{headers:{'Content-Type':'application/json'}});}return Response.json({data:goodsConfigured()});}));const form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement,names=['busyRef','setBusy','setError','setNotice','revision','canStart','t','draft','effectiveSeed','commands','setRefreshed','base','initial','setUncertain','setApplied','owner','current','setDraft','setOpen','empty','form'],run=new Function(...names,`${code}\nreturn submit(form);`) as (...ports:unknown[])=>Promise<void>,pending=run({current:false},set('busy'),set('error'),set('notice'),revision,true,(_th:string,en:string)=>en,goodsInput,{source,expectedSalesDefaults:goodsInput.expectedSalesDefaults},commands,set('refreshed'),source.base,goodsSetup(),set('uncertain'),set('applied'),(value:typeof source)=>JSON.stringify([value.base,value.companyId]),source,set('draft'),set('open'),emptyGoodsDraft,form);
@@ -402,13 +392,13 @@ test('canonical draining Sales draft retains its same editor node with blocked e
 });
 
 // Sales-only service catalogue preserves the original product preparation permission.
-import {SalesServiceProducts} from '@erpx/feature-sales/components/service-products';
-import {createSalesServiceProductCommands,salesServiceProductInput} from '@erpx/feature-sales/lib/service-product-command';
-import {salesServiceProductSchema} from '@erpx/server-commerce/domain/sales-service-products';
-import type {SalesServiceProductsView} from '@erpx/server-commerce/domain/sales-service-products';
+import {SalesServiceProducts} from '@erpx/sales-ui/components/service-products';
+import {createSalesServiceProductCommands,salesServiceProductInput} from '@erpx/sales-ui/lib/service-product-command';
+import {salesServiceProductSchema} from '@erpx/commerce-server/domain/sales-service-products';
+import type {SalesServiceProductsView} from '@erpx/commerce-server/domain/sales-service-products';
 const serviceCataloguePorts=vi.hoisted(()=>({read:vi.fn(),create:vi.fn()}));
-vi.mock("@erpx/server-commerce/public/sales-service-products",async()=>({...await import('@erpx/server-commerce/domain/sales-service-products'),salesServiceProducts:serviceCataloguePorts.read,createSalesServiceProduct:serviceCataloguePorts.create}));
-import ServiceCataloguePage from '@erpx/feature-sales/routes/holdings/[holdingSlug]/customers-sales/sales/settings/services/page';
+vi.mock("@erpx/commerce-server/public/sales-service-products",async()=>({...await import('@erpx/commerce-server/domain/sales-service-products'),salesServiceProducts:serviceCataloguePorts.read,createSalesServiceProduct:serviceCataloguePorts.create}));
+import ServiceCataloguePage from '@erpx/sales-ui/routes/holdings/[holdingSlug]/customers-sales/sales/settings/services/page';
 const serviceCatalogueInput=salesServiceProductInput({sku:'INSTALL',name:'Installation',unit:'visit',price:'100.25',taxPercent:'7.00'});
 function serviceCatalogueView():SalesServiceProductsView{return {companyId:'company',available:true,contextKey:salesSeed,currency:'THB',canCreate:true,products:[{id:'native-service',sku:'INSTALL',name:'Installation',unit:'visit',priceMinor:10025,taxBps:700,status:'active',version:1}],unavailableReason:null};}
 test('Sales service catalogue actual page/SSR uses one minimal seed and original create flag without mount GET or stock fields',async()=>{
@@ -434,16 +424,148 @@ test('Sales service invalid receipt and later known denial cannot erase an earli
  const browser=salesBrowser();let count=0;vi.stubGlobal('fetch',vi.fn(async(_url:RequestInfo|URL,init?:RequestInit)=>{count++;if(count===1)return Response.json({data:{id:'foreign-product',version:1}});if(count===2)return Response.json({error:{code:'PACKAGE_DRAINING',message:'No new creation while draining'}},{status:403});return Response.json({data:{id:`products-${new Headers(init?.headers).get('Idempotency-Key')}`,version:1}});}));const commands=createSalesServiceProductCommands(()=>({base:'/holdings/acme',companyId:'company',contextKey:salesSeed}));await expect(commands.submit(serviceCatalogueInput)).rejects.toThrow('receipt is incomplete');await expect(commands.retry()).rejects.toMatchObject({code:'PACKAGE_DRAINING'});expect(commands.pending()).toBe(true);expect(()=>commands.submit({...serviceCatalogueInput,name:'Newer service'})).toThrow('original service item');const result=await commands.retry();expect(result.acknowledge()).toBe(true);expect(browser.events).toEqual(['erpx:work-changed']);
 });
 test('actual Sales service drawer submission preserves newer fields and exposes saved native link inside its retained drawer',async()=>{
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-sales/src/components/service-products.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('service-products.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),matches:import('typescript').FunctionDeclaration[]=[];const find=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='submit')matches.push(node);ts.forEachChild(node,find);};find(file);expect(matches).toHaveLength(1);const code=ts.transpileModule(matches[0].getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../modules/sales/ui/src/components/service-products.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('service-products.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),matches:import('typescript').FunctionDeclaration[]=[];const find=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='submit')matches.push(node);ts.forEachChild(node,find);};find(file);expect(matches).toHaveLength(1);const code=ts.transpileModule(matches[0].getText(file),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  salesBrowser();let edit='original',release!:()=>void,started!:()=>void;const ready=new Promise<void>(resolve=>{started=resolve;}),paused=new Promise<void>(resolve=>{release=resolve;});class DelayedServiceJSON extends Response{override async json(){started();await paused;return super.json();}}vi.stubGlobal('fetch',vi.fn(async(_url:RequestInfo|URL,init?:RequestInit)=>new DelayedServiceJSON(JSON.stringify({data:{id:`products-${new Headers(init?.headers).get('Idempotency-Key')}`,version:1}}))));const context={base:'/holdings/acme',companyId:'company',contextKey:salesSeed},commands={current:createSalesServiceProductCommands(()=>context)},revision={current:1},values:Record<string,unknown[]>={},set=(name:string)=>(value:unknown)=>{(values[name]??=[]).push(value);},form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement,router={refresh:vi.fn()},draft={sku:'INSTALL',name:'Installation',unit:'visit',price:'100.25',taxPercent:'7.00'},run=new Function('busyRef','setBusy','setError','revision','allowed','t','commands','salesServiceProductInput','draft','setSaved','identity','source','setUncertain','setDraft','setDirty','setOpen','setSeed','emptySalesServiceProductDraft','router','form',`${code}\nreturn submit(form);`) as (...ports:unknown[])=>Promise<void>;
  try{const pending=run({current:false},set('busy'),set('error'),revision,true,(_th:string,en:string)=>en,commands,salesServiceProductInput,draft,set('saved'),(value:typeof context)=>JSON.stringify([value.base,value.companyId]),context,set('uncertain'),set('draft'),set('dirty'),set('open'),set('seed'),()=>({}),router,form);await ready;edit='newer';revision.current++;release();await pending;expect(values.saved[0]).toMatchObject({owner:JSON.stringify([context.base,context.companyId]),id:expect.stringMatching(/^products-/)});expect(values.draft).toBeUndefined();expect(values.open).toBeUndefined();expect(router.refresh).toHaveBeenCalledOnce();expect(commands.current.pending()).toBe(false);
  const drawer:import('typescript').JsxElement[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isJsxElement(node)&&node.openingElement.tagName.getText(file)==='DraftFormDrawer')drawer.push(node);ts.forEachChild(node,visit);};visit(file);expect(drawer).toHaveLength(1);expect(drawer[0].children.some(node=>ts.isJsxExpression(node)&&node.expression?.getText(file)==='savedNotice')).toBe(true);expect(source).toContain('/customers-sales/sales/settings/services#${encodeURIComponent(saved.id)}');}finally{release();}
 });
 
 test('actual Sales service owner reader retains Department history while original creation authority stays denied',async()=>{
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),{createHash}=await import('node:crypto'),{hasPermission}=await import('@erpx/feature-identity_access/lib/permissions'),{requirePermission}=await import('@erpx/server-identity_access/public/iam-permissions'),{ApiError}=await import('@erpx/server-runtime/public/http'),source=await readFile(new URL("../../../packages/server-commerce/src/adapters/sales-service-products.ts",import.meta.url),'utf8'),file=ts.createSourceFile('actual-service-owner.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),selected:string[]=[];
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),{createHash}=await import('node:crypto'),{hasPermission}=await import('@erpx/identity-access-ui/lib/permissions'),{requirePermission}=await import('@erpx/identity-access-server/public/iam-permissions'),{ApiError}=await import('@erpx/platform-runtime-server/public/http'),source=await readFile(new URL("../../../modules/commerce/server/src/adapters/sales-service-products.ts",import.meta.url),'utf8'),file=ts.createSourceFile('actual-service-owner.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),selected:string[]=[];
  for(const statement of file.statements){if(ts.isFunctionDeclaration(statement)&&['authority','salesServiceProducts'].includes(statement.name?.text??''))selected.push(statement.getText(file).replace(/^export /,''));if(ts.isVariableStatement(statement)&&statement.declarationList.declarations.some(node=>ts.isIdentifier(node.name)&&['capabilities','changed','authorityImage'].includes(node.name.text)))selected.push(statement.getText(file));}
- expect(selected).toHaveLength(5);const code=ts.transpileModule(selected.join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,department={...salesActor,branchId:'branch',departmentId:'department',assignmentScope:'department' as const,scope:{kind:'department' as const,holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',companyId:'company',branchId:'branch',departmentId:'department',departmentSlug:'department',departmentName:'Sales team'}},nativeProduct={id:'service',sku:'SERVICE',name:'Company service',unit:'visit',price_minor:10000,tax_bps:0,status:'active',version:1},bound:unknown[][]=[],statement={bind:(...args:unknown[])=>{bound.push(args);return {all:async()=>({results:[nativeProduct]})};}},database={prepare:()=>statement},transaction={transaction:async(run:(db:typeof database)=>Promise<unknown>)=>run(database)},queued=vi.fn(async(_db:unknown,actor:typeof department)=>actor),leases=vi.fn(async()=>{}),purchases=vi.fn(async()=>({'sales.quotes':{history:true,newWork:true},'sales.orders':{history:true,newWork:true},'finance.sales-posting':{history:true,newWork:true}})),finance=vi.fn(async()=>({effective:{currency:'THB'},image:'same-original-source'})),check=vi.fn(async()=>{}),release=vi.fn(async()=>{}),make=new Function('ApiError','hasPermission','requirePermission','requireQueuedCommandAuthority','assertProductionModuleEnabled','owner','leases','readPurchasedAccesses','salesServiceProductFinanceSource','checkPurchasedCapability','createHash',`${code}\nreturn {read:salesServiceProducts,createAuthority:(actor)=>authority(null,actor,true)};`) as (...ports:unknown[])=>{read:(actor:typeof department)=>Promise<SalesServiceProductsView>;createAuthority:(actor:typeof department)=>Promise<unknown>},reader=make(ApiError,hasPermission,requirePermission,queued,release,async()=>transaction,leases,purchases,finance,check,createHash);
+ expect(selected).toHaveLength(5);const code=ts.transpileModule(selected.join('\n'),{compilerOptions:{esModuleInterop: false, target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,department={...salesActor,branchId:'branch',departmentId:'department',assignmentScope:'department' as const,scope:{kind:'department' as const,holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',companyId:'company',branchId:'branch',departmentId:'department',departmentSlug:'department',departmentName:'Sales team'}},nativeProduct={id:'service',sku:'SERVICE',name:'Company service',unit:'visit',price_minor:10000,tax_bps:0,status:'active',version:1},bound:unknown[][]=[],statement={bind:(...args:unknown[])=>{bound.push(args);return {all:async()=>({results:[nativeProduct]})};}},database={prepare:()=>statement},transaction={transaction:async(run:(db:typeof database)=>Promise<unknown>)=>run(database)},queued=vi.fn(async(_db:unknown,actor:typeof department)=>actor),leases=vi.fn(async()=>{}),purchases=vi.fn(async()=>({'sales.quotes':{history:true,newWork:true},'sales.orders':{history:true,newWork:true},'finance.sales-posting':{history:true,newWork:true}})),finance=vi.fn(async()=>({effective:{currency:'THB'},image:'same-original-source'})),check=vi.fn(async()=>{}),release=vi.fn(async()=>{}),make=new Function('ApiError','hasPermission','requirePermission','requireQueuedCommandAuthority','assertProductionModuleEnabled','owner','leases','readPurchasedAccesses','salesServiceProductFinanceSource','checkPurchasedCapability','createHash',`${code}\nreturn {read:salesServiceProducts,createAuthority:(actor)=>authority(null,actor,true)};`) as (...ports:unknown[])=>{read:(actor:typeof department)=>Promise<SalesServiceProductsView>;createAuthority:(actor:typeof department)=>Promise<unknown>},reader=make(ApiError,hasPermission,requirePermission,queued,release,async()=>transaction,leases,purchases,finance,check,createHash);
  expect(hasPermission(department,'commerce.read')).toBe(true);expect(hasPermission(department,'commerce.sales')).toBe(true);expect(hasPermission(department,'inventory.prepare')).toBe(false);const view=await reader.read(department);expect(view).toMatchObject({available:true,canCreate:false,currency:'THB',unavailableReason:null,products:[{id:'service',name:'Company service'}]});expect(view.contextKey).toMatch(/^[a-f0-9]{64}$/);expect(bound).toEqual([['company']]);expect(queued.mock.calls.every(call=>call[1]===department)).toBe(true);await expect(reader.createAuthority(department)).rejects.toMatchObject({status:403,code:'SALES_SERVICE_SCOPE_REQUIRED'});
  const html=renderToStaticMarkup(createElement(SalesServiceProducts,{base:'/holdings/acme/branches/branch/departments/department',initial:view}));expect(html).toContain('Company service');expect(html).not.toContain('Add service item');expect(html).toContain('authorized product preparer');
+});
+
+test('keeps one native Sales follow-up source plan for the enforced and non-enforced metric readers',async()=>{
+ const {readFile}=await import('node:fs/promises'),source=await readFile(new URL("../../../modules/sales/server/src/adapters/metric-purchases.ts",import.meta.url),'utf8');
+ expect(source).toContain('SALES_RD_FOLLOWUP_METRIC_PROJECTION');
+ expect(source).toContain('SALES_RD_FOLLOWUP_METRIC_SOURCE');
+ expect(source).toContain('const kind=enforced?SALES_RD_FOLLOWUP_METRIC_SOURCE:SALES_RD_FOLLOWUP_METRIC_PROJECTION;');
+ expect(source.match(/nativeSalesPlan\(/g)).toHaveLength(2);
+ expect(source).toContain('return {sql:planned.sql,args:planned.values};');
+ expect(source).not.toContain('followupSourceSelect=');
+ expect(source).not.toContain('${followupMetricPrefix} FROM customer_followups followup JOIN ');
+});
+
+test('Sales read-tail cross-file prefixes share one byte-identical SQL constant per projection',async()=>{
+ const {readFile}=await import('node:fs/promises'),base=new URL("../../../modules/sales/server/src/adapters/",import.meta.url);
+ const shared=await readFile(new URL("followup-source-sql.ts",base),'utf8');
+ expect(shared).not.toContain('export const followupEvidencePrefix=');
+ expect(shared).not.toContain('export const followupMetricPrefix=');
+ for(const file of ['followups.ts','executive-followup-evidence-sources.ts']){
+  const source=await readFile(new URL(file,base),'utf8');
+  expect(source.match(/evidencePrefix/g)).toHaveLength(2);
+  expect(source).not.toContain('SELECT c.id,c.order_id,c.next_action,c.due_date,c.status,c.version,o.number order_number FROM ');
+ }
+ for(const file of ['metric-purchases.ts','followup-purchases.ts']){
+  const source=await readFile(new URL(file,base),'utf8');
+  expect(source).not.toContain('SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind');
+ }
+ expect(await readFile(new URL('metric-purchases.ts',base),'utf8')).not.toContain('followupMetricPrefix');
+ expect(await readFile(new URL('followup-purchases.ts',base),'utf8')).toContain('SALES_RD_FOLLOWUP_METRIC_PREFIX');
+});
+
+test('Sales metric CRM membership EXISTS is owned by the native command-plan registry',async()=>{
+ const {readFile}=await import('node:fs/promises'),createHash=(await import('node:crypto')).createHash,source=await readFile(new URL("../../../modules/sales/server/src/adapters/metric-purchases.ts",import.meta.url),'utf8'),registry=await readFile(new URL("../../../modules/sales/server/src/adapters/native_sales_read_sql.rs",import.meta.url),'utf8');
+ expect(source).toContain('const crmAssignmentExists=async(alias=\'\')=>');
+ expect(source).toContain('nativeSalesPlan(alias?SALES_RD_CRM_ASSIGNMENT_ALIASED:SALES_RD_CRM_ASSIGNMENT_PLAIN,[])');
+ expect(source).not.toContain('jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array');
+ for(const [constant,hash] of [['SQL_CRM_ASSIGNMENT_PLAIN','5bc9629ac3f8ebadd9419e0170858bafe2041a1c5fda556ee1aae7ce20941288'],['SQL_CRM_ASSIGNMENT_ALIASED','5aeb0f3f81af8be5e4ab51fbff65336915defd1278688c67dc4c586ff039cb10']] as const){
+  const marker=`const ${constant}: &str = "`,at=registry.indexOf(marker);expect(at).toBeGreaterThanOrEqual(0);const end=registry.indexOf('";',at+marker.length);const sql=registry.slice(at+marker.length,end).replace(/\\"/g,'"');
+  expect(createHash('sha256').update(sql).digest('hex')).toBe(hash);
+ }
+});
+
+test('Sales contact-note projection prefix is one byte-identical SQL constant across order and customer reads',async()=>{
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../modules/sales/server/src/adapters/notes.ts",import.meta.url),'utf8');
+ const file=ts.createSourceFile('notes.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
+ const decls=(name:string)=>file.statements.filter(ts.isVariableStatement).flatMap(s=>[...s.declarationList.declarations]).filter(d=>d.name.getText(file)===name);
+ expect(decls('notesProjection')).toHaveLength(1);
+ const value=(name:string)=>{const code=ts.transpileModule(`const ${decls(name)[0].getText(file)};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;return new Function(`${code}\nreturn ${name};`)() as string;};
+ const projection=value('notesProjection'),scopeValue=value('scope');
+ expect(projection).toBe('SELECT n.* FROM customer_contact_notes n');
+ expect(source.match(/SELECT n\.\* FROM customer_contact_notes n/g)).toHaveLength(1);
+ expect(source).not.toContain('SELECT n.* FROM customer_contact_notes n ');
+ expect(source.match(/\$\{notesProjection\} /g)).toHaveLength(2);
+ const templates:string[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isCallExpression(node)&&node.expression.getText(file).endsWith('prepare')){const arg=node.arguments[0];if(arg&&(ts.isTemplateExpression(arg)||ts.isNoSubstitutionTemplateLiteral(arg))&&arg.getText(file).includes('${notesProjection}'))templates.push(arg.getText(file));}ts.forEachChild(node,visit);};visit(file);
+ expect(templates).toHaveLength(2);
+ const orders='<commerce_orders>',rendered=templates.map(text=>new Function('notesProjection','commerceProjectionSources','scope',`return ${text};`)(projection,{commerce_orders:orders},scopeValue) as string);
+ expect(rendered[0]).toBe(`SELECT n.* FROM customer_contact_notes n JOIN (${orders}) o ON o.id=n.order_id AND o.company_id=n.company_id WHERE n.order_id=? AND ${scopeValue} ORDER BY n.created_at DESC,n.id DESC`);
+ expect(rendered[1]).toBe(`SELECT n.* FROM customer_contact_notes n LEFT JOIN (${orders}) o ON o.id=n.order_id AND o.company_id=n.company_id WHERE n.company_id=? AND n.customer_id=? AND (n.order_id IS NULL AND ?::text IS NULL AND ?::text IS NULL OR n.order_id IS NOT NULL AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)) ORDER BY n.created_at DESC,n.id DESC`);
+});
+
+test('final-root Sales projections reuse the one owner fixed SQL for notices and follow-ups',async()=>{
+ const {readFile}=await import('node:fs/promises'),base=new URL("../../../modules/sales/server/src/adapters/",import.meta.url);
+ const finalRoot=await readFile(new URL("final-root-owner-projection-sources.ts",base),'utf8'),commercial=await readFile(new URL("commercial-owner-projection-sources.ts",base),'utf8');
+ for(const key of ['commerce_customer_notifications','customer_followups']){
+  expect(commercial).toContain(`${key}: tableRead(`);
+  expect(commercial).not.toMatch(new RegExp(`^  ${key}: "SELECT `,'m'));
+  expect(finalRoot).not.toMatch(new RegExp(`^  ${key}: "SELECT `,'m'));
+  expect(finalRoot).toContain(`commercialOwnerProjectionSources.${key}`);
+ }
+ const {finalRootOwnerProjectionSources:root}=await import('@erpx/sales-server/adapters/final-root-owner-projection-sources');
+ const {commercialOwnerProjectionSources:owner}=await import('@erpx/sales-server/adapters/commercial-owner-projection-sources');
+ expect(root.commerce_customer_notifications).toBe(owner.commerce_customer_notifications);
+ expect(root.customer_followups).toBe(owner.customer_followups);
+ expect(Object.keys(root)).toEqual(['commerce_customer_notifications','customer_contact_note_history','customer_contact_notes','customer_followup_events','customer_followups']);
+});
+
+describe('Sales/CRM native route retirement',()=>{
+ const root=resolve(__dirname,'../../..');
+ const read=(path:string)=>readFileSync(resolve(root,path),'utf8');
+ const salesApi='modules/sales/ui/src/routes/api/v1/holdings/[holdingSlug]';
+ const appApi=(app:string)=>`apps/${app}/src/app/api/v1/holdings/[holdingSlug]`;
+ const retired=[
+  `${salesApi}/customers/route.ts`,`${salesApi}/crm/activities/route.ts`,`${salesApi}/customer-duplicates/route.ts`,`${salesApi}/customer-notes/route.ts`,`${salesApi}/customer-identity/route.ts`,
+  ...['sales','compat'].flatMap(app=>['customers','crm/activities','customer-duplicates','customer-notes','customer-identity'].map(path=>`${appApi(app)}/${path}/route.ts`)),
+ ];
+ test('the five shared handlers and all ten app re-exports are deleted',()=>{
+  expect(retired).toHaveLength(15);
+  for(const path of retired) expect(existsSync(resolve(root,path)),path).toBe(false);
+ });
+ const native=[
+  ['GET','customers'],['GET','crm/activities'],['POST','crm/activities'],
+  ['GET','customer-duplicates'],['POST','customer-duplicates'],
+  ['GET','customer-notes'],['POST','customer-notes'],
+  ['GET','customer-identity'],['POST','customer-identity'],
+ ] as const;
+ const config=loadNativeApiPaths(resolve(root,'scripts/local/native-api-paths.json'));
+ const hosts=activeHoldingHosts();
+ const environment={NODE_ENV:'test' as const,ERPX_DEV_NATIVE_PATHS:expandNativeApiPaths(config,hosts).paths};
+ test('the checked-in gateway holds exact method/path entries and no wildcard substitute',()=>{
+  const paths=config.holdingPaths??[],prefixes=config.holdingPrefixes??[];
+  for(const [method,path] of native) expect(paths).toContainEqual({method,path});
+  expect(paths.filter(entry=>native.some(([method,path])=>method===entry.method&&path===entry.path))).toHaveLength(native.length);
+  for(const [,path] of native) expect(prefixes).not.toContain(path);
+ });
+ test('nativeApiPath accepts each registered holding route and rejects neighbours',()=>{
+  for(const host of hosts) for(const [method,path] of native){
+   const base=`/api/v1/holdings/${host.holdingSlug}/${path}`;
+   expect(nativeApiPath(environment,`${base}?cursor=next`,host.hostname,method),`${host.hostname} ${method} ${base}`).toBe(true);
+   expect(nativeApiPath(environment,base,host.hostname,'PUT')).toBe(false);
+   expect(nativeApiPath(environment,`${base}/extra`,host.hostname,method)).toBe(false);
+   expect(nativeApiPath(environment,base,'unregistered.example.test',method)).toBe(false);
+  }
+ });
+ test('each native route and method is registered in Rust and executes SQL, not a plan',()=>{
+  const owners=[
+   {adapter:'modules/customer-360/server/src/adapters/directory_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/customers"','get(read_directory)']],composition:'platform/composition/src/customer_360.rs',markers:['CustomerDirectoryHttpBackend','directory_page','execute_with_sources_deferred','sqlx::PgConnection']},
+   {adapter:'modules/crm/server/src/adapters/activity_workspace_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/crm/activities"','get(read_workspace)']],composition:'platform/composition/src/crm_activity_workspace.rs',markers:['CrmActivityWorkspaceHttpBackend','execute_with_sources_deferred','sqlx::query']},
+   {adapter:'modules/crm/server/src/adapters/activities_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/crm/activities"','post(create_activity)'],['"/api/v1/holdings/{holding_slug}/crm/activities/{activity_id}/changes"','post(change_activity)']],composition:'platform/composition/src/crm.rs',markers:['CrmActivityCommandHttpBackend','execute_with_sources_deferred','sqlx::']},
+   {adapter:'modules/customer-authority/server/src/adapters/duplicates_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/customer-duplicates"','get(read).post(command)']],composition:'platform/composition/src/customer_authority.rs',markers:['CustomerDuplicateHttpBackend','duplicate_review_workspace','execute_with_sources_deferred']},
+   {adapter:'modules/customer-authority/server/src/adapters/identity_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/customer-identity"','get(read).post(command)']],composition:'platform/composition/src/customer_authority.rs',markers:['CustomerIdentityHttpBackend','identity_workspace','execute_with_sources_deferred']},
+   {adapter:'modules/customer-360/server/src/adapters/notes_http.rs',routes:[['"/api/v1/holdings/{holding_slug}/customer-notes"','get(read).post(command)']],composition:'platform/composition/src/customer_360_notes.rs',markers:['CustomerNotesHttpBackend','sqlx::query','INSERT INTO customer_contact_notes']},
+  ];
+  const composition=new Map<string,string>();
+  for(const owner of owners){
+   const source=read(owner.adapter);
+   for(const [path,method] of owner.routes){expect(source,path).toContain(path);expect(source,method).toContain(method);}
+   expect(source).not.toMatch(/plan[_-]?only|native[_-]?plan/i);
+   if(!composition.has(owner.composition)) composition.set(owner.composition,read(owner.composition));
+   const assembled=composition.get(owner.composition)!;
+   for(const marker of owner.markers) expect(assembled,marker).toContain(marker);
+  }
+ });
 });

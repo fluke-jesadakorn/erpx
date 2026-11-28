@@ -1,0 +1,58 @@
+"use client";
+import { canonicalUiHref } from "@erpx/work-projection-ui/lib/destination-registry";
+import { SetupChecklist } from "@erpx/platform-ui/components/setup-checklist";
+import { FrontLocalizedTree } from "@erpx/platform-front/components/front-language";
+import type {BackofficePosConsoleContext} from "@erpx/pos-ui/components/pos-backoffice-console";
+
+export function BackofficePosConsoleReadinessScreen({context}: {context: BackofficePosConsoleContext}) {
+  const {tr, language, data, erpBase, register, shift, dailyPosRoot, currentTabLoaded} = context;
+  return <FrontLocalizedTree>{(
+                <SetupChecklist
+                  title={tr("Ready to sell")}
+                  labels={{ready:tr("Ready"),review:tr("Review"),setup:tr("Set up"),remaining:count=>language==="th"?`เตรียม ${count} รายการ`:`${count} to prepare`}}
+                  items={[
+                    {
+                      id: "settings",
+                      label: tr("Accounting and sales setup"),
+                      ready: !!data.settings?.enabled,
+                      owner: tr("POS administrator / Finance"),
+                      href: canonicalUiHref(`${erpBase}/pos?tab=settings`),
+                      detail: data.settings?.enabled
+                        ? tr("Configuration enabled")
+                        : tr("Complete setup and enable sales"),
+                    },
+                    {
+                      id: "register",
+                      label: tr("Active register"),
+                      ready: !!register?.active,
+                      owner: tr("POS administrator"),
+                      href: canonicalUiHref(`${erpBase}/pos?tab=settings`),
+                    },
+                    {
+                      id: "shift",
+                      label: tr("Open cash session"),
+                      ready: !!shift,
+                      owner: tr("Cashier"),
+                      href: `${dailyPosRoot}?tab=shifts`,
+                      detail: shift
+                        ? tr("Ready to sell")
+                        : tr("Open a session before the first sale"),
+                    },
+                    ...(currentTabLoaded
+                      ? [
+                          {
+                            id: "products",
+                            label: tr("Products in Commerce"),
+                            ready: data.products.length > 0,
+                            owner: tr("Commerce"),
+                            href: canonicalUiHref(`${erpBase}/commerce`),
+                            detail: data.products.length
+                              ? `${data.products.length} ${tr("active products available")}`
+                              : tr("Add at least one product before the first sale"),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              )}</FrontLocalizedTree>;
+}

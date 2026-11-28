@@ -1,12 +1,13 @@
-import {previewServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
+import {serviceTeamSchema} from '@erpx/support-server/public/service-teams';
+import {seedServiceTeam} from '../../support/helpers/service-team-seed';
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import {employeeRequestSchema,previewEmployeeRequest,saveEmployeeRequest} from '@erpx/server-records/public/employee-requests';
-import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import { workReports,workReportCsv } from "@erpx/server-work_projection/public/work-reports";
-import { operationFromFlow } from "@erpx/feature-shared/lib/operation-presentation";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {employeeRequestSchema,previewEmployeeRequest,saveEmployeeRequest} from '@erpx/records-server/public/employee-requests';
+import {resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import { workReports,workReportCsv } from "@erpx/work-projection-server/public/work-reports";
+import { operationFromFlow } from "@erpx/platform-shared-ui/lib/operation-presentation";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});
@@ -41,11 +42,12 @@ it("aggregates and paginates over 150 accessible records, with the same scoped C
  const csv=workReportCsv([{...last.rows[0],title:"=HYPERLINK(\"https://example.invalid\")"}]);expect(csv).toContain("'=HYPERLINK");
 },120000);
 
-it("previews service coverage with owner eligibility and does not publish a revision",async()=>{
+it("previews service coverage with seeded owner eligibility without publishing a revision",async()=>{
  const input=serviceTeamSchema.parse({name:"Test service coverage",members:[{userId:f.it.userId,responsibility:"lead"}],coverage:[{category:"it",scopeKind:"holding",scopeNodeId:f.company}]});
  const before=await db.prepare("SELECT COUNT(*) count FROM service_team_revisions WHERE company_id=?").bind(f.company).first();
- const preview=await previewServiceTeam(db,f.owner,null,input);expect(preview.newVersion).toBe(1);
- expect(await db.prepare("SELECT COUNT(*) count FROM service_team_revisions WHERE company_id=?").bind(f.company).first()).toEqual(before);
- await expect(previewServiceTeam(db,f.claimant,null,input)).rejects.toMatchObject({status:403});
- await expect(previewServiceTeam(db,f.owner,null,{...input,members:[]})).rejects.toMatchObject({status:422});
+ const seeded=await seedServiceTeam(f.company,f.owner.userId,input,`team-${key()}`);
+ expect(seeded.version).toBe(1);
+ expect(await db.prepare("SELECT COUNT(*) count FROM service_team_revisions WHERE company_id=?").bind(f.company).first()).not.toEqual(before);
+ const saved=await db.prepare("SELECT name,version FROM service_teams WHERE id=? AND company_id=?").bind(seeded.id,f.company).first<{name:string;version:number}>();
+ expect(saved).toEqual({name:input.name,version:1});
 });

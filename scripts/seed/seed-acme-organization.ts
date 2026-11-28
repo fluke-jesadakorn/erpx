@@ -1,15 +1,16 @@
+import {reservedWorkspaceSlug} from '@erpx/platform-contracts/holding-hosts';
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { assertAcmeBrowserSeedTarget } from "../../fixtures/shared/builders/acme-browser-seed-target";
 import { localSeedLevels } from "../../fixtures/organization/builders/local-seed-levels";
 import { join } from "node:path";
 import { hashPassword } from "better-auth/crypto";
 import { getLocalProxy } from "../local/fixtures";
-import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
-import { reportingIssues } from "@erpx/feature-organization/lib/organization";
-import {organizationRoster} from '@erpx/server-organization/public/organization-roster-read';
-import { expenseRoute, spendingUsers } from "@erpx/server-people_payroll/public/expense-routing";
-import { ensureOrganizationChannels, organizationMemberSql } from "@erpx/server-organization/public/organization-channels";
-import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
+import { businessRoles } from "@erpx/identity-access-ui/lib/business-roles";
+import { reportingIssues } from "@erpx/organization-ui/lib/organization";
+import {organizationRoster} from '@erpx/organization-server/public/organization-roster-read';
+import { expenseRoute, spendingUsers } from "@erpx/people-payroll-server/public/expense-routing";
+import { ensureOrganizationChannels, organizationMemberSql } from "@erpx/organization-server/public/organization-channels";
+import type { SqlDatabase, SqlStatement } from "@erpx/platform-runtime-server/adapters/runtime/types";
 import { demoBranches, demoCompany, demoDepartments, demoExpiry, demoInitialPassword, demoPrefix, demoStaffPlan, type DemoStaff } from "../../fixtures/organization/builders/acme-organization";
 
 // The development CLI and the owned browser fixture invoke the same explicit workflow.
@@ -113,7 +114,7 @@ try {
         const existing = await db.prepare("SELECT company_id,branch_id,kind,status FROM organization_nodes WHERE id=?").bind(id).first<{ company_id: string; branch_id: string; kind: string; status: string }>();
         if (existing && (existing.company_id !== demoCompany || existing.branch_id !== branch.id || existing.kind !== "department" || existing.status !== "active")) throw new Error(`Department collision: ${id}`);
         if (!existing) {
-          statements.push(db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES(?,'department',?,?,?, ?,?,'active',1)").bind(id, department.id, `${branch.name} ${department.name}`, branch.id, demoCompany, branch.id));
+          statements.push(db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES(?,'department',?,?,?, ?,?,'active',1)").bind(id, reservedWorkspaceSlug(department.id)?department.id+'-dept':department.id, `${branch.name} ${department.name}`, branch.id, demoCompany, branch.id));
           audit(statements, id, "organization.department.seed", "organization_node");
         }
       }

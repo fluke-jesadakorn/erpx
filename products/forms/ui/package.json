@@ -1,0 +1,24 @@
+{
+  "name": "@erpx/product-forms-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes/forms/[holdingSlug]/[formId]/page": "./src/routes/forms/[holdingSlug]/[formId]/page.tsx",
+    "./routes/api/public/marketing/[holdingSlug]/[formId]/route": "./src/routes/api/public/marketing/[holdingSlug]/[formId]/route.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/marketing-ui": "workspace:*",
+    "@erpx/platform-runtime-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/manage-erpx-server": "workspace:*",
+    "@erpx/marketing-server": "workspace:*",
+    "@erpx/platform-runtime-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "next": "16.4.3"
+  }
+}

@@ -1,9 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase } from '@erpx/platform-runtime-server/public/runtime/types';
 const guards = vi.hoisted(() => ({ local: vi.fn(), remote: vi.fn() }));
-vi.mock('@erpx/server-legal/adapters/runtime-preservation-authority', () => ({ runtimePreservationAuthority: () => ({ assertDestruction: guards.local }) }));
-vi.mock('@erpx/server-legal/adapters/runtime-minio-preservation-authority', () => ({ runtimeMinioPreservationAuthority: () => ({ destruction: guards.remote }) }));
-import { fileDestructionAuthority } from '@erpx/server-legal/adapters/file-destruction-ports';
+vi.mock('@erpx/legal-server/adapters/runtime-preservation-authority', () => ({ runtimePreservationAuthority: () => ({ assertDestruction: guards.local }) }));
+vi.mock('@erpx/legal-server/adapters/runtime-minio-preservation-authority', () => ({ runtimeMinioPreservationAuthority: () => ({ destruction: guards.remote }) }));
+import { fileDestructionAuthority } from '@erpx/legal-server/adapters/file-destruction-ports';
 beforeEach(() => { guards.local.mockReset(); guards.remote.mockReset(); });
 
 it('refuses a deletion port rebound to another database or destruction before consulting owner policy', async () => {

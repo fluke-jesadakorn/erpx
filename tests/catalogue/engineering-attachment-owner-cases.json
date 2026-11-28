@@ -189,22 +189,6 @@
     }
   },
   {
-    "id": "benefit_dependent/dependent_proof/action",
-    "targetType": "benefit_dependent",
-    "purposeKey": "dependent_proof",
-    "componentKind": "action",
-    "review": "reviewed",
-    "proof": "changeBenefitRecord independently verifies the dependent evidence and retains verified status/version. Valid PNG bytes pass actual reserve/upload/quarantine, SHA256 and size assertions, format detection, declared clean scanner and real WebP preview generation. Real production owner binding persists bound set/link and command identity, owner version/status, reload DTO, exact original bytes and both storage ledger objects. Separate Company has no listing/content/reservation access. Revoking the real selected SQL assignment denies the cached actor list/content/create, completed-upload replay and unuploaded intent before storage; pending upload stays empty and historical bound evidence remains immutable. Stale owner versions and conflicting idempotency payloads fail. Owner prerequisites are declared isolated synthetic fixtures; no File Sources rows, uploaded objects or post-scan state are seeded. Scanner is a declared fixture; real compiled scanner certification is a separate release gate.",
-    "cases": [
-      {
-        "runner": "vitest",
-        "file": "tests/integration/shared.money-people-journeys/engineering-finance-people-attachments.test.ts",
-        "title": "Finance and workforce File Sources owner intake proves authorized intake scan binding reload and revocation for benefit_dependent/dependent_proof/action",
-        "proof": "changeBenefitRecord independently verifies the dependent evidence and retains verified status/version. Valid PNG bytes pass actual reserve/upload/quarantine, SHA256 and size assertions, format detection, declared clean scanner and real WebP preview generation. Real production owner binding persists bound set/link and command identity, owner version/status, reload DTO, exact original bytes and both storage ledger objects. Separate Company has no listing/content/reservation access. Revoking the real selected SQL assignment denies the cached actor list/content/create, completed-upload replay and unuploaded intent before storage; pending upload stays empty and historical bound evidence remains immutable. Stale owner versions and conflicting idempotency payloads fail. Owner prerequisites are declared isolated synthetic fixtures; no File Sources rows, uploaded objects or post-scan state are seeded. Scanner is a declared fixture; real compiled scanner certification is a separate release gate."
-      }
-    ]
-  },
-  {
     "id": "benefit_dependent/dependent_proof/record",
     "targetType": "benefit_dependent",
     "purposeKey": "dependent_proof",
@@ -221,22 +205,6 @@
     ]
   },
   {
-    "id": "benefit_election/election_document/action",
-    "targetType": "benefit_election",
-    "purposeKey": "election_document",
-    "componentKind": "action",
-    "review": "reviewed",
-    "proof": "changeBenefitRecord either employee-submits the election document or records the provider acknowledgement, retaining actual status/version. Valid PNG bytes pass actual reserve/upload/quarantine, SHA256 and size assertions, format detection, declared clean scanner and real WebP preview generation. Real production owner binding persists bound set/link and command identity, owner version/status, reload DTO, exact original bytes and both storage ledger objects. Separate Company has no listing/content/reservation access. Revoking the real selected SQL assignment denies the cached actor list/content/create, completed-upload replay and unuploaded intent before storage; pending upload stays empty and historical bound evidence remains immutable. Stale owner versions and conflicting idempotency payloads fail. Owner prerequisites are declared isolated synthetic fixtures; no File Sources rows, uploaded objects or post-scan state are seeded. Scanner is a declared fixture; real compiled scanner certification is a separate release gate.",
-    "cases": [
-      {
-        "runner": "vitest",
-        "file": "tests/integration/shared.money-people-journeys/engineering-finance-people-attachments.test.ts",
-        "title": "Finance and workforce File Sources owner intake proves authorized intake scan binding reload and revocation for benefit_election/election_document/action",
-        "proof": "changeBenefitRecord either employee-submits the election document or records the provider acknowledgement, retaining actual status/version. Valid PNG bytes pass actual reserve/upload/quarantine, SHA256 and size assertions, format detection, declared clean scanner and real WebP preview generation. Real production owner binding persists bound set/link and command identity, owner version/status, reload DTO, exact original bytes and both storage ledger objects. Separate Company has no listing/content/reservation access. Revoking the real selected SQL assignment denies the cached actor list/content/create, completed-upload replay and unuploaded intent before storage; pending upload stays empty and historical bound evidence remains immutable. Stale owner versions and conflicting idempotency payloads fail. Owner prerequisites are declared isolated synthetic fixtures; no File Sources rows, uploaded objects or post-scan state are seeded. Scanner is a declared fixture; real compiled scanner certification is a separate release gate."
-      }
-    ]
-  },
-  {
     "id": "benefit_election/election_document/record",
     "targetType": "benefit_election",
     "purposeKey": "election_document",
@@ -249,22 +217,6 @@
         "file": "tests/integration/shared.money-people-journeys/engineering-finance-people-attachments.test.ts",
         "title": "Finance and workforce File Sources owner intake proves authorized intake scan binding reload and revocation for benefit_election/election_document/record",
         "proof": "bindRecordAttachmentSet binds a real draft owner record, increments its version, and preserves one bound document after reload and command replay. Valid PNG bytes pass actual reserve/upload/quarantine, SHA256 and size assertions, format detection, declared clean scanner and real WebP preview generation. Real production owner binding persists bound set/link and command identity, owner version/status, reload DTO, exact original bytes and both storage ledger objects. Separate Company has no listing/content/reservation access. Revoking the real selected SQL assignment denies the cached actor list/content/create, completed-upload replay and unuploaded intent before storage; pending upload stays empty and historical bound evidence remains immutable. Stale owner versions and conflicting idempotency payloads fail. Owner prerequisites are declared isolated synthetic fixtures; no File Sources rows, uploaded objects or post-scan state are seeded. Scanner is a declared fixture; real compiled scanner certification is a separate release gate."
-      }
-    ]
-  },
-  {
-    "id": "benefit_election/provider_proof/action",
-    "targetType": "benefit_election",
-    "purposeKey": "provider_proof",
-    "componentKind": "action",
-    "review": "reviewed",
-    "proof": "changeBenefitRecord either employee-submits the election document or records the provider acknowledgement, retaining actual status/version. Valid PNG bytes pass actual reserve/upload/quarantine, SHA256 and size assertions, format detection, declared clean scanner and real WebP preview generation. Real production owner binding persists bound set/link and command identity, owner version/status, reload DTO, exact original bytes and both storage ledger objects. Separate Company has no listing/content/reservation access. Revoking the real selected SQL assignment denies the cached actor list/content/create, completed-upload replay and unuploaded intent before storage; pending upload stays empty and historical bound evidence remains immutable. Stale owner versions and conflicting idempotency payloads fail. Owner prerequisites are declared isolated synthetic fixtures; no File Sources rows, uploaded objects or post-scan state are seeded. Scanner is a declared fixture; real compiled scanner certification is a separate release gate.",
-    "cases": [
-      {
-        "runner": "vitest",
-        "file": "tests/integration/shared.money-people-journeys/engineering-finance-people-attachments.test.ts",
-        "title": "Finance and workforce File Sources owner intake proves authorized intake scan binding reload and revocation for benefit_election/provider_proof/action",
-        "proof": "changeBenefitRecord either employee-submits the election document or records the provider acknowledgement, retaining actual status/version. Valid PNG bytes pass actual reserve/upload/quarantine, SHA256 and size assertions, format detection, declared clean scanner and real WebP preview generation. Real production owner binding persists bound set/link and command identity, owner version/status, reload DTO, exact original bytes and both storage ledger objects. Separate Company has no listing/content/reservation access. Revoking the real selected SQL assignment denies the cached actor list/content/create, completed-upload replay and unuploaded intent before storage; pending upload stays empty and historical bound evidence remains immutable. Stale owner versions and conflicting idempotency payloads fail. Owner prerequisites are declared isolated synthetic fixtures; no File Sources rows, uploaded objects or post-scan state are seeded. Scanner is a declared fixture; real compiled scanner certification is a separate release gate."
       }
     ]
   },

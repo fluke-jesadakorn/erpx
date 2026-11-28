@@ -1,13 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
-import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
-import { runLeaveAccruals } from "@erpx/server-people_payroll/public/leave-self-service";
-import {changeAppointment} from '@erpx/server-organization/public/department-authority';
-import {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
-import { activeStaff } from "@erpx/server-operations/public/staff-policy";
+import type { RuntimeEnv } from "@erpx/platform-runtime-server/adapters/runtime/env";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/adapters/runtime/types";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { loadIamAuthority } from "@erpx/identity-access-server/public/iam-store";
+import { runLeaveAccruals } from "@erpx/people-payroll-server/public/leave-self-service";
+import {changeAppointment} from '@erpx/organization-server/public/department-authority';
+import {peopleRequestRoute} from '@erpx/organization-server/public/department-authority-reads';
+import { activeStaff } from "@erpx/operations-server/public/staff-policy";
 import { assertAcmeBrowserSeedTarget } from "../../shared/builders/acme-browser-seed-target";
 import { demoPrefix } from "../../organization/builders/acme-organization";
 

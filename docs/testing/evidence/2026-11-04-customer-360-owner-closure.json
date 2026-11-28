@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Customer 360 now has a bounded native federated customer timeline read (customer account identity plus Commerce/Sales/CRM/Support/Field Service/Finance/Legal source events), an owner-local HTTP router, a strict Next transport and a configured history/API cutover. The owner remains partial/pending overall: customer directory, profile summary strip, notes/follow-up commands, customer portal/attachments, shared composition mounting, root workspace membership and browser acceptance remain open.",
+  "capability": "customer-360-owner-timeline-read-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "d726a0897f853d946c1a0978b1cddeb111357bd8",
+  "verificationHead": "9ef6f44e0c735808a452e5c301b5ca4e5982912d",
+  "scope": {
+    "workflows": [
+      "customer_360/sales-summary",
+      "customer_360/service-timeline",
+      "customer_360/feature-customer-profile"
+    ],
+    "workflowBoundary": "The qualified slice is the current Company/branch/department-scoped customer account identity and bounded federated history page rendered by the retained customer profile history tab and the /customers API timeline read. The profile summary strip, directory, follow-ups, orders, opportunities, cases, notes, customer portal/attachments, customer authority, Executive evidence consumers and every source-owner command remain retained TypeScript.",
+    "domain": "Customer 360 read actor policy (commerce.read and selected-context expiry), exact Company and optional branch/department scope, Support history purchase, Field Service module, Finance permission and Legal permission gates, a 1..100 page limit, a scope-bound opaque cursor (Company, branch, department and customer), exact event source/prefix pairs, bounded titles/status/hrefs/versions/timestamps, duplicate rejection and strict descending (at, id) ordering.",
+    "application": "One customer_timeline use case requires the current actor and Support history entitlement before any source read, validates the customer identity and cursor scope, returns a scoped not-found for an invisible or foreign customer, and derives hasMore/nextCursor only from the requested page plus one overflow row. Every event is validated against its source family before presentation, and a repository row from a disabled source fails closed rather than leaking into the page.",
+    "adapters": "Read-only PostgreSQL federation over the exact relations already composed by the retained Customer 360 timeline: commerce_orders/commerce_fulfillments/commerce_returns, customer_contact_notes(+history)/customer_followups(+events), crm_leads/crm_opportunities/crm_case_events/crm_lead_activities, support_tickets(+events) with the current IAM assignment predicate, field_service_agreements/orders(+events), finance_invoices and legal_items/legal_native_references/legal_events(+legal_members). It invents no relation or column, performs no write, and requires the caller's serializable Holding transaction. All enabled source queries run inside that one snapshot so the visible customer and event page cannot observe mixed owner states.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/customers/{customer_id}/timeline?cursor=&limit=. Exact registered Host/Holding targets and HTTPS origins, strict customer path shape, strict query keys with duplicate rejection, cursor/limit validation, request-body rejection, private/no-store and no-referrer/nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company scope, Support purchase and serializable owner read.",
+    "transport": "ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact customer/item/page/context shapes, strict source prefixes, internal-path hrefs, unique ordered IDs, coverage/limitations validation and a 2 MiB response bound. A configured failure never falls back to the retained reader.",
+    "ssr": "The workplace customer profile history tab uses the native page when ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG is present. An unset configuration retains customerWorkspaceProfile's timeline. Once configured, an invalid or failed native history read is surfaced through the existing page error policy rather than being silently replaced. The profile summary strip, pending work and notes still use the retained Sales profile read. The feature-sales /customers API route also serves the native timeline for an id query when configured, while an id-less directory read remains retained.",
+    "purchaseAndIdentity": "The application requires the current Commercial Support history entitlement through a public port whenever the actor has support.read; a denied purchase hides the Support source without failing the other owners. The legal filter preserves the retained internal/member visibility plus legal_requester request ownership. Finance and Field Service remain permission/module gated. The composition backend must repeat current authority, purchase admission and scope on its own serializable owner transaction.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, root workspace membership, catalogue acceptance qualification, customer directory/profile-summary/notes command, versions/CAS write, idempotency receipt, audit/outbox effect, source-owner mutation, job, staging, private production or Cloudflare verification."
+  },
+  "changedFiles": [
+    "packages/server-customer_360/Cargo.toml",
+    "packages/server-customer_360/src/lib.rs",
+    "packages/server-customer_360/src/domain/mod.rs",
+    "packages/server-customer_360/src/domain/timeline.rs",
+    "packages/server-customer_360/src/application/mod.rs",
+    "packages/server-customer_360/src/application/timeline.rs",
+    "packages/server-customer_360/src/adapters/mod.rs",
+    "packages/server-customer_360/src/adapters/timeline.rs",
+    "packages/server-customer_360/src/adapters/timeline_http.rs",
+    "packages/server-customer_360/src/public/mod.rs",
+    "packages/server-customer_360/src/public/customer_timeline.rs",
+    "packages/server-customer_360/src/public/customer_timeline_http.rs",
+    "packages/feature-sales/src/public/native-customer-timeline.ts",
+    "packages/feature-sales/src/public/native-customer-timeline-page.ts",
+    "packages/feature-sales/src/adapters/server/next-native-customer-timeline.ts",
+    "packages/feature-sales/package.json",
+    "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/customers/route.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/customers/[id]/screen.tsx",
+    ".env.example",
+    "tests/unit/customer_360/rust-customer-timeline.test.rs",
+    "tests/unit/customer_360/native-customer-timeline-transport.test.ts",
+    "tests/integration/customer_360/rust-customer-timeline-http.test.rs",
+    "tests/integration/customer_360/rust-customer-timeline-postgres.test.rs",
+    "tests/catalogue/suite-manifest.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-customer-360 --locked -- --test-threads=1",
+      "result": "17 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, customer_timeline 9, customer_timeline_http 2, customer_timeline_postgres 6, doc-tests 0)",
+      "workspaceNote": "packages/server-customer_360 is not listed in the root Cargo.toml workspace members, which this subagent is prohibited from editing. The exact --locked command in the worktree therefore reports `package ID specification erpx-server-customer-360 did not match any packages`. The command above was executed in an isolated mirror of the current tree: the current root Cargo.toml copy with packages/server-customer_360 added to members, the current root Cargo.lock copied and resolved offline, and the real package/test/migration trees symlinked. The repository root Cargo.toml and Cargo.lock were not modified by this subagent; the workspace owner must register the package and regenerate the lock before the command is reproducible directly.",
+      "targets": {
+        "customer_timeline": "9 passed: commerce.read/expiry/policy before source, Support purchase and source gating without failing other owners, limit/cursor negatives, deterministic ordering/paging across 40 rows, duplicate/incoherent source rejection, cursor customer/Company scope, scoped not-found/empty history, exact serialized page/item/customer keys, mismatched customer row rejection",
+        "customer_timeline_http": "2 passed: exact distinct targets and HTTPS origins, actual loopback router forwarding Host/Holding/customer/cursor/limit, duplicate/unknown query negatives, limit/empty cursor/control negatives, unknown Host/Holding, conflict mapping, body rejection, private/no-referrer/nosniff headers",
+        "customer_timeline_postgres": "6 passed: full 17-event federation with exact source IDs/titles/hrefs/versions, 5-row cursor paging without duplicates, Company/branch/department/customer isolation, foreign-Company timeline, unlinked customer not-found, per-source gates and Support purchase, Legal member/requester visibility, serializable transaction guards, in-transaction readback after insert, rollback with no persisted effect, persisted commerce-order readback unchanged"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-customer-360 --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-customer-360 warning"
+    },
+    "rustfmt": {
+      "command": "cargo fmt -p erpx-server-customer-360 -- --check",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "customer_timeline_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with synthetic organization, Finance party/chart/account/invoice, Commerce order/fulfillment/return, Sales contact/follow-up, Support ticket/event plus IAM member/assignment, Field Service agreement/order/event, Legal item/reference/event/member and CRM lead/opportunity/event/activity rows. The qualified read path performs no owner write."
+    },
+    "typescript": {
+      "typechecks": [
+        "tsc --noEmit --project packages/feature-sales/tsconfig.json: pass",
+        "tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit --project tests/config/tsconfig.json: pass"
+      ],
+      "vitest": {
+        "command": "ERPX_SELECTED_TEST_FILES='[\"tests/unit/customer_360/native-customer-timeline-transport.test.ts\"]' vitest run --config tests/config/vitest.unit.config.mts",
+        "result": "11 passed, 0 failed",
+        "cases": [
+          "forwards exact Host/Holding/customer/session/CAS/cursor/limit and returns the exact page shape",
+          "forwards the selected branch slug and bounded page",
+          "surfaces a bounded owner PACKAGE_REQUIRED error",
+          "rejects source prefix, scope, coverage, limitations, page and context mismatches",
+          "accepts coherent foreign source families and rejects non-monotonic/oversized/duplicate pages",
+          "rejects unknown Host, malformed customer/cursor/limit and missing authority",
+          "fails closed when the native selector is absent",
+          "does not fall back when the configured selector is malformed",
+          "rejects reserved ports, non-loopback bases, insecure or duplicate Holding origins and undersized timeouts",
+          "maps context/request/authority and owner failures to the retained page/route status policy"
+        ]
+      },
+      "eslint": "targeted changed TypeScript files: pass (the repository's existing Next pages-directory warning only)"
+    },
+    "catalogue": {
+      "manifest": "tests/catalogue/suite-manifest.json parses with 888 suites and contains customer_360.rust-customer-timeline.unit, customer_360.rust-customer-timeline-http.integration, customer_360.rust-customer-timeline-postgres.integration and customer_360.native-customer-timeline-transport.unit",
+      "validation": "bun is not installed in this worktree, so bun run test:catalogue --check, bun run structure:check and the full catalogue runner could not be executed; no full catalogue/structure pass is claimed."
+    },
+    "browser": "not run; no browser, authenticated SSR render, Next dev server, public URL, staging, private production or Cloudflare verification was performed. No workflow is claimed browser-verified.",
+    "static": {
+      "diffCheck": "git diff --check on the changed tracked files: pass"
+    }
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "no new external dependency; the new crate uses existing workspace dependencies only; no root Cargo.toml, Cargo.lock or package lockfile change was authored by this subagent",
+    "compositionDelta": "No src/composition change and no composition backend mount. The owner-local router and public ports are ready for a composition backend but are not mounted here.",
+    "publicPortsRequiredByComposition": [
+      "CustomerTimelineRepository (PostgreSQL owner adapter PgCustomerTimelineRead binds the caller's serializable Holding transaction)",
+      "CustomerTimelineSupportEntitlement (current Commercial support history purchase)",
+      "CustomerTimelineHttpBackend (normal Account session, current Company/branch/department scope, purchase admission and the serializable owner unit)"
+    ],
+    "concurrencyNote": "The worktree HEAD advanced from the mission base d726a0897 to 9ef6f44e0 during this task from other agents' finance commits. Other uncommitted finance/composition changes were preserved and not edited. The shared tests/catalogue/suite-manifest.json was concurrently rewritten once; this subagent re-applied only its four additive entries."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": "none",
+    "retained": [
+      "customerTimeline, customerDirectory and customerTimelineEvents remain the TypeScript projection, directory and Executive evidence source",
+      "customerWorkspaceProfile, profile summary strip, pending work, follow-ups, orders, opportunities, cases and notes remain the Sales/feature-sales retained path",
+      "Customer portal projection/actions/attachments and customer-authority identity/duplicate/access reads and commands",
+      "All Commerce, Sales, CRM, Support, Field Service, Finance and Legal commands and writes",
+      "Retained customer timeline behavior whenever ERPX_NATIVE_CUSTOMER_TIMELINE_CONFIG is unset"
+    ],
+    "cutover": "Only the workplace customer profile history tab and the feature-sales /customers API timeline read switch to the native owner when configured. An unset config retains the TypeScript timeline; a configured invalid or failed native read throws through the retained page/route error policy and never reads the TypeScript timeline as a fallback."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "packages/server-customer_360 is not a root Cargo workspace member and the root lock has no package entry; the workspace owner must register it",
+      "No composition backend implements the public ports or mounts customer_timeline_http_router",
+      "No authenticated browser or deployment verification was performed",
+      "The read-only slice has no command path, so versions/CAS writes, idempotency, audit/outbox and source-owner handoff cannot be qualified here",
+      "The profile summary strip, directory, notes/follow-up commands and customer portal/attachments remain TypeScript"
+    ],
+    "nextAction": "Have the composition owner register the crate, implement the Support history purchase port and HTTP backend, and mount the router behind Account session/current scope; then qualify the customer directory/profile-summary/notes command slice with versions/CAS, idempotency, audit/outbox and the same-transaction Sales/Support/CRM guards. Browser acceptance remains deferred."
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "PMS stay-room command domain and application facts are unit-tested through a registered Cargo target; adapter, persisted receipt, outbox/audit, and HTTP coverage remain open.",
+  "capability": "pms-stay-room-owner-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "domain": "Stay-room command validation, actor context, package entitlement, stay record validation, request hashing, and plan transitions for stay.assign/stay.move are covered by owner-local Rust unit tests.",
+    "application": "The idempotent command orchestration surface (repository and entitlement traits, pms_stay_room, and request hashing) is compiled and exercised for its pure functions; full repository-backed orchestration remains adapter-dependent.",
+    "adapters": "No adapter, PostgreSQL read/write, receipt, audit, or outbox implementation was added. Persisted coverage remains open.",
+    "http": "No HTTP route or transport was added. HTTP coverage remains open.",
+    "frontend": "No frontend change was made."
+  },
+  "tests": [
+    "pms.rust-pms-stay-room.unit: 9 passed",
+    "cargo test -p erpx-server-pms --locked --test pms_stay_room: 9 passed"
+  ],
+  "limits": [
+    "Adapter and persisted coverage remain open.",
+    "HTTP coverage remains open.",
+    "No authenticated browser journey was run; no browser verification is claimed.",
+    "Hosted CI, staging, installed production, and Cloudflare were not accessed."
+  ]
+}

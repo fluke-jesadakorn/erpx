@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "private production Field runtime qualified; Finance production composition explicitly narrowed out of the Field bundle and fail-closed",
+  "capability": "field-private-production-runtime",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "78b6b210a",
+  "implemented": {
+    "productionConfiguration": {
+      "type": "DevelopmentApiConfiguration::parse_production",
+      "requirements": [
+        "mode=production and environment=production",
+        "direct-loopback transport",
+        "durable postgres URLs on 127.0.0.1:5432 with no query/socket options",
+        "no lease tokens",
+        "real Account security keyring",
+        "package lifecycle secret with enforced source-record targets",
+        "email verification enabled",
+        "Account bootstrap disabled",
+        "loopback listener (3101 permitted for the private service)",
+        "rejects any Finance capability with FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE"
+      ],
+      "evidence": "tests/unit/identity_access/rust-private-development-api.test.rs::production_configuration_requires_durable_loopback_databases_and_real_authority"
+    },
+    "commands": [
+      "erpx-server production-api --production-config /absolute/private.json",
+      "erpx-server production-worker --production-config /absolute/private.json"
+    ],
+    "assembly": "assemble_production_api mounts the same owner routers as development, including the Field HTTP routes, with real Account authority and migration inventory checks.",
+    "jobs": "run_production_workers_file supervises the Field dependency/outbox worker, the configured Files scan worker and any configured initial-count worker, restarting a stopped worker after a bounded delay and shutting down gracefully. The Field push provider runs inside the dependency worker.",
+    "migration": "migrations/postgres/control/0044_configured_account_environments.sql drops only the three known inline environment checks, adds a named bounded check and is idempotent; the production runtime test exercises a production session binding.",
+    "filesWorker": "The native Files scan worker now accepts RuntimeDatabase selections. Leased development databases keep the disposable lease identity checks; durable production databases validate the exact configured database name and role instead. The production supervisor no longer omits or rejects a configured Field Files provider."
+  },
+  "checks": [
+    {
+      "suite": "field_service.rust-private-field-only-postgres.integration",
+      "result": "4 passed / 0 failed",
+      "criticalCase": "production_runtime_mounts_field_routes_with_durable_databases: production document, production Account binding, authenticated GET /api/v1/holdings/acme/field-service/workspace = 200"
+    },
+    {
+      "suite": "identity_access.rust-private-development-api.unit",
+      "result": "10 passed / 0 failed including production parser negatives and assembly profile rejection"
+    },
+    {
+      "suite": "field_service.field-service.integration",
+      "result": "8 passed / 0 failed including the registered full workflow case"
+    },
+    {
+      "suite": "field_service.rust-parts-command-postgres.integration",
+      "result": "35 passed / 0 failed"
+    },
+    {
+      "suite": "field_service.rust-http-parity-postgres.integration",
+      "result": "40/41 in the suite run; the remaining case passed alone (PostgreSQL connection slots)"
+    },
+    {
+      "suite": "shared.persistence.rust-migration-inventory-postgres.integration",
+      "result": "2 passed / 0 failed"
+    },
+    {
+      "suite": "typecheck / structure / architecture / docs",
+      "result": "passed"
+    },
+    {
+      "suite": "files.rust-field-files-private-api.provider",
+      "result": "2 passed / 0 failed",
+      "criticalCase": "production_files_worker_accepts_durable_databases: the native Files scan worker assembles from a production configuration with durable databases and runs until shutdown"
+    },
+    {
+      "suite": "identity_access.rust-private-development-api.unit",
+      "result": "11 passed / 0 failed",
+      "criticalCase": "production_configuration_rejects_finance_composition: Finance journal reads and Field receipt writes are rejected with FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE"
+    }
+  ],
+  "limits": [
+    "Local scoped evidence, not owner/workflow acceptance.",
+    "The installed production service on 3101 was not started, stopped or changed.",
+    "Finance production composition is explicitly out of scope for this bundle; production Field billing/receipts remain unavailable and the parser fails closed.",
+    "The worker supervisor restart path is exercised by the worker shutdown path; a forced crash-restart is not simulated.",
+    "Checklist 18 (scoped PR/merge) remains open."
+  ],
+  "scopeNarrowing": {
+    "decision": "The Field bundle production runtime covers Field workspace, orders, visits and Files. Finance production release/Company acceptance ports are a Finance-owner dependency outside this bundle.",
+    "trackingCode": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
+    "failClosed": "A production document with any Finance capability is rejected at configuration parse; development semantics are never mounted in production.",
+    "impact": "Production Field billing/receipts remain unavailable until the Finance owner delivers those ports."
+  },
+  "outOfScopeDependency": {
+    "owner": "finance",
+    "code": "FINANCE_PRODUCTION_COMPOSITION_UNAVAILABLE",
+    "reason": "Finance production release and Company acceptance ports are a Finance-owner dependency outside the Field bundle.",
+    "effect": "Production Field billing/receipts remain unavailable; the production parser rejects Finance-configured documents instead of mounting development semantics.",
+    "fieldChecklist13": "complete with the narrowed scope; only checklist 18 (scoped PR/merge) remains."
+  },
+  "transportFixCommit": "7025a1fb3"
+}

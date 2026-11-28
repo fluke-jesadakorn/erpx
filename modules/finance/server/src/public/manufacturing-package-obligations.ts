@@ -1,0 +1,1 @@
+export {lockManufacturingFinancePackageObligationSources,manufacturingFinancePackageObligations} from "@erpx/finance-server/adapters/manufacturing-package-obligations";

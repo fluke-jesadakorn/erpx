@@ -1,0 +1,32 @@
+{
+  "name": "@erpx/field-service-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./adapters/finance-record-sources": "./src/adapters/finance-record-sources.ts",
+    "./adapters/record-purchases": "./src/adapters/record-purchases.ts",
+    "./public/native-work": "./src/public/native-work.ts",
+    "./public/native-executive": "./src/public/native-executive.ts",
+    "./public/finance-record-sources": "./src/public/finance-record-sources.ts",
+    "./public/record-purchases": "./src/public/record-purchases.ts",
+    "./public/rules/parts-entry": "./src/public/rules/parts-entry.ts",
+    "./domain/parts-entry": "./src/domain/parts-entry.ts",
+    "./public/native-source-record": "./src/public/native-source-record.ts",
+    "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts",
+    "./public/native-executive-evidence": "./src/public/native-executive-evidence.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/platform-contracts": "workspace:*",
+    "@erpx/platform-native-sdk": "workspace:*",
+    "@erpx/identity-access-server": "workspace:*",
+    "@erpx/platform-runtime-server": "workspace:*",
+    "@erpx/platform-shared-server": "workspace:*",
+    "next": "16.4.3",
+    "server-only": "0.0.1"
+  }
+}

@@ -1,19 +1,19 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createDocumentDerivativeApplication,type DocumentDerivativePorts,type DocumentDerivativeRepository} from "@erpx/server-files/application/document-derivatives";
-import {createOrphanPreservationApplication,type OrphanPreservationPorts,type OrphanPreservationRepository} from "@erpx/server-files/application/orphan-preservation";
-import {createAttachmentMigrationApplication,type AttachmentMigrationPorts,type AttachmentMigrationRepository} from "@erpx/server-files/application/attachments-migration";
-import {validateDocumentPage,validateDocumentType} from "@erpx/server-files/domain/document-derivatives";
-import {preservationMetadataInput,validateOrphanManifest} from "@erpx/server-files/domain/attachments/orphan-preservation";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {FileMetadata,StoredFile} from "@erpx/server-runtime/public/runtime/types";
-import type {expenseAiSource} from "@erpx/server-people_payroll/public/expense-ai-source";
-import type {LegacySource} from "@erpx/server-files/domain/attachments/migration";
-import type {AttachmentPolicy} from "@erpx/server-files/domain/attachments/types";
+import {createDocumentDerivativeApplication,type DocumentDerivativePorts,type DocumentDerivativeRepository} from "@erpx/files-server/application/document-derivatives";
+import {createOrphanPreservationApplication,type OrphanPreservationPorts,type OrphanPreservationRepository} from "@erpx/files-server/application/orphan-preservation";
+import {createAttachmentMigrationApplication,type AttachmentMigrationPorts,type AttachmentMigrationRepository} from "@erpx/files-server/application/attachments-migration";
+import {validateDocumentPage,validateDocumentType} from "@erpx/files-server/domain/document-derivatives";
+import {preservationMetadataInput,validateOrphanManifest} from "@erpx/files-server/domain/attachments/orphan-preservation";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {FileMetadata,StoredFile} from "@erpx/platform-runtime-server/public/runtime/types";
+import type {expenseAiSource} from "@erpx/people-payroll-server/public/expense-ai-source";
+import type {LegacySource} from "@erpx/files-server/domain/attachments/migration";
+import type {AttachmentPolicy} from "@erpx/files-server/domain/attachments/types";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[]};
 function strict<T extends object>(facts:Partial<T>):T{return new Proxy(facts,{get(target,name){if(name==='then')return undefined;if(name in target)return target[name as keyof T];return ()=>{throw Error('Unexpected port: '+String(name));};}}) as T;}
 const input={page:1,pageCount:1,originalChecksum:'original',bytes:new Uint8Array([0xff,0xd8,1]).buffer};
 const source={owner_type:'expense_claim',owner_id:'expense',checksum_sha256:'original',media_type:'application/pdf'};
-function document(overrides:Partial<DocumentDerivativePorts<string>>={},facts:Partial<DocumentDerivativeRepository<string>>={}){const put=vi.fn(async()=>{}),remove=vi.fn(async()=>{}),commit=vi.fn<DocumentDerivativePorts<string>['commands']['commit']>(async(_a,_key,_op,_input,_id,_version,result)=>result),ports:DocumentDerivativePorts<string>={repository:{attachment:async()=>source,paymentExpense:async()=>null,existing:async()=>null,pageCountGuard:()=> 'page-count',storageGuard:()=> 'storage-cap',document:()=> 'document',derivative:()=> 'derivative',storage:()=> 'ledger',...facts},clock:{now:()=>42},identifiers:{next:()=> 'derivative-id'},commands:{replay:async()=>null,commit},readOnly:()=>false,uploadsFrozen:()=>false,authority:async()=>({guard:()=> 'authority'}),source:async()=>({claim:strict<Awaited<ReturnType<typeof expenseAiSource>>['claim']>({version:3}),guards:()=>['source-version']}),allowed:async()=>true,digest:async()=> 'page-checksum',put,remove,...overrides};return {app:createDocumentDerivativeApplication(ports),put,remove,commit};}
+function document(overrides:Partial<DocumentDerivativePorts<string>>={},facts:Partial<DocumentDerivativeRepository<string>>={}){const put=vi.fn(async()=>{}),remove=vi.fn(async()=>{}),commit=vi.fn<DocumentDerivativePorts<string>['commands']['commit']>(async(_a,_key,_op,_input,_id,_version,result)=>result),ports:DocumentDerivativePorts<string>={repository:{attachment:async()=>source,paymentExpense:async()=>null,existing:async()=>null,pageCountGuard:()=> 'page-count',storageGuard:()=> 'storage-cap',document:async()=> 'document',derivative:async()=> 'derivative',storage:async()=> 'ledger',...facts},clock:{now:()=>42},identifiers:{next:()=> 'derivative-id'},commands:{replay:async()=>null,commit},readOnly:()=>false,uploadsFrozen:()=>false,authority:async()=>({guard:()=> 'authority'}),source:async()=>({claim:strict<Awaited<ReturnType<typeof expenseAiSource>>['claim']>({version:3}),guards:()=>['source-version']}),allowed:async()=>true,digest:async()=> 'page-checksum',put,remove,...overrides};return {app:createDocumentDerivativeApplication(ports),put,remove,commit};}
 describe('Document pages retain source authority and compensated storage',()=>{
  test.each([{page:0},{pageCount:21},{page:1.2},{pageCount:1.5},{bytes:new ArrayBuffer(2*1024*1024+1)}])('rejects page limits before any owner or file port',patch=>{expect(()=>validateDocumentPage({...input,...patch})).toThrowError(expect.objectContaining({code:'DOCUMENT_PAGE_LIMIT'}));});
  test('a rendered page must begin with the JPEG signature',()=>{expect(()=>validateDocumentPage({...input,bytes:new Uint8Array([1,2]).buffer})).toThrowError(expect.objectContaining({code:'PAGE_TYPE'}));});

@@ -1,14 +1,14 @@
 import { expect, it } from "vitest";
-import { buildWorkCards } from "@erpx/server-work_projection/public/work-cards";
+import { buildWorkCards } from "@erpx/work-projection-server/public/work-cards";
 import {
   defaultWorkCardIds,
   newWorkHref,
   type WorkCapabilities,
-} from "@erpx/feature-work_projection/lib/work-cards";
-import { workCardPreferenceSchema } from "@erpx/server-work_projection/public/work-card-preferences";
-import { filterWork, workInView, workTypes, type WorkItem } from "@erpx/feature-work_projection/lib/work-item";
-import { workCardTone, workTypeTone } from "@erpx/feature-work_projection/lib/work-category-tone";
-import { betaDestinationAllowed } from "@erpx/server-identity_access/public/beta-access";
+} from "@erpx/work-projection-ui/lib/work-cards";
+import { workCardPreferenceSchema } from "@erpx/work-projection-server/public/work-card-preferences";
+import { filterWork, workInView, workTypes, type WorkItem } from "@erpx/work-projection-ui/lib/work-item";
+import { workCardTone, workTypeTone } from "@erpx/work-projection-ui/lib/work-category-tone";
+import { betaDestinationAllowed } from "@erpx/identity-access-server/public/beta-access";
 
 const base = "/holdings/acme/branches/bangkok";
 const capabilities: WorkCapabilities = {

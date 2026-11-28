@@ -1,0 +1,5 @@
+import {canonicalDestinationLinks} from "@erpx/work-projection-ui/lib/destination-links";
+import { requireWorkContext } from "@erpx/identity-access-server/public/authorization";
+import { workReports,workReportCsv } from "@erpx/work-projection-server/public/work-reports";
+import { errorResponse } from "@erpx/platform-runtime-server/public/http";
+export async function GET(request:Request,context:{params:Promise<{holdingSlug:string}>}){try{const query=new URL(request.url).searchParams,actor=await requireWorkContext((await context.params).holdingSlug),data=await workReports(actor,Object.fromEntries(query),query.get("format")==="csv");if(query.get("format")==="csv")return new Response(workReportCsv(data.allRows),{headers:{"Content-Type":"text/csv; charset=utf-8","Content-Disposition":'attachment; filename="work-report.csv"',"Cache-Control":"private, no-store"}});const {allRows,...page}=data;void allRows;return Response.json(canonicalDestinationLinks({data:page}),{headers:{"Cache-Control":"private, no-store"}});}catch(error){return errorResponse(error);}}

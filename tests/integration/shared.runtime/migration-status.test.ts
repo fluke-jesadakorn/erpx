@@ -1,8 +1,8 @@
 import {expect,it} from 'vitest';
-import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
+import {cp,mkdir,mkdtemp,readdir,rm,writeFile} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {env} from '../../support/runtime-env';
-import {inspectMigrations,migrateDatabase} from '@erpx/server-runtime/public/runtime/migrations';
+import {inspectMigrations,migrateDatabase} from '@erpx/platform-runtime-server/public/runtime/migrations';
 
 it.each([
  {track:'control' as const,db:env.CONTROL_DB,addition:'0037_migration_receipts.sql'},
@@ -37,7 +37,7 @@ it.each([
 // app access to erpx_migrations or rewrite a migration receipt to fake absence.
 // This suite's restricted erpx_test_admin is the migration owner, not a runtime
 // app-role login. Native ACL facts below preserve that explicit proof limit.
-import {payrollOtherSchemaAvailable} from '@erpx/server-people_payroll/adapters/payroll-other-remittance-sources';
+import {payrollOtherSchemaAvailable} from '@erpx/people-payroll-server/adapters/payroll-other-remittance-sources';
 it('reads actual Payroll other-liability schema availability through the migration-owned function before and after1066 without opening the receipt table',async()=>{
  const db=env.H001_DB,source=resolve('migrations/postgres'),old=await mkdtemp(resolve('.runtime/tests/payroll-schema-before-'));
  try{
@@ -63,3 +63,30 @@ it('reads actual Payroll other-liability schema availability through the migrati
   await migrateDatabase(db,'holding-write',old);expect(await payrollOtherSchemaAvailable(db)).toBe(true);
  }finally{await rm(old,{recursive:true,force:true});}
 });
+
+// Regression: the receipt insert used to travel over the native HTTP command
+// ingress, so it either failed with 42P01 on a target database without ledger
+// tables or committed the receipt outside the DDL transaction. The receipt is
+// now bound from the Rust-owned contract and runs on the migrating connection.
+it('records the receipt on the migrating connection without the native command ingress',async()=>{
+ const root=await mkdtemp(resolve('.runtime/tests/migration-receipt-'));
+ const previous=process.env.ERPX_NATIVE_RUNTIME_CONFIG;
+ try{
+  await mkdir(join(root,'control'));
+  await writeFile(join(root,'control','0001_receipt_probe.sql'),'CREATE TABLE migration_receipt_probe(id integer PRIMARY KEY)');
+  // A loopback discard port: any HTTP command transport would fail closed.
+  process.env.ERPX_NATIVE_RUNTIME_CONFIG=JSON.stringify({privateBaseUrl:'http://127.0.0.1:9',timeoutMs:250,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h',companyId:'c'}]});
+  await migrateDatabase(env.CONTROL_READ_DB,'control',root);
+  const receipt=await env.CONTROL_READ_DB.prepare("SELECT checksum FROM erpx_migrations WHERE name='0001_receipt_probe.sql'").first<{checksum:string}>();
+  expect(receipt?.checksum).toMatch(/^[a-f0-9]{64}$/);
+  expect(await env.CONTROL_READ_DB.prepare("SELECT to_regclass('public.migration_receipt_probe') IS NOT NULL present").first<boolean>('present')).toBe(true);
+  await writeFile(join(root,'control','0002_broken_probe.sql'),'CREATE TABLE broken_probe(');
+  await expect(migrateDatabase(env.CONTROL_READ_DB,'control',root)).rejects.toBeTruthy();
+  expect(await env.CONTROL_READ_DB.prepare("SELECT count(*)::int n FROM erpx_migrations WHERE name='0002_broken_probe.sql'").first<number>('n')).toBe(0);
+ }finally{
+  if(previous===undefined)delete process.env.ERPX_NATIVE_RUNTIME_CONFIG;else process.env.ERPX_NATIVE_RUNTIME_CONFIG=previous;
+  await env.CONTROL_READ_DB.prepare('DROP TABLE IF EXISTS migration_receipt_probe').run();
+  await env.CONTROL_READ_DB.prepare("DELETE FROM erpx_migrations WHERE name='0001_receipt_probe.sql'").run();
+  await rm(root,{recursive:true,force:true});
+ }
+},60000);

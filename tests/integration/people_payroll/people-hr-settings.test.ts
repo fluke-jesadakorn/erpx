@@ -1,15 +1,15 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { GET } from "@erpx/feature-people/routes/api/v1/holdings/[holdingSlug]/people/hr-settings/route";
-import { administerLeave } from "@erpx/server-people_payroll/public/leave-self-service";
-import { calendarData } from "@erpx/server-work_projection/public/calendar/index";
-import { addDays, rosterMonday } from "@erpx/feature-people_payroll/lib/people-roster";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { GET } from "@erpx/product-people-ui/routes/api/v1/holdings/[holdingSlug]/people/hr-settings/route";
+import { administerLeave } from "@erpx/people-payroll-server/public/leave-self-service";
+import { calendarData } from "@erpx/work-projection-server/public/calendar/index";
+import { addDays, rosterMonday } from "@erpx/people-payroll-ui/lib/people-roster";
 
 const state = vi.hoisted(()=>({actor:null as WorkContext|null}));
-vi.mock("@erpx/server-identity_access/public/authorization",()=>({requireWorkContext:async()=>state.actor!}));
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/identity-access-server/public/authorization",()=>({requireWorkContext:async()=>state.actor!}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB, context={params:Promise.resolve({holdingSlug:"test"})}, key=()=>crypto.randomUUID();
 let fixture:Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});

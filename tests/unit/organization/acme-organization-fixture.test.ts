@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { demoStaffPlan, demoDepartments, demoInitialPassword } from "../../../fixtures/organization/builders/acme-organization";
-import { isRoleValidAtScope } from "@erpx/server-identity_access/public/rules/workspace-access";
+import { isRoleValidAtScope } from "@erpx/identity-access-server/public/rules/workspace-access";
 
 const ceo = { personId: "existing-ceo", positionId: "existing-ceo-position" };
 const plan = demoStaffPlan(ceo);

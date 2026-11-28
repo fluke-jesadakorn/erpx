@@ -1,0 +1,112 @@
+{
+  "recordedAt": "2026-11-09T09:25:00+07:00",
+  "branch": "codex/rust-backend-migration",
+  "sourceIdentity": "74e34f829f693806b3e70ed9894c3956932f58ac",
+  "previousIdentity": "4a70fb0aa6922d0dd2342581df0a7d1cd275b1fb",
+  "bundle": "runtime-durable-outbox-shared-bounds",
+  "scope": "Runtime, Shared, Records and Platform foundation only. This is not owner closure, not a workflow promotion and not a claim of 41-owner or 206-workflow completion.",
+  "commits": [
+    "b43436968 feat(runtime): add native durable outbox queue",
+    "4a6d50028 fix(shared): align identifier bounds with UTF-16 contracts",
+    "4a70fb0aa fix(records): enforce owner module visibility in read guards",
+    "74e34f829 fix(platform): recover native dead-letter jobs with runtime ownership"
+  ],
+  "owners": [
+    {
+      "id": "runtime",
+      "status": "foundation",
+      "added": [
+        "packages/server-runtime/src/domain/jobs.rs",
+        "packages/server-runtime/src/adapters/postgres/jobs.rs",
+        "packages/server-runtime/src/public/postgres/mod.rs"
+      ],
+      "tests": [
+        "cargo test --locked -p erpx-server-runtime --test outbox_jobs_postgres",
+        "cargo test --locked -p erpx-service --test service_count_outbox_postgres"
+      ],
+      "result": "3 passed; 0 failed (generic queue); 7 passed; 0 failed (Service Count consumer)",
+      "limits": "The queue primitive is native and mounted through the existing Service Count/Field worker. Other owner families still run through the TypeScript jobs supervisor. No production worker registration or scheduler was added.",
+      "next": "Mount the generic queue for the next owner family (Records or Billing jobs) and retire that TypeScript runOne family after browser/job evidence."
+    },
+    {
+      "id": "shared",
+      "status": "foundation",
+      "added": [
+        "packages/server-shared/src/domain/identity.rs",
+        "packages/server-shared/src/domain/source_record.rs"
+      ],
+      "tests": [
+        "cargo test --locked -p erpx-server-shared --test shared_core"
+      ],
+      "result": "5 passed; 0 failed",
+      "limits": "Identifier and source-record bounds now match JavaScript UTF-16 semantics. The root SourceRecord value object and record_source_contract::SourceRecord snapshot remain distinct names by module; no wire alias was removed.",
+      "next": "Add generated contract parity for the remaining shared DTOs before declaring the Shared owner complete."
+    },
+    {
+      "id": "records",
+      "status": "partial",
+      "added": [
+        "src/composition/src/records.rs"
+      ],
+      "tests": [
+        "cargo test -p erpx-service --locked --no-default-features --features existing-business --lib records::guard_tests"
+      ],
+      "result": "1 passed; 0 failed",
+      "limits": "Context reference targets and registry rows now require the current assignment module set. Record writes, request administration and owner-specific source admission remain retained.",
+      "next": "Port one Records write through PgCommandLedger and mount its HTTP route before removing the TypeScript generic record mutation path."
+    },
+    {
+      "id": "workflow",
+      "status": "partial",
+      "added": [
+        "packages/server-workflow/src/adapters/service_count_outbox.rs"
+      ],
+      "tests": [
+        "cargo test --locked -p erpx-service --test service_count_outbox_postgres"
+      ],
+      "result": "7 passed; 0 failed",
+      "limits": "Service Count now consumes the shared Runtime queue. Generic approval decisions, reroute, flow assignment and the outbox projector remain TypeScript authority.",
+      "next": "Port generic approval decision/reroute and flow assignment on PgCommandLedger, then run a native outbox consumer for those families."
+    },
+    {
+      "id": "platform_administration",
+      "status": "partial",
+      "added": [
+        "packages/server-platform_administration/src/adapters/platform_postgres.rs"
+      ],
+      "tests": [
+        "ERPX_BUN_BIN=/Users/fluke/.bun/bin/bun cargo test --locked -p erpx-server-platform-administration --test platform_administration_postgres -- --test-threads=1"
+      ],
+      "result": "12 passed; 0 failed; 50.46s",
+      "limits": "The existing admin recovery now works for native-owned rows. No new admin UI or provider work is claimed.",
+      "next": "Keep the retry audit and receipt evidence with the native queue recovery path."
+    }
+  ],
+  "files": {
+    "id": "files",
+    "status": "partial",
+    "tests": [
+      "cargo test --locked -p erpx-server-files --test business_evidence_postgres"
+    ],
+    "result": "3 passed; 0 failed (shared business-evidence adapter, prior commit e208578b4 plus current owner tests)",
+    "limits": "The generic Files binding adapter still awaits a production owner consumer. Commerce/Quality consumers are owned by another active writer.",
+    "next": "Wire the adapter into the native Commerce receipt/return handoff without overwriting the active writer's files."
+  },
+  "environment": {
+    "postgres": "disposable local PostgreSQL leased through ERPX_TEST_ADMIN_URL",
+    "node": "v26.12.0 observed in this shell",
+    "bun": "/Users/fluke/.bun/bin/bun (not on PATH; platform engineering parity tests need ERPX_BUN_BIN)",
+    "command": "cargo test --locked"
+  },
+  "notRun": [
+    "No production or staging access.",
+    "No public gateway or Cloudflare change.",
+    "No Docker/Dev Container native private API (44817) or authenticated browser journey.",
+    "No full workspace clippy, Next production build or cross-owner journey gate for this bundle."
+  ],
+  "mapping": {
+    "ownersComplete": 0,
+    "workflowCountsChanged": false,
+    "note": "No owner or workflow is counted complete from this foundation bundle."
+  }
+}

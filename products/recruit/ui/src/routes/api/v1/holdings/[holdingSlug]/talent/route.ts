@@ -1,0 +1,110 @@
+import {canonicalDestinationLinks} from "@erpx/work-projection-ui/lib/destination-links";
+import { requireWorkContext } from "@erpx/identity-access-server/public/authorization";
+import { requestPublicOrigin } from "@erpx/manage-erpx-server/public/public-origin";
+import { ApiError, errorResponse } from "@erpx/platform-runtime-server/public/http";
+import { z } from "zod";
+import {
+  changeTalentRecord,
+  createTalentOffer,
+} from "@erpx/talent-server/public/talent";
+import {nativeTalentRequisitionCommand} from "@erpx/talent-ui/public/native-talent-page";
+import {nativeTalentLifecycleAvailable,nativeTalentLifecycleCommand} from "@erpx/talent-server/public/native-talent-lifecycle-page";
+import { candidatePrivacySchema,changeCandidatePrivacy } from "@erpx/people-payroll-server/public/people-handoffs";
+type C = { params: Promise<{ holdingSlug: string }> };
+const headers = { "Cache-Control": "private, no-store" };
+const candidatePrivacyRequestSchema = candidatePrivacySchema
+  .extend({ entity: z.literal("candidate-privacy"), id: z.string().min(1) })
+  .strict();
+async function readInput(r: Request): Promise<Record<string, unknown>> {
+  let input: unknown;
+  try {
+    input = await r.json();
+  } catch {
+    throw new ApiError(422, "INVALID_JSON", "Request body must be valid JSON.");
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new ApiError(422, "INVALID_BODY", "Request body must be a JSON object.");
+  return input as Record<string, unknown>;
+}
+// Application-detail and workspace reads are native-only: the mounted owner
+// route serves /api/v1/holdings/{holdingSlug}/talent/applications/{id}/detail
+// and the native workspace port. This shared route keeps write authority only.
+export async function POST(r: Request, c: C) {
+  try {
+    if (
+      r.headers.get("origin") &&
+      r.headers.get("origin") !== requestPublicOrigin(r)
+    )
+      throw new ApiError(
+        403,
+        "ORIGIN_FORBIDDEN",
+        "Use the application origin.",
+      );
+    const key = r.headers.get("Idempotency-Key");
+    if (!key)
+      throw new ApiError(
+        422,
+        "COMMAND_KEY_REQUIRED",
+        "Idempotency-Key is required.",
+      );
+    const a = await requireWorkContext((await c.params).holdingSlug),
+      i = await readInput(r);
+    let data;
+    const native = await nativeTalentRequisitionCommand(a, i, key);
+    const lifecycle = native
+      ? undefined
+      : nativeTalentLifecycleAvailable()
+        ? await nativeTalentLifecycleCommand(r, a, (await c.params).holdingSlug, i, key)
+        : undefined;
+    if (native) data = native;
+    else if (lifecycle !== undefined) data = lifecycle;
+    else if (i.entity === "candidate-privacy") {
+      const privacy = candidatePrivacyRequestSchema.parse(i);
+      data = await changeCandidatePrivacy(
+        a,
+        privacy.id,
+        {
+          action: privacy.action,
+          expectedVersion: privacy.expectedVersion,
+          reason: privacy.reason,
+        },
+        key,
+      );
+    }
+    else if (typeof i.id === "string") {
+      if (
+        i.entity !== "requisition" &&
+        i.entity !== "application" &&
+        i.entity !== "proposal" &&
+        i.entity !== "offer"
+      )
+        throw new ApiError(
+          422,
+          "TALENT_ENTITY_REQUIRED",
+          "Choose a registered Recruitment record type.",
+        );
+      data = await changeTalentRecord(a, i.entity, i.id, i, key);
+    }
+    else if (i.entity === "requisition")
+      throw new ApiError(
+        503,
+        "NATIVE_TALENT_REQUISITION_UNAVAILABLE",
+        "The native Talent requisition command is unavailable.",
+      );
+    else if (
+      i.entity === "candidate" ||
+      i.entity === "application" ||
+      i.entity === "proposal"
+    )
+      throw new ApiError(
+        503,
+        "NATIVE_TALENT_LIFECYCLE_UNAVAILABLE",
+        "The native Talent lifecycle command is unavailable.",
+      );
+    else if(i.entity==="offer")data = await createTalentOffer(a, i, key);
+    else throw new ApiError(422,"TALENT_ENTITY_REQUIRED","Choose a registered Recruitment record type.");
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
+  } catch (e) {
+    return errorResponse(e);
+  }
+}

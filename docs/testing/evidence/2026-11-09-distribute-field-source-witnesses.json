@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "Distribute Field Count/Parts/Finance source witnesses and a Finance period-close workpaper candidate were exercised on the working source. The Field witnesses are unmounted source predicates and do not close a workflow. The Finance candidate crosses Common-owned packages/server-files and is not committed or mounted; the reviewer found an unresolved Commercial\u2194Finance lock-order cycle and additional policy/parity gaps.",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "7a552ff1ee6474da8288abb458cd49e3d74eae85",
+  "priorPushedCommit": "ab06f19aa01ee4c269b3dcf2b1c197e327fe2d33",
+  "ownership": {
+    "distribute": "Inventory, Finance and Field Service source modules and their existing owner suites.",
+    "common": "packages/server-files, packages/server-records, packages/server-workflow, packages/server-work_projection, packages/server-runtime, packages/server-shared, Commerce, Billing.",
+    "coordination": "The Finance period-close candidate uses the Common-owned Files business-evidence port and a shared composition mount. Do not commit, mount or count it until Common acknowledges the frozen Files contract and the coordinator resolves the lock order."
+  },
+  "tests": {
+    "fieldCount": {
+      "command": "cargo test -p erpx-server-inventory --test service_initial_count_revision_postgres --locked",
+      "result": "3 passed, 0 failed, 0 ignored (4.15s)",
+      "log": ".scratch/dev/rust-migration/field-count-terminal-marker-full.log",
+      "test": "initial_count_terminal_and_marker_sources_match_actual_ts_and_isolate_unrelated_json",
+      "limitations": "Rollback-only source predicate. Malformed-JSON variant is blocked by installed receipt guards/indexes; no guard was weakened. Marker and terminal composition remain unmounted."
+    },
+    "fieldParts": {
+      "command": "cargo test -p erpx-service --test field_service_parts_postgres --features existing-business --locked field_parts_consumption_source_matches_actual_typescript_parts_journal_and_rolls_back_without_effects -- --nocapture",
+      "result": "1 passed, 0 failed, 37 filtered (132.30s)",
+      "suite": "tests/integration/field_service/rust-parts-command-postgres.test.rs",
+      "limitations": "Actual TS partsJournal oracle and rollback only; source-only, no composed authorization or workflow closure."
+    },
+    "inventoryConsumption": {
+      "command": "cargo test -p erpx-server-inventory --test consumption_postgres --locked",
+      "result": "26 passed, 0 failed, 0 ignored (96.17s)",
+      "limitations": "Includes the hardened field_journal_consumption_marker TEMP-shadow/TS-oracle case; source-only."
+    },
+    "fieldFinance": {
+      "command": "cargo test -p erpx-server-finance --locked --test journal_source_postgres",
+      "result": "22 passed, 0 failed, 0 ignored (73.65s)",
+      "log": ".scratch/dev/rust-migration/field-finance-phase-ts-full-pg.log",
+      "test": "field_finance_history_phases_match_imported_typescript_sources_and_money_pointers",
+      "crossCheck": "cargo test -p erpx-server-field-service --locked --test service_parts_history_postgres: 4 passed, 0 failed (5.15s), .scratch/dev/rust-migration/field-finance-phase-field-history-crosscheck.log",
+      "limitations": "Source-phase and Money-pointer parity only; composition mount, normal SSO, purchase admission and committed command remain open."
+    },
+    "financePeriodCloseCandidate": {
+      "command": "cargo test -p erpx-service --locked --test period_close_postgres --features private-field-api",
+      "result": "6 passed, 0 failed, 0 ignored (30.27s) on the final working source after the Files table-lock, empty-set and require_current manifest changes",
+      "log": ".scratch/dev/rust-migration/current/finance-period-close-final.log",
+      "filesCommand": "cargo test -p erpx-server-files --locked --test business_evidence_postgres",
+      "filesResult": "3 passed, 0 failed, 0 ignored (3.77s) on the final working source",
+      "filesLog": ".scratch/dev/rust-migration/current/files-business-evidence-final.log",
+      "compile": "cargo check -p erpx-service --all-targets --features business-http,private-field-api,production-api --locked finished successfully in 2m07s on the working source (external Common verification log .scratch/dev/rust-migration/verification/cargo-check-service.log).",
+      "limitations": "Not commit-ready. Common-owned Files port and shared composition; reviewer blocker: Commercial\u2194Finance lock-order cycle with the Field parts consumer. Additional gaps: empty-set acceptance, require_current does not retain purpose/component/ref/checksum, missing Files V2/freeze/read-only checks, 404/503 collapse, event-manifest and exact error-code parity, policy-version check blocked by the shared DTO. No authenticated browser or global-lock proof."
+    },
+    "cleanArchive": {
+      "command": "git archive 8ba54a09a | tar -x -C .scratch/dev/rust-migration/current/verify-a5; cargo check -p erpx-service --locked --features field-service,existing-business",
+      "result": "PASS (35.49s)",
+      "log": ".scratch/dev/rust-migration/current/verify-a5-check.log",
+      "note": "Clean archive of the pushed source compiles the Field source witnesses and composition modules; the tests were exercised on the working source and are not re-run in the clean archive here."
+    }
+  },
+  "workflowClosure": {
+    "promoted": 0,
+    "reason": "All Field evidence is source-only and unmounted; the Finance candidate is blocked by Common ownership and lock-order/policy review. No owner or workflow is promoted."
+  },
+  "counts": {
+    "verified": 65,
+    "partial": 57,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownerTotal": 41
+  },
+  "nextAction": "Coordinator obtains Common acknowledgment for the shared Files/Records/Workflow files and queue, resolves the canonical Commercial/Finance/Files lock order with the Field parts consumer, then mounts the Field source witnesses and Finance workpaper candidate and runs authenticated browser/HTTP gates.",
+  "pushedCommits": [
+    "a5bbbb37059179b1570512600caba768c7a2b501",
+    "8ba54a09a10168af74f9af960c169b615b4a130b"
+  ]
+}

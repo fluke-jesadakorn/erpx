@@ -1,0 +1,83 @@
+import { commerceFinalOwnerProjectionSources as posProjectionSources } from "@erpx/pos-server/public/commerce-final-owner-projection-sources";
+import {commercePosCoreFactsStockEffects} from '@erpx/inventory-server/public/commerce-stock-owner-effects';
+import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/inventory-server/public/commercial-owner-projection-sources";
+import "server-only";
+import {one,all,run,type SqlValueRow} from '@erpx/platform-runtime-server/public/runtime/sql';
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import {nativeCommerceReadFirst,RD_CURRENCY_BY_COMPANY,RD_PRODUCT_POINT} from './native-commerce-read';
+import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL } from './stock-source-dedupe-sql';
+
+/** Byte-identical text deduped; every call site still prepares and executes it.
+ * r19: the product point read below delegates to the mounted native Commerce
+ * command-plan port; its tabbed literal is the normalized authority text. */
+const COMMERCE_STOCK_FOR_UPDATE_SQL = `SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`;
+const COMMERCE_PRODUCT_POINT_SQL = "SELECT	id FROM commerce_products WHERE id=? AND company_id=? AND status='active'";
+
+export function posCoreCommerceFacts(db: SqlDatabase) {
+    return {
+        readCommerceStock1: (facts: {
+            warehouse_id: string | number | boolean | null;
+            productId: string;
+        }) => one(db, COMMERCE_STOCK_FOR_UPDATE_SQL, facts.warehouse_id, facts.productId),
+        readCommerceStock2: (facts: {
+            warehouse_id: string | number | boolean | null;
+            productId: string;
+        }) => one(db, COMMERCE_STOCK_FOR_UPDATE_SQL, facts.warehouse_id, facts.productId),
+        writeCommerceStock1: (facts: {
+            quantityMilli: number;
+            value: number;
+            warehouse_id: string | number | boolean | null;
+            productId: string;
+        }) => commercePosCoreFactsStockEffects(db).writeCommerceStock1(facts),
+        readCommerceSettings1: (facts: {
+            company: string;
+        }) => one(db, 'SELECT * FROM commerce_settings WHERE company_id=? FOR UPDATE', facts.company),
+        readCommerceWarehouses1: (facts: {
+            warehouseId: string;
+            company: string;
+            branchId: string;
+        }) => one(db, "SELECT id FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active' FOR SHARE", facts.warehouseId, facts.company, facts.branchId),
+        readCommerceWarehouses2: (facts: {
+            company: string;
+        }) => all(db, "SELECT id,branch_id,name FROM commerce_warehouses WHERE company_id=? AND status='active' ORDER BY name,id FOR SHARE", facts.company),
+        readCommerceSettings2: (facts: {
+            company: string;
+        }) => nativeCommerceReadFirst<SqlValueRow>(RD_CURRENCY_BY_COMPANY, [facts.company], db),
+        readCommerceWarehouses3: (facts: {
+            warehouseId: string;
+        }) => one(db, "SELECT * FROM commerce_warehouses WHERE id=? AND status='active'", facts.warehouseId),
+        readCommerceProducts1: (facts: {
+            productId: string;
+            company: string;
+        }) => nativeCommerceReadFirst<SqlValueRow>(RD_PRODUCT_POINT, [facts.productId, facts.company], db),
+        readCommerceProducts2: (facts: {
+            productId: string;
+            company: string;
+        }) => nativeCommerceReadFirst<SqlValueRow>(RD_PRODUCT_POINT, [facts.productId, facts.company], db),
+        readCommerceStock3: (facts: {
+            warehouse_id: string | number | boolean | null;
+            product_id: string | number | boolean | null;
+        }) => one(db, COMMERCE_STOCK_FOR_UPDATE_SQL, facts.warehouse_id, facts.product_id),
+        writeCommerceStock2: (facts: {
+            quantity_milli: string | number | boolean | null;
+            cost: number;
+            warehouse_id: string | number | boolean | null;
+            product_id: string | number | boolean | null;
+        }) => commercePosCoreFactsStockEffects(db).writeCommerceStock2(facts),
+        readCommerceProducts3: (facts: {
+            register_id: string | number | boolean | null;
+            productId: string;
+            company: string;
+        }) => one(db, `SELECT p.*,c.kind,c.station,c.recipe_json,c.modifiers_json,c.tax_inclusive,c.version catalog_version FROM commerce_products p JOIN (${posProjectionSources.pos_catalog}) c ON c.product_id=p.id AND c.company_id=p.company_id AND c.enabled=true JOIN (${posProjectionSources.pos_register_catalog}) rc ON rc.product_id=c.product_id AND rc.register_id=? AND rc.enabled=true WHERE p.id=? AND p.company_id=? AND p.status='active'`, facts.register_id, facts.productId, facts.company),
+        writeCommerceStock3: (facts: {
+            warehouse_id: string | number | boolean | null;
+            product_id: string | number | boolean | null;
+        }) => run(db, COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL, facts.warehouse_id, facts.product_id),
+        writeCommerceStock4: (facts: {
+            quantityMilli: number;
+            restoredCost: number;
+            warehouse_id: string | number | boolean | null;
+            product_id: string | number | boolean | null;
+        }) => commercePosCoreFactsStockEffects(db).writeCommerceStock4(facts)
+    };
+}

@@ -1,0 +1,1 @@
+export {listFeed,listStories,feedFilterSchema,createPostSchema,createCommentSchema,setActiveSchema,createStorySchema} from '@erpx/collaboration-server/adapters/social';export type {FeedFilter,SocialComment,SocialPost} from '@erpx/collaboration-server/domain/social';

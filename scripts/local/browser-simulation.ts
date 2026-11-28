@@ -1,5 +1,5 @@
 import{workspaceBrowserFixtureProfile,type WorkspaceFixtureProfile}from '../testing/development-host-profile';
-import {productIds,type ProductId} from "@erpx/contracts/product-registry";
+import {productIds,type ProductId} from "@erpx/platform-contracts/product-registry";
 /** Disposable browser acceptance workspace. Never reuses development/production databases or sessions.
  * ERPX_BROWSER_SIMULATION_PORT=3104 bun run demo:prepare
  * ERPX_BROWSER_SIMULATION_PORT=3104 bun scripts/local/run-server-script.ts scripts/local/browser-simulation.ts prepare-diagnostic
@@ -11,17 +11,28 @@ import {mkdir,readFile,writeFile,chmod,open,rm,realpath,readdir} from 'node:fs/p
 import {existsSync} from 'node:fs';
 import {resolve,join,dirname} from 'node:path';
 import {createHash,randomBytes} from 'node:crypto';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {createServer} from 'node:net';
 import {Pool} from 'pg';
-import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
-import {migrateDatabase} from "@erpx/server-runtime/adapters/runtime/migrations";
+import {PostgresDatabase} from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+import {migrateDatabase} from "@erpx/platform-runtime-server/adapters/runtime/migrations";
 import {generalCompanyDemoGuide} from "../../fixtures/shared/builders/general-company-demo";
 import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders/scoped-browser-staff";
-import {runtimeSourceFingerprint} from './source-fingerprint';
+import {runtimeSourceFingerprint,runtimeSourceManifest} from './source-fingerprint';
+async function assertPreparationSource(root:string,app:string,sourceFingerprint:string){
+ const [rootFingerprint,appFingerprint]=await Promise.all([runtimeSourceFingerprint(root),runtimeSourceFingerprint(app)]);
+ if(rootFingerprint===sourceFingerprint&&appFingerprint===sourceFingerprint)return;
+ const [rootFiles,appFiles]=await Promise.all([runtimeSourceManifest(root),runtimeSourceManifest(app)]);
+ const missing=[...appFiles.keys()].filter(name=>!rootFiles.has(name)).slice(0,20);
+ const extra=[...rootFiles.keys()].filter(name=>!appFiles.has(name)).slice(0,20);
+ const changed=[...rootFiles].filter(([name,digest])=>appFiles.has(name)&&appFiles.get(name)!==digest).map(([name])=>name).slice(0,20);
+ console.error(JSON.stringify({event:'browser_source_mismatch',rootFingerprint,appFingerprint,sourceFingerprint,missing,extra,changed}));
+ throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
+}
+
 import {copyReleaseArtifact} from './copy-release-artifact';
-import {copyWorkspaceSnapshot,copyBrowserWorkspaceSnapshot} from './workspace-copy-input';
-import {workspaceBrowserApps,workspaceBrowserBundler,workspaceHoldingProfile,assertWorkspaceHoldingBinding} from '../testing/development-host-profile';
+import {workspaceCopyInput,copyWorkspaceSnapshot} from './workspace-copy-input';
+import {workspaceBrowserApps,workspaceBrowserBundler} from '../testing/development-host-profile';
 import {linkBrowserWorkspaceModules} from '../testing/browser-workspace-modules';
 import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence,moduleBrowserReleaseVerificationCompanyIds} from '../testing/browser-fixture-metadata';
 import {browserChildEnvironment} from '../testing/runner-environment';
@@ -34,6 +45,8 @@ const origin=`http://127.0.0.1:${port}`;
 const node=resolve(process.env.ERPX_NODE_BIN??join(root,'.runtime/node/node-v26.11.1-darwin-arm64/bin/node'));
 const profile=process.env.ERPX_BROWSER_SIMULATION_PROFILE??'general-company';
 if(!['general-company','hospitality','engineering','legal','uat','local-seed','staff-work','expense','work-cards','messaging','services','executive-work','booking'].includes(profile))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_PROFILE');
+const oasisInterview=process.env.ERPX_BROWSER_SIMULATION_OASIS_INTERVIEW==='1';
+if(oasisInterview&&profile!=='general-company')throw new Error('OASIS_INTERVIEW_REQUIRES_GENERAL_COMPANY');
 if(Bun.version!=='1.4.3'||Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v26.11.1')throw new Error('PINNED_TOOLCHAIN_REQUIRED');
 let adminUrl=process.env.ERPX_TEST_ADMIN_URL;
 if(!adminUrl)for(const file of ['.env.test.local','.env.test','.env.local']){const path=join(root,file);if(!existsSync(path))continue;const value=(await readFile(path,'utf8')).match(/^\s*(?:export\s+)?ERPX_TEST_ADMIN_URL\s*=\s*(.*?)\s*$/m)?.[1];if(value){adminUrl=value.replace(/^(["'])(.*)\1$/,'$2');break;}}
@@ -43,7 +56,7 @@ const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holdi
 const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?(process.env.ERPX_BROWSER_SIMULATION_RUN_ID??randomBytes(6).toString('hex')):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={workspaceFixtureProfile?:WorkspaceFixtureProfile;executionMode?:"development-smoke";workspaceApps?:string[];workspaceBundler?:"webpack"|"turbopack";workspaceConsoleRetired?:boolean;workspaceHoldingProfile?:boolean;run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
+type State={nativeAccount?:{pid:number;port:number;bin:string};workspaceFixtureProfile?:WorkspaceFixtureProfile;executionMode?:"development-smoke";workspaceApps?:string[];workspaceBundler?:"webpack"|"turbopack";workspaceConsoleRetired?:boolean;run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
 const productHosts=process.env.ERPX_BROWSER_SIMULATION_PRODUCT_HOSTS==='1';
 if(productHosts&&(port!==3104||!process.env.ERPX_PRODUCT_HOST_PLAN||!process.env.ERPX_PRODUCT_HOST_PLAN_SHA256))throw Error('EXPLICIT_PRODUCT_HOST_ARM_REQUIRED');
 const executiveWorkHosts=process.env.ERPX_BROWSER_SIMULATION_EXECUTIVE_WORK_HOSTS==='1';
@@ -55,7 +68,6 @@ if([productHosts,executiveWorkHosts,formsHosts].filter(Boolean).length>1)throw E
 const workspaceApps=workspaceBrowserApps(process.env.ERPX_BROWSER_WORKSPACE_APPS);
 const workspaceBundler=workspaceBrowserBundler(process.env.ERPX_BROWSER_WORKSPACE_BUNDLER);
 const workspaceConsoleRetired=process.env.ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED==='1';
-const workspaceHolding=workspaceHoldingProfile(process.env.ERPX_BROWSER_WORKSPACE_HOLDING,workspaceApps,workspaceConsoleRetired,profile,port);
 const workspaceFixtureProfile=workspaceBrowserFixtureProfile(process.env.ERPX_BROWSER_WORKSPACE_FIXTURE_PROFILE,workspaceApps,workspaceConsoleRetired);
 if(process.env.ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED!==undefined&&(!workspaceApps||!workspaceConsoleRetired||workspaceApps.includes('compat')))throw new Error('EXPLICIT_DEVELOPMENT_CONSOLE_PROFILE_REQUIRED');
 if(!workspaceApps&&process.env.ERPX_BROWSER_WORKSPACE_BUNDLER!==undefined)throw new Error('WORKSPACE_BUNDLER_REQUIRES_WORKSPACE_PROFILE');
@@ -78,7 +90,7 @@ const safeEnv=(secret:string)=>({
  HOME:process.env.HOME??'',
  TMPDIR:process.env.TMPDIR??'/tmp',
  NODE_ENV:'development' as const,
- ...(workspaceApps?{ERPX_BROWSER_EXECUTION_MODE:'development-smoke',...(workspaceFixtureProfile?{ERPX_BROWSER_WORKSPACE_FIXTURE_PROFILE:workspaceFixtureProfile}:{}),ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspaceApps),ERPX_BROWSER_WORKSPACE_BUNDLER:workspaceBundler,...(workspaceConsoleRetired?{ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED:'1'}:{}),...(workspaceHolding?{ERPX_BROWSER_WORKSPACE_HOLDING:'1',ERPX_HOLDING_ROUTING:'enabled'}:{})}:{}),
+ ...(workspaceApps?{ERPX_BROWSER_EXECUTION_MODE:'development-smoke',...(workspaceFixtureProfile?{ERPX_BROWSER_WORKSPACE_FIXTURE_PROFILE:workspaceFixtureProfile}:{}),ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspaceApps),ERPX_BROWSER_WORKSPACE_BUNDLER:workspaceBundler,...(workspaceConsoleRetired?{ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED:'1'}:{})}:{}),
  // Match workspace dev headroom while compiling the complete route inventory.
  NODE_OPTIONS:'--max-old-space-size=8192',
  ERPX_ENVIRONMENT:'local',
@@ -135,13 +147,12 @@ if(mode==='prepare'||diagnostic){
  const sourceFingerprint=await runtimeSourceFingerprint(root);
  if(process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT&&process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT!==sourceFingerprint)
   throw new Error('BROWSER_FIXTURE_COMPILED_SOURCE_MISMATCH');
- await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={...(process.env.ERPX_BROWSER_EXECUTION_MODE==='development-smoke'?{executionMode:'development-smoke' as const}:{}),...(workspaceApps?{workspaceApps,workspaceBundler,workspaceConsoleRetired,workspaceHoldingProfile:workspaceHolding,workspaceFixtureProfile}:{}),run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint,...(productHosts?{productHosts:true}:{}),...(executiveWorkHosts?{executiveWorkHosts:true}:{}),...(formsHosts?{productHosts:false,executiveWorkHosts:false,formsHosts:true}:{})};await writePrivate(statePath,state);
+ await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={...(process.env.ERPX_BROWSER_EXECUTION_MODE==='development-smoke'?{executionMode:'development-smoke' as const}:{}),...(workspaceApps?{workspaceApps,workspaceBundler,workspaceConsoleRetired,workspaceFixtureProfile}:{}),run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint,...(productHosts?{productHosts:true}:{}),...(executiveWorkHosts?{executiveWorkHosts:true}:{}),...(formsHosts?{productHosts:false,executiveWorkHosts:false,formsHosts:true}:{})};await writePrivate(statePath,state);
  const templateRun=process.env.ERPX_BROWSER_SIMULATION_TEMPLATE_RUN;
  if(templateRun){
   if(!/^[a-f0-9]{12}$/.test(templateRun)||templateRun===run)throw new Error('EXACT_BROWSER_TEMPLATE_RUN_REQUIRED');
   const templateDirectory=join(parent,templateRun),template=JSON.parse(await readFile(join(templateDirectory,'state.json'),'utf8')) as State;
-  assertWorkspaceHoldingBinding(workspaceHolding,template.workspaceHoldingProfile);
-  if((template.workspaceFixtureProfile??null)!==(workspaceFixtureProfile??null)||Boolean(template.workspaceHoldingProfile)!==workspaceHolding||Boolean(template.workspaceConsoleRetired)!==workspaceConsoleRetired||(template.workspaceBundler??"webpack")!==workspaceBundler||JSON.stringify(template.workspaceApps??null)!==JSON.stringify(workspaceApps)||template.executionMode!==state.executionMode||template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||Boolean(template.productHosts)!==productHosts||Boolean(template.executiveWorkHosts)!==executiveWorkHosts||Boolean(template.formsHosts)!==formsHosts||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
+  if((template.workspaceFixtureProfile??null)!==(workspaceFixtureProfile??null)||Boolean(template.workspaceConsoleRetired)!==workspaceConsoleRetired||(template.workspaceBundler??"webpack")!==workspaceBundler||JSON.stringify(template.workspaceApps??null)!==JSON.stringify(workspaceApps)||template.executionMode!==state.executionMode||template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||Boolean(template.productHosts)!==productHosts||Boolean(template.executiveWorkHosts)!==executiveWorkHosts||Boolean(template.formsHosts)!==formsHosts||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
   if(Boolean(template.providerFixture)!==pmsProviderFixtureEnabled)throw new Error('FROZEN_PROVIDER_TEMPLATE_SETTING_REQUIRED');
   const templateManifest=JSON.parse(await readFile(join(templateDirectory,'databases.json'),'utf8')) as {version:number;databases:Record<string,string>;slots:Array<{id:string;write:string;read:string;files:string;internal?:boolean}>};
   for(const [binding,value] of Object.entries(templateManifest.databases)){
@@ -183,7 +194,7 @@ if(mode==='prepare'||diagnostic){
   if(fixture.engineeringWorkplacePlatform)fixture.engineeringWorkplacePlatform=clonedFixtureMetadata(fixture.engineeringWorkplacePlatform,templateRun,run,templateDirectory,directory);
   Object.assign(state,{templateRun,softwareVersion:template.softwareVersion,fixture});
   if(pmsProviderFixtureEnabled){state.providerFixture=true;await writePrivate(join(directory,'provider-fixture.json'),{schemaVersion:1,keys:{},resources:{},requests:[]});}
-  if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
+  await assertPreparationSource(root,app,sourceFingerprint);
   state.ready=true;await writePrivate(statePath,state);console.log(JSON.stringify({run,templateRun,origin,statePath,ready:true}));process.exit(0);
  }
  const admin=new Pool({connectionString:adminUrl,max:1}),urls:Record<string,string>={};
@@ -217,22 +228,21 @@ if(mode==='prepare'||diagnostic){
  if(formsHosts)for(const name of Object.keys(nativeEnvironment))if(/^ERPX_(?:PRODUCT_(?:ROUTING|SSO|ENVIRONMENT)|CONSOLE_RETIRED|[A-Z_]+_PACKAGE_ENFORCEMENT)$/.test(name))delete nativeEnvironment[name];
  for(const name of Object.keys(process.env))if(!(name in nativeEnvironment))delete process.env[name];
  Object.assign(process.env,nativeEnvironment);
- const {getRuntime,closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env"),env=getRuntime();
+ const {getRuntime,closeRuntime}=await import("@erpx/platform-runtime-server/adapters/runtime/env"),env=getRuntime();
  try{
   if(['local-seed','staff-work','expense','work-cards','messaging','services','executive-work','booking'].includes(profile)){
    const {prepareModuleBrowser}=await import("../../fixtures/shared/builders/module-browser");
    state.fixture=await prepareModuleBrowser(profile,env,directory);await writePrivate(statePath,state);
   }else{
-  await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001',?,'Browser simulation','H001_DB','H001_READ_DB','H001_FILES','active')").bind(workspaceHolding?'acme':'simulation').run();
-  await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h002',?,'Riverside Lantern Hotel & Kitchen','H002_DB','H002_READ_DB','H002_FILES','active')").bind(workspaceHolding?'northstar':'riverside-lantern').run();
-  if(workspaceHolding)await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h003','erpx','ERPX engineering Realm','H003_DB','H003_READ_DB','H003_FILES','active')").run();
+  await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001','simulation','Browser simulation','H001_DB','H001_READ_DB','H001_FILES','active')").run();
+  await env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h002','riverside-lantern','Riverside Lantern Hotel & Kitchen','H002_DB','H002_READ_DB','H002_FILES','active')").run();
   const {seedExpenseCompany}=await import('../../fixtures/expenses/company'),{mapSpendingOrganization}=await import("../../tests/support/helpers/spending-organization");
   const f=await seedExpenseCompany(env.H001_DB,env.H001_FILES);await mapSpendingOrganization(f);
-  await env.H001_DB.prepare("UPDATE organization_nodes SET display_name='Isolated browser simulation' WHERE id=?").bind(f.company).run();
-  const {hashPassword}=await import('better-auth/crypto'),{businessRoles}=await import("@erpx/feature-identity_access/lib/business-roles"),{moduleRegistry}=await import('@erpx/catalogue/module-registry');
+  await env.H001_DB.prepare('UPDATE organization_nodes SET display_name=? WHERE id=?').bind(oasisInterview?'Andaman Kitchen Demo':'Isolated browser simulation',f.company).run();
+  const {hashPassword}=await import('better-auth/crypto'),{businessRoles}=await import("@erpx/identity-access-ui/lib/business-roles"),{moduleRegistry}=await import('@erpx/platform-catalogue/module-registry');
  const password=`Simulation-${randomBytes(15).toString('hex')}`,hash=await hashPassword(password),now=Date.now(),users:Array<{label:string;email:string;role:string;userId:string;roles:string[];scope?:string;scopeNode?:string;scopeParentNode?:string}> = [];
-  for(const [actor,role,label,email] of [[f.owner,'holding_owner','Source operator','source@simulation.test'],[f.head,'warehouse_manager','Receiving operator','receiver@simulation.test'],[f.manager,'finance_approver','Finance reviewer','finance@simulation.test'],[f.reviewer,'finance_preparer','Finance preparer','preparer@simulation.test'],[f.payer,'quality_manager','Quality release manager','quality-manager@simulation.test'],[f.it,'purchasing_manager','Purchasing manager','buyer@simulation.test'],[f.claimant,'support_agent','Support agent','support-agent@simulation.test'],[f.tie,'support_manager','Support manager','support-manager@simulation.test']] as const){
-   actor.role=role;actor.branchId=null;actor.departmentId=null;actor.holdingSlug=workspaceHolding?'acme':'simulation';actor.assignmentId=await f.grant(actor,role);
+  for(const [actor,role,label,email] of [[f.owner,'holding_owner','Source operator','source@simulation.test'],[f.head,'warehouse_manager','Receiving operator','receiver@simulation.test'],[f.manager,'finance_approver','Finance reviewer','finance@simulation.test'],[f.reviewer,'finance_preparer','Finance preparer','preparer@simulation.test'],[f.payer,'quality_manager','Quality release manager','quality-manager@simulation.test'],[f.it,'purchasing_manager','Purchasing manager','buyer@simulation.test'],[f.claimant,'support_agent',oasisInterview?'Kitchen salesperson':'Support agent','support-agent@simulation.test'],[f.tie,'support_manager',oasisInterview?'Kitchen sales manager':'Support manager','support-manager@simulation.test']] as const){
+   actor.role=role;actor.branchId=null;actor.departmentId=null;actor.holdingSlug='simulation';actor.assignmentId=await f.grant(actor,role);
    await env.H001_DB.prepare('UPDATE assignments SET revoked_at=? WHERE user_id=? AND company_id=? AND id<>?').bind(now,actor.userId,f.company,actor.assignmentId).run();
    const modules=role==='holding_owner'?moduleRegistry.map(m=>m.id):businessRoles[role as keyof typeof businessRoles];await env.H001_DB.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),actor.assignmentId).run();
    await env.H001_DB.prepare('UPDATE hr_people SET legal_name=?,preferred_name=?,email=? WHERE company_id=? AND user_id=?').bind(label,label,email,f.company,actor.userId).run();
@@ -240,10 +250,27 @@ if(mode==='prepare'||diagnostic){
    users.push({label,email,role,userId:actor.userId,roles:[role]});
   }
   const extraGrant=async(actor:typeof f.claimant,role:keyof typeof businessRoles|'holding_owner')=>{const id=await f.grant(actor,role);const modules=role==='holding_owner'?moduleRegistry.map(m=>m.id):businessRoles[role];await env.H001_DB.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),id).run();return id;};
+  if(oasisInterview) {
+    const {seedOasisInterview}=await import('../../fixtures/sales/builders/oasis-interview');
+    const salesperson={...f.claimant,role:'sales_operator',assignmentId:await extraGrant(f.claimant,'sales_operator')};
+    const manager={...f.tie,role:'sales_manager',assignmentId:await extraGrant(f.tie,'sales_manager')};
+    const actors=users.filter(user=>user.userId===salesperson.userId||user.userId===manager.userId).map(user=>({
+      ...user,role:user.userId===salesperson.userId?'sales_operator':'sales_manager',
+    }));
+    const dueDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Bangkok'}).format(new Date(now+86_400_000));
+    const kitchen=await seedOasisInterview(env.H001_DB,{
+      run,companyId:f.company,branchId:f.branch,salespersonId:salesperson.userId,managerId:manager.userId,dueDate,
+      finance:{chart:f.chart,receivable:f.accounts.cash,revenue:f.accounts.revenue,tax:f.accounts.payable,preparerId:f.reviewer.userId,reviewerId:f.manager.userId},
+    });
+    state.fixture={companyId:f.company,oasisInterview:kitchen};
+    await writePrivate(statePath,state);
+    await writePrivate(join(directory,'credentials.json'),{password,users:actors});
+    await writePrivate(join(directory,'demo-guide.json'),{run,origin,...kitchen,actors});
+  }else{
   const employeeActor={...f.claimant,role:'employee',assignmentId:await extraGrant(f.claimant,'employee')};
   await extraGrant(f.head,'people_manager');
   await extraGrant(f.payer,'hr_admin');users.find(user=>user.userId===f.payer.userId)!.roles.push('hr_admin');
-  const {changeAppointment}=await import("@erpx/server-organization/public/department-authority");
+  const {changeAppointment}=await import("@erpx/organization-server/public/department-authority");
   const hrSeat=await env.H001_DB.prepare("SELECT version FROM authority_seats WHERE company_id=? AND kind='hr' AND scope_id=?").bind(f.company,f.company).first<{version:number}>();
   await changeAppointment(env.H001_DB,f.owner,{kind:'hr',positionId:null,personId:`person-${f.payer.userId}`,expectedVersion:Number(hrSeat?.version??0),reason:'Fictional Company owner appoints the independent HR reviewer for organization changes.'},crypto.randomUUID());
   await extraGrant(f.payer,'holding_owner');users.find(user=>user.userId===f.payer.userId)!.roles.push('holding_owner');
@@ -265,7 +292,7 @@ if(mode==='prepare'||diagnostic){
   await extraGrant(f.tie,'sales_manager');
   await extraGrant(f.reviewer,'quality_inspector');
   await extraGrant(f.reviewer,'finance_approver');users.find(user=>user.userId===f.reviewer.userId)!.roles.push('finance_approver');
-  const {setFinanceCompanyTool}=await import('@erpx/server-finance/public/finance-company-tools');
+  const {setFinanceCompanyTool}=await import('@erpx/finance-server/public/finance-company-tools');
   await setFinanceCompanyTool(f.reviewer,{tool:'bank_automation',enabled:true,expectedVersion:0,reason:'Fictional isolated BankImport lost-response recovery browser checkpoint'},crypto.randomUUID());
   await extraGrant(f.payer,'treasury');users.find(user=>user.userId===f.payer.userId)!.roles.push('treasury');
   await extraGrant(f.owner,'payroll_preparer');users.find(user=>user.userId===f.owner.userId)!.roles.push('payroll_preparer');
@@ -320,11 +347,17 @@ if(mode==='prepare'||diagnostic){
     ['payment_settled',f.payer.userId,'Simulation payroll settlement owner'],
   ] as const)
     await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll',?,?,?,?,?)").bind(f.company,stepKey,userId,f.owner.userId,reason,now).run();
-  const {saveServiceTeam,serviceTeamSchema}=await import("@erpx/server-support/public/service-teams");
-  await saveServiceTeam(env.H001_DB,f.owner,null,serviceTeamSchema.parse({name:'Demo purchasing team',members:[{userId:f.it.userId,responsibility:'lead'},{userId:f.tie.userId,responsibility:'member'}],coverage:[{category:'purchasing',scopeKind:'holding',scopeNodeId:f.company}]}),crypto.randomUUID());
-  const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/public/supplier-bill-matching");
+  const serviceTeamId=crypto.randomUUID(),serviceTeamNow=Date.now(),serviceTeamConfig=JSON.stringify({name:'Demo purchasing team',active:true,expectedVersion:1,members:[{userId:f.it.userId,responsibility:'lead'},{userId:f.tie.userId,responsibility:'member'}],coverage:[{category:'purchasing',scopeKind:'holding',scopeNodeId:f.company}]});
+  await env.H001_DB.batch([
+    env.H001_DB.prepare("INSERT INTO service_teams(id,company_id,name,active,version,configuration_json,created_by,created_at,updated_at) VALUES(?,?,?,1,1,?,?,?,?)").bind(serviceTeamId,f.company,'Demo purchasing team',serviceTeamConfig,f.owner.userId,serviceTeamNow,serviceTeamNow),
+    env.H001_DB.prepare("INSERT INTO service_team_revisions(company_id,team_id,version,configuration_json,actor_id,created_at) VALUES(?,?,1,?,?,?)").bind(f.company,serviceTeamId,serviceTeamConfig,f.owner.userId,serviceTeamNow),
+    env.H001_DB.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,f.it.userId,'lead'),
+    env.H001_DB.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,f.tie.userId,'member'),
+    env.H001_DB.prepare("INSERT INTO service_team_coverage(company_id,team_id,category,scope_kind,scope_node_id) VALUES(?,?,?,?,?)").bind(f.company,serviceTeamId,'purchasing','holding',f.company),
+  ]);
+  const {saveSupplierInvoicePolicy}=await import("@erpx/procurement-server/testing/supplier-bill-oracle");
   await saveSupplierInvoicePolicy(f.owner,{matchingMode:'required',expectedVersion:0,reason:'Demo Company requires independent receipt and supplier invoice matching before AP'},crypto.randomUUID());
-  const {saveEmployeeRequest,employeeRequestSchema}=await import("@erpx/server-records/public/employee-requests");
+  const {saveEmployeeRequest,employeeRequestSchema}=await import("@erpx/records-server/public/employee-requests");
   const purchaseRequest=await saveEmployeeRequest(env.H001_DB,employeeActor,null,employeeRequestSchema.parse({kind:'purchase',title:'Laptop 10 เครื่องสำหรับทีมบริการลูกค้า',description:'เปลี่ยนเครื่องที่หมดอายุและเพิ่มเครื่องสำหรับพนักงานใหม่ ใช้ข้อมูลจำลองเท่านั้น',location:'สำนักงานใหญ่ ชั้น 4',impact:'normal',branchId:f.branch,departmentId:f.department,neededDate:'2026-10-15',currency:'THB',items:[{description:'Business laptop พร้อมประกัน 3 ปี',quantity:'10',unit:'each',estimatedCost:'25000'}]}),crypto.randomUUID());
   await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'transfer','submitted',?,?,'Simulation receiving responsibility',?)").bind(f.company,f.head.userId,f.owner.userId,now).run();
   for(const [stepKey,userId,reason] of [['submitted',f.tie.userId,'Simulation independent purchasing approval'],['confirmed',f.head.userId,'Simulation warehouse receiving responsibility'],['stock_gl',f.manager.userId,'Simulation independent goods GL review'],['invoicing',f.reviewer.userId,'Simulation Finance invoice preparation']] as const)
@@ -332,13 +365,13 @@ if(mode==='prepare'||diagnostic){
   await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'invoice','draft',?,?,'Simulation independent Finance invoice review',?)").bind(f.company,f.manager.userId,f.owner.userId,now).run();
   const inventoryAccountId=`${f.company}-inventory`,clearingAccountId=`${f.company}-clearing`,receivableAccountId=`${f.company}-receivable`,openingEquityAccountId=`${f.company}-opening-equity`;
   await env.H001_DB.batch([env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'INV','Simulation inventory','asset','THB',?,?)").bind(inventoryAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'GRNI','Simulation goods received clearing','liability','THB',?,?)").bind(clearingAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'AR','Simulation receivables','asset','THB',?,?)").bind(receivableAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'OPEN','Simulation opening equity','equity','THB',?,?)").bind(openingEquityAccountId,f.chart,f.company,now,now),env.H001_DB.prepare('UPDATE commerce_settings SET inventory_account_id=?,clearing_account_id=?,receivable_account_id=? WHERE company_id=?').bind(inventoryAccountId,clearingAccountId,receivableAccountId,f.company)]);
-  const {createJournal,createJournalSchema,postJournal}=await import("@erpx/server-finance/public/finance"),{resolveFlow,assignFlowPrimary}=await import("@erpx/server-workflow/public/flow-routing");
+  const {seedFinanceJournal}=await import("../../tests/support/helpers/finance-journal-seed"),{postJournalBatch}=await import("@erpx/finance-server/public/finance"),{resolveFlow,assignFlowPrimary}=await import("@erpx/workflow-server/public/flow-routing");
   // Declared imported quantities below carry THB 10 + 500 + 1000 + 10.
   // The independently reviewed opening GL covers every initial stock row.
-  const opening=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-01-01',currency:'THB',memo:'Fictional imported opening stock: sales item, single laptops, laptop cases and dedicated transport item',sourceType:'manual',isOpening:true,lines:[{accountId:inventoryAccountId,debit:'1520',credit:'0'},{accountId:openingEquityAccountId,debit:'0',credit:'1520'}]}),crypto.randomUUID());
-  const openingFlow=await resolveFlow(env.H001_DB,f.owner,'journal',String(opening.id));await assignFlowPrimary(env.H001_DB,f.owner,'journal',String(opening.id),{stepKey:'draft',userId:f.manager.userId,expectedVersion:openingFlow.version,recordVersion:1,reason:'Simulation independent opening balance review',saveDefault:false},crypto.randomUUID());
+  const opening=await seedFinanceJournal(env.H001_DB,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:'2026-01-01',currency:'THB',memo:'Fictional imported opening stock: sales item, single laptops, laptop cases and dedicated transport item',key:crypto.randomUUID(),createdBy:f.owner.userId,isOpening:true,lines:[{accountId:inventoryAccountId,debit:'1520',credit:'0'},{accountId:openingEquityAccountId,debit:'0',credit:'1520'}]});
   await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'journal','draft',?,?,'Simulation independent journal review',?)").bind(f.company,f.manager.userId,f.owner.userId,now).run();
-  await postJournal(f.manager,String(opening.id),crypto.randomUUID(),{expectedVersion:1});
+  const openingFlow=await resolveFlow(env.H001_DB,f.owner,'journal',opening.id);await assignFlowPrimary(env.H001_DB,f.owner,'journal',opening.id,{stepKey:'draft',userId:f.manager.userId,expectedVersion:openingFlow.version,recordVersion:1,reason:'Simulation independent opening balance review',saveDefault:false},crypto.randomUUID());
+  await postJournalBatch(f.manager,{journals:[{id:opening.id,expectedVersion:1}],reason:'Simulation independent review of the exact balanced opening stock journal'},crypto.randomUUID());
   const browserOpeningChartId=`${f.company}-browser-opening-chart`,browserOpeningCashId=`${f.company}-browser-opening-cash`,browserOpeningEquityId=`${f.company}-browser-opening-equity`;
   await env.H001_DB.exec(`
     INSERT INTO finance_charts(id,company_id,name,base_currency,accounting_basis,status,created_by,created_at,updated_at)
@@ -350,7 +383,7 @@ if(mode==='prepare'||diagnostic){
   const refundEvidenceDate=new Date(Date.now()+86_400_000).toISOString().slice(0,10);
   // Exercise the new account defaults through independent Finance owner review in this disposable cohort.
   await env.H001_DB.prepare("UPDATE finance_accounts SET is_control=1,control_kind='receivable' WHERE id=?").bind(receivableAccountId).run();
-  const {prepareSalesDefaults,decideSalesDefaults}=await import('@erpx/server-finance/public/sales');
+  const {prepareSalesDefaults,decideSalesDefaults}=await import('@erpx/finance-server/public/sales');
   const salesDefaults=await prepareSalesDefaults(f.reviewer,{chartId:f.chart,currency:'THB',receivableAccountId,revenueAccountId:f.accounts.revenue,taxAccountId:f.accounts.payable,reason:'Fictional independently reviewed sales account defaults for browser simulation'},crypto.randomUUID());
   await decideSalesDefaults(f.manager,String(salesDefaults.id),{expectedVersion:1,action:'approve',reason:'Independent fixture Finance approver verified active sales accounts'},crypto.randomUUID());
   const closePeriods:[string,string]=[`${f.company}-close-2027-01`,`${f.company}-close-2027-02`],closeBank=`${f.company}-close-bank`,closeAr=`${f.company}-close-ar`,closeAp=`${f.company}-close-ap`,closeEquity=`${f.company}-close-equity`,closeCustomer=`${f.company}-close-customer`,closeSupplier=`${f.company}-close-supplier`,closeJournal=`${f.company}-close-opening`,paymentPeriod=`${f.company}-payment-2027-03`,paymentSupplier=`${f.company}-payment-supplier`,paymentInvoice=`${f.company}-payment-invoice`,paymentInvoiceJournal=`${f.company}-payment-invoice-journal`,bankMatchPayment=`${f.company}-bank-match-payment`,bankMatchJournal=`${f.company}-bank-match-journal`,bankMatchClearing=`${f.company}-bank-match-clearing`,paymentStatement=`${f.company}-payment-bank-statement`,paymentBankTransaction=`${f.company}-payment-bank-row`,refundStatement=`${f.company}-refund-bank-statement`,refundBankTransaction=`${f.company}-refund-bank-row`;
@@ -398,7 +431,7 @@ if(mode==='prepare'||diagnostic){
       ('${paymentBankTransaction}','${paymentStatement}','${f.company}','2027-03-15','DEMO-BANK-PAY-125','Controlled supplier transfer',-12500,'THB','unmatched',1),
       ('${refundBankTransaction}','${refundStatement}','${f.company}','${refundEvidenceDate}','DEMO-BANK-REFUND-10','Customer return refund',-1000,'THB','unmatched',1);
   `);
-  const {saveMaster,saveOrder,orderSchema}=await import("@erpx/server-commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema}=await import("@erpx/commerce-server/public/commerce");
   const source=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-SOURCE',name:'Simulation source warehouse'},crypto.randomUUID())).id),target=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-TARGET',name:'Simulation receiving warehouse'},crypto.randomUUID())).id),product=String((await saveMaster(f.owner,'products',null,{sku:'SIM-ITEM',name:'Simulation stock only',price:'10'},crypto.randomUUID())).id),laptopEach=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-EACH',name:'Demo laptop single unit',unit:'each',price:'25000'},crypto.randomUUID())).id),laptopCase=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-CASE',name:'Demo laptop case of two',unit:'case',price:'50000'},crypto.randomUUID())).id),demoSuppliers=[String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-A',name:'Demo supplier A'},crypto.randomUUID())).id),String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-B',name:'Demo supplier B'},crypto.randomUUID())).id)];
   const lotProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LOT-MED',name:'Demo lot-tracked medical supplies',unit:'box',trackingMode:'lot',price:'1200'},crypto.randomUUID())).id),serialProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-SERIAL-DEVICE',name:'Demo serial-tracked service device',unit:'each',trackingMode:'serial',price:'35000'},crypto.randomUUID())).id);
   const transitProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-TRANSIT-ITEM',name:'Fictional transport stock only',price:'10'},crypto.randomUUID())).id);
@@ -411,24 +444,26 @@ if(mode==='prepare'||diagnostic){
   const initialStock=await env.H001_DB.prepare('SELECT COALESCE(SUM(s.value_minor),0)::bigint value FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=?').bind(f.company).first<{value:number}>();
   const initialInventoryGl=await env.H001_DB.prepare("SELECT COALESCE(SUM(l.base_debit_minor-l.base_credit_minor),0)::bigint value FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted' AND l.account_id=?").bind(f.company,inventoryAccountId).first<{value:number}>();
   if(Number(initialStock?.value)!==152000||Number(initialInventoryGl?.value)!==152000)throw new Error('FICTIONAL_INITIAL_STOCK_GL_NOT_RECONCILED');
-  const {createQualityHold}=await import("@erpx/server-quality/public/quality");
-  const {drainQualityAlerts}=await import("@erpx/server-quality/public/quality-alerts");
+  const {seedNativeQualityHold}=await import("../../fixtures/quality/hold");
   const demoDate=(offset:number)=>new Date(Date.now()+offset*86_400_000).toISOString().slice(0,10);
-  const qualityDueSoon=await createQualityHold(f.head,{warehouseId:source,productId:laptopEach,expectedStockVersion:1,dueDate:demoDate(0),reason:'Demo laptop intake requires inspection before service deployment'},'demo-quality-due-soon');
-  const qualityOverdue=await createQualityHold(f.head,{warehouseId:source,productId:laptopCase,expectedStockVersion:1,dueDate:demoDate(-1),reason:'Demo laptop case packaging review missed its target date'},'demo-quality-overdue');
-  await drainQualityAlerts(env.H001_DB,Date.now(),86_400_000);
+  const qualityDueSoon=await seedNativeQualityHold(env.H001_DB,f.head,{warehouseId:source,productId:laptopEach,expectedStockVersion:1,dueDate:demoDate(0),reason:'Demo laptop intake requires inspection before service deployment'},'demo-quality-due-soon');
+  const qualityOverdue=await seedNativeQualityHold(env.H001_DB,f.head,{warehouseId:source,productId:laptopCase,expectedStockVersion:1,dueDate:demoDate(-1),reason:'Demo laptop case packaging review missed its target date'},'demo-quality-overdue');
+  await env.H001_DB.batch([
+    env.H001_DB.prepare("INSERT INTO inventory_quality_alerts(id,hold_id,phase,source_version,due_date,detected_at) SELECT 'quality-alert-due-soon-'||h.id,h.id,'due_soon',h.version,h.due_date::date,? FROM inventory_quality_holds h WHERE h.id=? ON CONFLICT(id) DO NOTHING").bind(Date.now(),qualityDueSoon.id),
+    env.H001_DB.prepare("INSERT INTO inventory_quality_alerts(id,hold_id,phase,source_version,due_date,detected_at) SELECT 'quality-alert-overdue-'||h.id,h.id,'overdue',h.version,h.due_date::date,? FROM inventory_quality_holds h WHERE h.id=? ON CONFLICT(id) DO NOTHING").bind(Date.now(),qualityOverdue.id),
+  ]);
   const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:'SIM-CUSTOMER',name:'Simulation customer only'},crypto.randomUUID());
   const duplicateCustomerLeft=await saveMaster(f.owner,'parties',null,{kind:'customer',code:'SIM-DUP-A',name:'Demo Harbor Logistics'},crypto.randomUUID()),duplicateCustomerRight=await saveMaster(f.owner,'parties',null,{kind:'customer',code:'SIM-DUP-B',name:'Demo Harbor Logistic'},crypto.randomUUID());
   await env.H001_DB.prepare('UPDATE finance_parties SET tax_registration=? WHERE id IN (?,?)').bind('SIM-TAX-204812340001',duplicateCustomerLeft.id,duplicateCustomerRight.id).run();
   const duplicateCustomerQuotation=await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:duplicateCustomerRight.id,warehouseId:source,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:product,quantity:'1',price:'10',taxBps:0}]}),crypto.randomUUID());
-  const salesOperatorActor={...f.claimant,role:'sales_operator' as const,assignmentId:salesOperatorAssignment,holdingSlug:workspaceHolding?'acme':'simulation',branchId:null,departmentId:null};
+  const salesOperatorActor={...f.claimant,role:'sales_operator' as const,assignmentId:salesOperatorAssignment,holdingSlug:'simulation',branchId:null,departmentId:null};
   const quotation=await saveOrder(salesOperatorActor,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:source,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:product,quantity:'1',price:'10',taxBps:0}]}),crypto.randomUUID());
   const quotationFlow=await resolveFlow(env.H001_DB,f.owner,'order',String(quotation.id));
   await assignFlowPrimary(env.H001_DB,f.owner,'order',String(quotation.id),{stepKey:'confirmed',userId:f.claimant.userId,expectedVersion:quotationFlow.version,recordVersion:quotationFlow.recordVersion,reason:'Demo sales operator owns quotation conversion',saveDefault:false},crypto.randomUUID());
-  const {createCRMLead}=await import("@erpx/server-crm/public/crm");
+  const {createCRMLead}=await import("@erpx/crm-server/public/crm");
   const crmLead=await createCRMLead(salesOperatorActor,{branchId:f.branch,title:'Demo installation scheduling inquiry',contactName:'Demo customer contact',contactDetail:'Email channel is approved for this fictional customer',source:'Demo Customer 360 scenario',brief:'Customer needs a confirmed installation window before quotation follow-up.',dueDate:'2026-09-26'},crypto.randomUUID());
   const actor=(userId:string,role:string)=>{const user=users.find(item=>item.userId===userId)!;return {label:user.label,email:user.email,userId,role};};
-  const guide=generalCompanyDemoGuide({run,origin,holdingSlug:workspaceHolding?'acme':'simulation',organizationReviewer:actor(f.payer.userId,'hr_admin'),customerId:String(customer.id),customerDuplicateIds:[String(duplicateCustomerLeft.id),String(duplicateCustomerRight.id)],customerOperator:actor(f.claimant.userId,'sales_operator'),crmLeadId:String(crmLead.id),qualityDueSoonHoldId:String(qualityDueSoon.id),qualityOverdueHoldId:String(qualityOverdue.id),qualityInspector:actor(f.reviewer.userId,'quality_inspector'),qualityManager:actor(f.payer.userId,'quality_manager'),requestId:String(purchaseRequest.id),quotationId:String(quotation.id),sourceWarehouseId:source,targetWarehouseId:target,movementProductId:transitProduct,lotProductId:lotProduct,serialProductId:serialProduct,closePeriodIds:closePeriods,controlledPaymentInvoiceId:paymentInvoice,actors:{employee:actor(f.claimant.userId,'employee'),manager:actor(f.head.userId,'people_manager'),hrApprover:actor(f.payer.userId,'hr_admin'),payrollPreparer:actor(f.owner.userId,'payroll_preparer'),buyer:actor(f.it.userId,'purchasing_operator'),purchasingManager:actor(f.tie.userId,'purchasing_manager'),salesOperator:actor(f.claimant.userId,'sales_operator'),salesManager:actor(f.tie.userId,'sales_manager'),warehouse:actor(f.head.userId,'warehouse_manager'),sourceWarehouse:actor(f.it.userId,'warehouse_manager'),financePreparer:actor(f.reviewer.userId,'finance_preparer'),financeApprover:actor(f.manager.userId,'finance_approver'),treasury:actor(f.payer.userId,'treasury'),administrator:actor(f.owner.userId,'holding_owner')}});
+  const guide=generalCompanyDemoGuide({run,origin,holdingSlug:'simulation',organizationReviewer:actor(f.payer.userId,'hr_admin'),customerId:String(customer.id),customerDuplicateIds:[String(duplicateCustomerLeft.id),String(duplicateCustomerRight.id)],customerOperator:actor(f.claimant.userId,'sales_operator'),crmLeadId:String(crmLead.id),qualityDueSoonHoldId:String(qualityDueSoon.id),qualityOverdueHoldId:String(qualityOverdue.id),qualityInspector:actor(f.reviewer.userId,'quality_inspector'),qualityManager:actor(f.payer.userId,'quality_manager'),requestId:String(purchaseRequest.id),quotationId:String(quotation.id),sourceWarehouseId:source,targetWarehouseId:target,movementProductId:transitProduct,lotProductId:lotProduct,serialProductId:serialProduct,closePeriodIds:closePeriods,controlledPaymentInvoiceId:paymentInvoice,actors:{employee:actor(f.claimant.userId,'employee'),manager:actor(f.head.userId,'people_manager'),hrApprover:actor(f.payer.userId,'hr_admin'),payrollPreparer:actor(f.owner.userId,'payroll_preparer'),buyer:actor(f.it.userId,'purchasing_operator'),purchasingManager:actor(f.tie.userId,'purchasing_manager'),salesOperator:actor(f.claimant.userId,'sales_operator'),salesManager:actor(f.tie.userId,'sales_manager'),warehouse:actor(f.head.userId,'warehouse_manager'),sourceWarehouse:actor(f.it.userId,'warehouse_manager'),financePreparer:actor(f.reviewer.userId,'finance_preparer'),financeApprover:actor(f.manager.userId,'finance_approver'),treasury:actor(f.payer.userId,'treasury'),administrator:actor(f.owner.userId,'holding_owner')}});
   const {seedHospitalityBrowserDemo}=await import("../../fixtures/pms/builders/hospitality-browser-demo");
   const hospitality=await seedHospitalityBrowserDemo({db:env.H002_DB,control:env.CONTROL_DB,files:env.H002_FILES,passwordHash:hash,run,origin,menuImages:menuImagesEnabled&&localAttachmentMode,publishBooking:workspaceFixtureProfile==='public-hosts'});
   state.fixture={customerId:customer.id,customerDuplicateIds:[duplicateCustomerLeft.id,duplicateCustomerRight.id],customerDuplicateQuotationId:duplicateCustomerQuotation.id,quotationId:quotation.id,crmLeadId:crmLead.id,purchaseRequestId:purchaseRequest.id,companyId:f.company,inventoryAccountId,clearingAccountId,openingEquityAccountId,openingJournalId:opening.id,browserOpeningChartId,browserOpeningCashId,browserOpeningEquityId,sourceWarehouseId:source,targetWarehouseId:target,productId:product,transitProductId:transitProduct,laptopEachProductId:laptopEach,laptopCaseProductId:laptopCase,lotProductId:lotProduct,serialProductId:serialProduct,qualityDueSoonHoldId:qualityDueSoon.id,qualityOverdueHoldId:qualityOverdue.id,demoSupplierIds:demoSuppliers,periodId:f.period,closePeriodIds:closePeriods,closeBankAccountId:closeBank,bankMatchPaymentId:bankMatchPayment,controlledPaymentPeriodId:paymentPeriod,controlledPaymentInvoiceId:paymentInvoice,controlledPaymentBankTransactionId:paymentBankTransaction,customerRefundBankTransactionId:refundBankTransaction,expenseAccountId:f.accounts.expense,supplierInvoiceMatchingPolicy:'required',users,scenarioIds:guide.scenarios.map(s=>s.id),hospitality:{companyId:hospitality.companyId,propertyId:hospitality.propertyId,registerId:hospitality.registerId,warehouseId:hospitality.warehouseId,openingJournalId:hospitality.openingJournalId,openingInventoryAccountId:hospitality.openingInventoryAccountId,roomIds:hospitality.roomIds,roomTypeIds:hospitality.roomTypeIds,rateIds:hospitality.rateIds,productIds:hospitality.productIds,supplierIds:hospitality.supplierIds,purchaseRequestId:hospitality.purchaseRequestId,payrollGroupId:hospitality.payrollGroupId,payrollEngagementIds:hospitality.payrollEngagementIds,payrollPersonIds:hospitality.payrollPersonIds,leaveTypeId:hospitality.leaveTypeId,leavePolicyId:hospitality.leavePolicyId,leaveAssignmentId:hospitality.leaveAssignmentId,rosterWeekId:hospitality.rosterWeekId,rosterShiftId:hospitality.rosterShiftId}};await writePrivate(statePath,state);await writePrivate(join(directory,'credentials.json'),{password,users:[...users,...hospitality.users]});await writePrivate(join(directory,'demo-guide.json'),guide);await writePrivate(join(directory,'hospitality-guide.json'),hospitality.guide);
@@ -444,20 +479,20 @@ if(mode==='prepare'||diagnostic){
     const {seedEngineeringThaiPayrollBrowser}=await import("../../fixtures/people_payroll/builders/engineering-thai-payroll-browser");
     const {seedEngineeringFinanceCloseBrowser}=await import("../../fixtures/finance/builders/engineering-finance-close-browser");
     const {createEngineeringShowcaseGuide}=await import("../../fixtures/shared/builders/engineering-showcase-guide");
-    state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES,holdingSlug:workspaceHolding?'acme':'simulation',...(workspaceFixtureProfile==='money-people'?{workspaceProducts:['finance','people','work'] as ProductId[]}:workspaceConsoleRetired?{workspaceProducts:workspaceApps!.filter((id):id is ProductId=>productIds.includes(id as ProductId))}:{})});
+    state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES,...(workspaceFixtureProfile==='money-people'?{workspaceProducts:['finance','people','apps'] as ProductId[]}:workspaceConsoleRetired?{workspaceProducts:workspaceApps!.filter((id):id is ProductId=>productIds.includes(id as ProductId))}:{})});
     // Account/Apps/Admin need the foundation fixture; Learn additionally declares
     // its fictional academy package. Other profiles retain the full cohort.
     const foundationOnly=workspaceApps?.every(id=>['account','apps','admin','portal','legal-portal','forms'].includes(id));
     const academyOnly=workspaceApps?.includes('learn')&&workspaceApps.every(id=>['account','apps','learn'].includes(id));
-    const productApps=workspaceApps?.filter(id=>['work','people','recruit'].includes(id))??[];
-    const productOnly=productApps.length>0&&workspaceApps?.every(id=>['account','apps','work','people','recruit'].includes(id))||workspaceConsoleRetired&&workspaceApps?.every(id=>['account','apps',...productIds].includes(id));
+    const productApps=workspaceApps?.filter(id=>['apps','people','recruit'].includes(id))??[];
+    const productOnly=productApps.length>0&&workspaceApps?.every(id=>['account','apps','apps','people','recruit'].includes(id))||workspaceConsoleRetired&&workspaceApps?.every(id=>['account','apps',...productIds].includes(id));
     if(academyOnly){
      const {seedLearningWorkspacePackages}=await import('../../fixtures/learning/builders/workspace-browser');
      await seedLearningWorkspacePackages({run,db:env.H001_DB as PostgresDatabase,academy:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
     }
     if(workspaceFixtureProfile==='money-people'){
      const {seedWorkspaceProductPackages}=await import('../../fixtures/shared/builders/workspace-product-packages');
-     await seedWorkspaceProductPackages({run,db:env.H001_DB as PostgresDatabase,apps:['work','people','finance'],cohort:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
+     await seedWorkspaceProductPackages({run,db:env.H001_DB as PostgresDatabase,apps:['apps','people','finance'],cohort:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
     }
     if(productOnly&&!workspaceConsoleRetired&&workspaceFixtureProfile!=='money-people'){
      const {seedWorkspaceProductPackages}=await import('../../fixtures/shared/builders/workspace-product-packages');
@@ -478,6 +513,7 @@ if(mode==='prepare'||diagnostic){
     await writePrivate(statePath,state);
   }
   }
+  }
  }finally{await closeRuntime();}
  // Fixture diagnostics never become a runnable cohort or release evidence.
  // They exercise every native seed while implementation continues, avoiding
@@ -496,10 +532,10 @@ if(mode==='prepare'||diagnostic){
   const receipt=JSON.parse(await readFile(join(directory,'attachment-baseline.json'),'utf8'));
   if(receipt.gateReady!==true||receipt.sourceFingerprint!==sourceFingerprint)throw new Error('BROWSER_BASELINE_ATTACHMENT_GATE_NOT_READY');
  }
- await copyBrowserWorkspaceSnapshot(root,app);
- if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
+ await mkdir(app,{recursive:true});for(const name of ['apps','modules','products','platform','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','next-env.d.ts','postcss.config.mjs','Cargo.toml','Cargo.lock','rust-toolchain.toml','LICENSE','NOTICE','docs/community/LICENSING.md','CONTRIBUTING.md','.github/SECURITY.md','.github/CODE_OF_CONDUCT.md','docs/community/GOVERNANCE.md','node_modules'])await copyWorkspaceSnapshot(join(root,name),join(app,name),path=>workspaceCopyInput(root,path));
+ await assertPreparationSource(root,app,sourceFingerprint);
  state.softwareVersion=`release-${sourceFingerprint}`;
- await writeFile(join(app,'packages/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:state.softwareVersion})+'\n');
+ await writeFile(join(app,'platform/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:state.softwareVersion})+'\n');
  if(pmsProviderFixtureEnabled){
   state.providerFixture=true;
   await writePrivate(join(directory,'provider-fixture.json'),{schemaVersion:1,keys:{},resources:{},requests:[]});
@@ -507,7 +543,7 @@ if(mode==='prepare'||diagnostic){
  state.ready=true;await writePrivate(statePath,state);
  console.log(JSON.stringify({run,origin,statePath,credentialsPath:join(directory,'credentials.json'),guidePath:join(directory,'demo-guide.json'),hospitalityGuidePath:join(directory,'hospitality-guide.json'),ready:true}));
 }else if(mode==='start'){
- const state=JSON.parse(await readFile(statePath,'utf8')) as State;assertWorkspaceHoldingBinding(workspaceHolding,state.workspaceHoldingProfile);if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(state.diagnostic||!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const environment={...safeEnv(secret),ERPX_REPOSITORY_ROOT:app};
+ const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(state.diagnostic||!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const environment={...safeEnv(secret),ERPX_REPOSITORY_ROOT:app};
  if(Boolean(state.productHosts)!==productHosts)throw Error('PRODUCT_HOST_MODE_CHANGED');
  if(Boolean(state.executiveWorkHosts)!==executiveWorkHosts)throw Error('EXECUTIVE_WORK_HOST_MODE_CHANGED');
  if(Boolean(state.formsHosts)!==formsHosts)throw Error('FORMS_HOST_MODE_CHANGED');
@@ -528,7 +564,7 @@ if(mode==='prepare'||diagnostic){
  if(localAttachmentMode){
   const required=[environment.ERPX_CLAMD_SOCKET,environment.ERPX_CLAMAV_DATABASE_DIR,environment.ERPX_HEIF_CONVERT,environment.ERPX_PDFTOPPM_BIN];
   if(required.some(value=>typeof value!=='string'||!existsSync(value)))throw new Error('LOCAL_ATTACHMENT_RUNTIME_FILES_MISSING');
-  const {attachmentRuntimeReadiness}=await import("@erpx/server-files/public/attachments/readiness");
+  const {attachmentRuntimeReadiness}=await import("@erpx/files-server/public/attachments/readiness");
   const readiness=await attachmentRuntimeReadiness(environment);
   if(!readiness.ready)throw new Error(`LOCAL_ATTACHMENT_RUNTIME_NOT_READY:${readiness.scanner.error??readiness.preview.error??'UNKNOWN'}`);
  }
@@ -537,7 +573,7 @@ if(mode==='prepare'||diagnostic){
  const suppliedRelease=process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR;
  if(Boolean(state.providerFixture)!==pmsProviderFixtureEnabled||pmsProviderFixtureEnabled&&!suppliedRelease)throw new Error('PMS_PROVIDER_FIXTURE_COMPILED_RELEASE_REQUIRED');
  if(workspaceApps){
-  if(Boolean(state.workspaceHoldingProfile)!==workspaceHolding||Boolean(state.workspaceConsoleRetired)!==workspaceConsoleRetired||state.executionMode!=='development-smoke'||JSON.stringify(state.workspaceApps)!==JSON.stringify(workspaceApps)||(state.workspaceBundler??'webpack')!==workspaceBundler||state.release)throw new Error('WORKSPACE_BROWSER_STATE_APPS_CHANGED');
+  if(Boolean(state.workspaceConsoleRetired)!==workspaceConsoleRetired||state.executionMode!=='development-smoke'||JSON.stringify(state.workspaceApps)!==JSON.stringify(workspaceApps)||(state.workspaceBundler??'webpack')!==workspaceBundler||state.release)throw new Error('WORKSPACE_BROWSER_STATE_APPS_CHANGED');
   const output=join(app,'.runtime/workspace-gateway');await mkdir(output,{recursive:true});
   const bundle=await Bun.build({entrypoints:[join(app,'scripts/testing/workspace-browser-runtime.ts')],outdir:output,target:'node',format:'esm',naming:'gateway.mjs',env:'disable'});
   if(!bundle.success)throw new Error('WORKSPACE_BROWSER_GATEWAY_BUILD_FAILED');
@@ -561,7 +597,7 @@ if(mode==='prepare'||diagnostic){
   Object.assign(environment,{NODE_ENV:'production',PORT:String(port),HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId});
   Object.assign(environment,{ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint});
   state.release={id:release.id,fileManifestSha256:release.fileManifestSha256};
-  const {enrollEngineeringVerification}=await import("@erpx/server-platform_administration/public/engineering-verification");
+  const {enrollEngineeringVerification}=await import("@erpx/platform-administration-server/public/engineering-verification");
   const urls=JSON.parse(await readFile(manifestPath,'utf8')).databases as Record<string,string>;
   const legal=state.fixture?.legal as {companies?:Record<string,{id:string}>}|undefined;
   const company=state.fixture?.companyId as string,hospitality=state.fixture?.hospitality as {companyId:string};
@@ -617,6 +653,48 @@ if(mode==='prepare'||diagnostic){
  }
  // The preload validates persisted release identity before either process executes.
  await writePrivate(statePath,state);
+ if(process.env.ERPX_NATIVE_BROWSER_ACCOUNT==='1'){
+  const templatePath=process.env.ERPX_NATIVE_BROWSER_ACCOUNT_TEMPLATE;
+  if(!templatePath)throw new Error('BROWSER_NATIVE_ACCOUNT_TEMPLATE_REQUIRED');
+  const template=JSON.parse(await readFile(templatePath,'utf8')),manifest=JSON.parse(await readFile(manifestPath,'utf8')),databases=manifest.databases;
+  const servicePort=3300+(parseInt(run.slice(0,4),16)%100);
+  template.listen=`127.0.0.1:${servicePort}`;
+  template.accountHost='account.erpxbrowser.test:3102';
+  template.holdings=[0,1,2].map((i:number)=>({...template.holdings[Math.min(i,template.holdings.length-1)],
+   holdingId:`h00${i+1}`,slug:i===0?'acme':i===1?'northstar':'erpx',
+   host:i===0?'holding.erpxbrowser.test:3102':i===1?'holding2.erpxbrowser.test:3104':'holding3.erpxbrowser.test:3105',
+   writeBinding:`H00${i+1}_DB`,readBinding:`H00${i+1}_READ_DB`,filesBinding:`H00${i+1}_FILES`,
+   database:{url:databases[`H00${i+1}_DB`],browser:true},
+   readDatabase:{url:databases[`H00${i+1}_READ_DB`],browser:true}}));
+  template.control={url:databases.CONTROL_DB,browser:true};
+  template.financeJournalReads=[];template.posCompanies=[];template.crmCompanies=[];template.operationsCompanies=[];template.commerceCompanies=[];template.assetsCompanies=[];template.platformAdministrationCompanies=[];template.maintenanceCompanies=[];
+  template.fieldServiceReads=[{holdingId:'h001',companyId:'acme-co'}];
+  // The native browser runtime requires exactly three declared Holdings. The
+  // module profiles seed h001/h002; add the internal Executable realm binding
+  // so the native startup check sees the same exact three.
+  const boundControl=new PostgresDatabase({connectionString:databases.CONTROL_DB,max:1});
+  try{await boundControl.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h003','erpx','ERPX browser realm','H003_DB','H003_READ_DB','H003_FILES','active') ON CONFLICT(holding_id) DO UPDATE SET slug=excluded.slug,display_name=excluded.display_name,write_binding=excluded.write_binding,read_binding=excluded.read_binding,files_binding=excluded.files_binding,status='active'").run();}
+  finally{await boundControl.close();}
+  const account={privateBaseUrl:`http://127.0.0.1:${servicePort}`,accountOrigin:'http://account.erpxbrowser.test:3102',holdingOrigins:['http://holding.erpxbrowser.test:3102'],timeoutMs:5000};
+  const work={privateBaseUrl:`http://127.0.0.1:${servicePort}`,timeoutMs:5000,holdings:[{origin:'http://holding.erpxbrowser.test:3102',holdingSlug:'acme',holdingId:'h001'}]};
+  Object.assign(environment,{NEXT_PUBLIC_ERPX_DEV_ORIGIN_PROFILE:'loopback',ERPX_NATIVE_ORIGIN_PROFILE:'loopback',ERPX_NATIVE_ACCOUNT_SESSION_CONFIG:JSON.stringify(account),ERPX_NATIVE_FIELD_SERVICE_WORKSPACE_CONFIG:JSON.stringify(work)});
+  const configPath=join(directory,'browser-native-account.json');await writePrivate(configPath,template);
+  const controlDb=new PostgresDatabase({connectionString:databases.CONTROL_DB,max:1});
+  try{
+   const salt=randomBytes(16).toString('hex'),nativeHash=spawnSync('argon2',[salt,'-id','-t','3','-k','65536','-p','1','-e'],{input:'Mali-ERPX-2026!',encoding:'utf8'});
+   if(nativeHash.status!==0||!nativeHash.stdout.trim().startsWith('$argon2id$'))throw new Error('BROWSER_NATIVE_PASSWORD_HASH_FAILED');
+   await controlDb.prepare('UPDATE account SET password=? WHERE "userId" IN (SELECT id FROM "user" WHERE email=?)').bind(nativeHash.stdout.trim(),'mali@erpx.dev').run();
+  }finally{await controlDb.close();}
+  const nativeLog=await open(`/tmp/erpx-browser-native-${run}.log`,'a',0o600);
+  const nativeBinary=process.env.ERPX_BROWSER_NATIVE_ACCOUNT_BIN??join(root,'target/debug/erpx-server');
+ const native=spawn(nativeBinary,['private-api','--development-config',configPath],{cwd:root,env:{...process.env,ERPX_BROWSER_SIMULATION_RUN_ID:run},detached:true,stdio:['ignore',nativeLog.fd,nativeLog.fd]});
+  native.unref();await nativeLog.close();
+  if(!native.pid)throw new Error('BROWSER_NATIVE_ACCOUNT_FAILED');
+  state.nativeAccount={pid:native.pid,port:servicePort,bin:nativeBinary};await writePrivate(statePath,state);
+  let ready=false;
+  for(let attempt=0;attempt<300;attempt++){try{const response=await fetch(`http://127.0.0.1:${servicePort}/api/health`);if(response.status===200){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}
+  if(!ready)throw new Error('BROWSER_NATIVE_ACCOUNT_NOT_READY');
+ }
  if(pmsProviderFixtureEnabled)environment.NODE_OPTIONS+=` --import=${join(workingDirectory,'tools/pms-provider-fixture.mjs')}`;
  const log=await open(join(directory,'server.log'),'a',0o600);
  const child=spawn(node,webArgs,{cwd:workingDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;state.applicationPoolMax=Number(environment.ERPX_APP_PG_POOL_MAX??1);state.controlPoolMax=Number(environment.ERPX_CONTROL_PG_POOL_MAX??5);state.webEntrypoint=webEntrypoint;await writePrivate(statePath,state);child.unref();await log.close();
@@ -668,6 +746,17 @@ if(mode==='prepare'||diagnostic){
  const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');
  if(existsSync(manifestPath))assertCohortManifest(JSON.parse(await readFile(manifestPath,'utf8')));
  let stopped=false;
+ if(state.nativeAccount){
+  const {pid,port:nativePort}=state.nativeAccount;
+  const command=Bun.spawnSync(['ps','-p',String(pid),'-o','command=']).stdout.toString();
+  if(command.trim()){
+   const actualCwd=Bun.spawnSync(['lsof','-a','-p',String(pid),'-d','cwd','-Fn']).stdout.toString().split('\n').find(line=>line.startsWith('n'))?.slice(1);
+   const listening=Bun.spawnSync(['lsof','-nP','-a','-p',String(pid),'-iTCP:'+nativePort,'-sTCP:LISTEN','-Fn']).stdout.toString();
+   if(!command.includes(state.nativeAccount.bin)||!command.includes('private-api')||actualCwd!==root||!listening.includes('n127.0.0.1:'+nativePort))throw new Error('BROWSER_NATIVE_ACCOUNT_IDENTITY_CHANGED');
+   process.kill(pid,'SIGTERM');stopped=true;
+  }
+  delete state.nativeAccount;
+ }
  const webMarker=state.webEntrypoint??join(app,'node_modules/next/dist/bin/next'),jobsMarker=state.jobsEntrypoint??join(app,'.runtime/jobs/jobs.mjs');
  if(![join(app,'node_modules/next/dist/bin/next'),join(directory,'release/server.js'),...(state.workspaceApps&&state.executionMode==='development-smoke'&&!state.release?[join(app,'.runtime/workspace-gateway/gateway.mjs')]:[])].includes(webMarker)||
    ![join(app,'.runtime/jobs/jobs.mjs'),join(directory,'release/tools/jobs.mjs')].includes(jobsMarker))throw new Error('BROWSER_ENTRYPOINT_MISMATCH');

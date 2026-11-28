@@ -1,28 +1,28 @@
-import {createProductWorkspace} from "@erpx/server-identity_access/application/product-workspace";
-import {productWorkspaceTarget} from "@erpx/server-identity_access/domain/product-workspace";
-import {workspaceGrantsForAccount,type AccountAccessContext} from "@erpx/server-identity_access/public/authorization";
-import {accountWorkModuleAccess} from "@erpx/server-identity_access/public/work-module-access";
-import {initializeWorkSelection,readWorkSelection,selectWorkRole} from "@erpx/server-work_projection/public/work-role-store";
-import {readCompanyPurchaseFacts} from "@erpx/server-commercial/public/package-grants";
-import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
-import {financeSourceDocumentBackdrop,financeDocumentPresentationAccess,financeDocumentFlow} from "@erpx/server-finance/public/record-presentation";
-import {ApiError} from "@erpx/server-runtime/public/http";
-import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";
-import {journalRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
-import {createJournal,createJournalSchema} from '@erpx/server-finance/public/finance';
-import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";
-import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {withFinanceFlowAssignment} from "@erpx/server-finance/public/document-purchases";
-import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,attachmentContent,linkExistingAttachment} from "@erpx/server-files/public/attachments/service";
-import {assetPage,assetOptions} from "@erpx/server-finance/public/finance-assets";
-import {createAccrualSchedule,accrualScheduleSchema} from "@erpx/server-finance/public/finance-accruals";
+import {createProductWorkspace} from "@erpx/identity-access-server/application/product-workspace";
+import {productWorkspaceTarget} from "@erpx/identity-access-server/domain/product-workspace";
+import {workspaceGrantsForAccount,type AccountAccessContext} from "@erpx/identity-access-server/public/authorization";
+import {accountWorkModuleAccess} from "@erpx/identity-access-server/public/work-module-access";
+import {initializeWorkSelection,readWorkSelection,selectWorkRole} from "@erpx/work-projection-server/public/work-role-store";
+import {readCompanyPurchaseFacts} from "@erpx/commercial-server/public/package-grants";
+import {financeProductDocumentEntry} from "@erpx/finance-server/public/document-purchases";
+import {financeSourceDocumentBackdrop,financeDocumentPresentationAccess,financeDocumentFlow} from "@erpx/finance-server/public/record-presentation";
+import {ApiError} from "@erpx/platform-runtime-server/public/http";
+import {journalDetail,ledgerWorkspace} from "@erpx/finance-server/public/ledger";
+import {journalRecordWorkspace} from "@erpx/finance-server/public/record-presentation";
+import {seedFinanceJournal} from '../../support/helpers/finance-journal-seed';
+import {enrichFlowWork} from "@erpx/workflow-server/public/flow-work";
+import {resolveFlow} from '@erpx/workflow-server/public/flow-routing';
+import {withFinanceFlowAssignment} from "@erpx/finance-server/public/document-purchases";
+import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,attachmentContent,linkExistingAttachment} from "@erpx/files-server/public/attachments/service";
+import {assetPage,assetOptions} from "@erpx/finance-server/public/finance-assets";
+import {createAccrualSchedule,accrualScheduleSchema} from "@erpx/finance-server/public/finance-accruals";
 import {afterEach} from "vitest";
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { activateAsset,assetActivationSchema,assetDecisionSchema,assetDepreciationSchema,assetDetail,assetDisposalSchema,assetEditSchema,assetSchema,cancelDraftAsset,createAsset,decideAssetDisposal,depreciateAsset,editAsset,prepareAssetDisposal } from "@erpx/server-finance/public/finance-assets";
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import { activateAsset,assetActivationSchema,assetDecisionSchema,assetDepreciationSchema,assetDetail,assetDisposalSchema,assetEditSchema,assetSchema,cancelDraftAsset,createAsset,decideAssetDisposal,depreciateAsset,editAsset,prepareAssetDisposal } from "@erpx/finance-server/public/finance-assets";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,mapped:{cost:string;accumulated:string;expense:string;gain:string;loss:string};
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);});
 beforeEach(async()=>{
@@ -137,13 +137,13 @@ it("late purchased disposal reviewer revocation rolls back all source carrying j
 });
 
 it("included Assets reads only its actual journal ownership and cannot open a label-forged GL or acquire generic Finance actions",async()=>{
- const asset=await recognized(),id=String(asset.id),journal=String((await assetDetail(f.owner,id)).asset.activation_journal_id),forged=await createJournal(f.reviewer,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",sourceType:"asset_acquisition",sourceId:id,memo:"Unowned label cannot become source authority",lines:[{accountId:mapped.cost,debit:"1",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"1"}]}),key());
+ const asset=await recognized(),id=String(asset.id),journal=String((await assetDetail(f.owner,id)).asset.activation_journal_id),forged=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",sourceType:"asset_acquisition",sourceId:id,memo:"Unowned label cannot become source authority",key:key(),createdBy:f.reviewer.userId,lines:[{accountId:mapped.cost,debit:"1",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"1"}]});
  await reviewedFinanceGrant(db,f.company,"assets");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const detail=await journalRecordWorkspace(f.owner,journal);expect(detail.journal.id).toBe(journal);expect(detail.accounts.every(account=>account.chart_id===f.chart)).toBe(true);expect(detail).not.toHaveProperty("report");expect(detail).not.toHaveProperty("journals");await expect(journalDetail(f.owner,String(forged.id),db)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(ledgerWorkspace(f.owner,f.chart)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
  const flow=await resolveFlow(db,f.owner,"journal",journal),item={id:journal,type:"journal" as const,title:"Owned acquisition source",detail:"Source history",href:`/finance/journals/${journal}`,status:"posted",updatedAt:1,queue:"todo" as const,canAct:true,flow:{...flow,canAct:true,canManage:true}},visible=await enrichFlowWork(f.owner,[item]);expect(visible).toMatchObject([{id:journal,canAct:false,actionKind:"work",flow:{canAct:false,canManage:false}}]);await expect(withFinanceFlowAssignment(f.owner,key(),async()=>{throw Error("Unpurchased route mutation reached effects");})).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
 });
 
 it("enters only an actual Assets journal through normal product role selection without a full Finance purchase or assignment changes",async()=>{
- const asset=await recognized(),id=String((await assetDetail(f.owner,String(asset.id))).asset.activation_journal_id),foreign=await createJournal(f.reviewer,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",sourceType:"asset_acquisition",sourceId:asset.id,memo:"Unowned source label",lines:[{accountId:mapped.cost,debit:"1",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"1"}]}),key());
+ const asset=await recognized(),id=String((await assetDetail(f.owner,String(asset.id))).asset.activation_journal_id),foreign=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",sourceType:"asset_acquisition",sourceId:String(asset.id),memo:"Unowned source label",key:key(),createdBy:f.reviewer.userId,lines:[{accountId:mapped.cost,debit:"1",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"1"}]});
  await reviewedFinanceGrant(db,f.company,"assets");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
  const salesId=key(),sessionId=key();await db.prepare("INSERT INTO assignments(id,user_id,role,company_id,modules_json,valid_from,valid_until,scope_kind) VALUES(?,?,'sales_operator',?,?,0,9999999999999,'holding')").bind(salesId,f.owner.userId,f.company,JSON.stringify(['sales'])).run();
  const account=async():Promise<AccountAccessContext>=>{const {rows,roles}=await workspaceGrantsForAccount(db,f.company,f.owner.userId);return {scope:f.owner.scope,sessionId,userId:f.owner.userId,name:f.owner.name,email:f.owner.email,expiresAt:Date.now()+600000,requestHeaders:new Headers(),assignments:rows.filter(row=>roles.get(row.role)?.scopes.includes(row.scope_kind)).map(row=>({id:row.id,role:row.role,companyId:row.company_id,branchId:row.branch_id,scopeKind:row.scope_kind,scopeNodeId:row.scope_node_id,modules:JSON.parse(row.modules_json),version:row.version,validUntil:row.valid_until}))};};

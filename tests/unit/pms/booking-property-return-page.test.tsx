@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isValidElement, type ComponentProps, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { HotelCard } from "@erpx/feature-pms/components/booking-flow";
-import type { BookingPaymentReturnStatus } from "@erpx/feature-pms/components/booking-payment-return";
+import { AppRouterContext, type AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import type { HotelCard } from "@erpx/pms-ui/components/booking-flow";
+import type { BookingPaymentReturnStatus } from "@erpx/pms-ui/components/booking-payment-return";
 
-// Only the named native owner ports are substituted. The property Server
-// Component, Next notFound, and both Booking presentations execute unchanged.
+// Only the named native owner ports are substituted. An explicit framework
+// navigation IO port mounts real Next context; the owner, notFound, product
+// routing helpers and both Booking presentations execute unchanged.
 type PaymentSnapshot = BookingPaymentReturnStatus & { hotel: Pick<HotelCard, "id"> };
 type CatalogReader = () => Promise<HotelCard[]>;
 type PaymentReader = (attempt: string) => Promise<PaymentSnapshot>;
@@ -15,14 +17,14 @@ const owner = vi.hoisted(() => ({
   catalogQueries: vi.fn<(slug: string) => Promise<{ bookingCatalog: CatalogReader }>>(),
   paymentQueries: vi.fn<(slug: string) => Promise<{ bookingPaymentStatus: PaymentReader }>>(),
 }));
-vi.mock("@erpx/server-pms/public/presentation-context-queries", () => ({
+vi.mock("@erpx/pms-server/public/presentation-context-queries", () => ({
   bookingPresentationQueries: owner.catalogQueries,
   bookingPaymentPresentationQueries: owner.paymentQueries,
 }));
-import PropertyPage from "@erpx/feature-booking/routes/book/[holdingSlug]/[propertyId]/page";
-import { BookingPaymentReturn } from "@erpx/feature-pms/components/booking-payment-return";
-import { ProductLinkEnvironment } from "@erpx/workplace/components/product-link-context";
-import { ApiError } from "@erpx/server-runtime/public/http";
+import PropertyPage from "@erpx/product-booking-ui/routes/book/[holdingSlug]/[propertyId]/page";
+import { BookingPaymentReturn } from "@erpx/pms-ui/components/booking-payment-return";
+import { ProductLinkEnvironment } from "@erpx/platform-workplace/components/product-link-context";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
 
 const target = { holdingSlug: "original-holding", propertyId: "original-property" };
 const attempt = "original-payment.original-signature";
@@ -39,7 +41,8 @@ const paymentSnapshot = (): PaymentSnapshot => ({ ...initial, hotel: { id: targe
 const page = (query: { attempt?: string | string[] } = {}) => PropertyPage({
   params: Promise.resolve(target), searchParams: Promise.resolve(query),
 });
-const html = (node: ReactElement) => renderToStaticMarkup(<ProductLinkEnvironment audience="booking">{node}</ProductLinkEnvironment>);
+const frameworkRouter = { back:vi.fn(),forward:vi.fn(),refresh:vi.fn(),push:vi.fn(),replace:vi.fn(),prefetch:vi.fn(),bfcacheId:"booking-property-unit" } satisfies AppRouterInstance;
+const html = (node: ReactElement) => renderToStaticMarkup(<AppRouterContext.Provider value={frameworkRouter}><ProductLinkEnvironment audience="booking">{node}</ProductLinkEnvironment></AppRouterContext.Provider>);
 const notFound = { digest: "NEXT_HTTP_ERROR_FALLBACK;404" };
 beforeEach(() => {
   vi.resetAllMocks();
@@ -49,7 +52,10 @@ beforeEach(() => {
   owner.catalog.mockResolvedValue([hotel]);
   owner.payment.mockResolvedValue(paymentSnapshot());
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  for(const operation of Object.values(frameworkRouter))if(typeof operation==="function")expect(operation).not.toHaveBeenCalled();
+  vi.unstubAllEnvs();
+});
 
 describe("Booking property Server Component owner selection", () => {
   it("renders the published property without acquiring a payment owner", async () => {

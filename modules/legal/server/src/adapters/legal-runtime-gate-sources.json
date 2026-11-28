@@ -1,0 +1,5 @@
+{
+  "settingsPredicate": "EXISTS(SELECT 1 FROM legal_settings runtime_legal_settings WHERE runtime_legal_settings.company_id={companyExpression} AND runtime_legal_settings.enabled{aiEnabled} AND {scheduledFeaturePredicate})",
+  "capabilityProbe": "SELECT 1 WHERE {predicate}",
+  "health": "SELECT task,heartbeat_at,last_success_at,failure_count,last_error FROM legal_runtime_health ORDER BY task"
+}

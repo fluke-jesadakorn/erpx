@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { mergeLegacyMoveTray } from "@erpx/feature-people_payroll/lib/people-draft-import";
-import { emptyDraft } from "@erpx/feature-organization/lib/organization-draft";
+import { mergeLegacyMoveTray } from "@erpx/people-payroll-ui/lib/people-draft-import";
+import { emptyDraft } from "@erpx/organization-ui/lib/organization-draft";
 
 describe("Legacy People move tray import", () => {
   it("keeps undecided moves parked and preserves the original definition", () => {

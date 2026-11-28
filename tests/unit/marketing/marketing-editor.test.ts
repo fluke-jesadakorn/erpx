@@ -1,8 +1,8 @@
 import { describe, expect, it,vi } from "vitest";
-import { marketingAssetDraft, marketingAssetEditorSchema } from "@erpx/feature-collaboration/lib/marketing-editor";
-import {createPublicMarketingCommand,validPublicMarketingReceipt,publicMarketingAttemptCurrent,publicMarketingAcknowledgementCurrent} from '@erpx/feature-marketing/lib/public-form-command';
-import {readBoundedPublicMarketingBody} from '@erpx/server-marketing/public/public-form-body';
-import {PublicMarketingForm} from '@erpx/feature-marketing/components/public-marketing-form';
+import { marketingAssetDraft, marketingAssetEditorSchema } from "@erpx/collaboration-ui/lib/marketing-editor";
+import {createPublicMarketingCommand,validPublicMarketingReceipt,publicMarketingAttemptCurrent,publicMarketingAcknowledgementCurrent} from '@erpx/marketing-ui/lib/public-form-command';
+import {readBoundedPublicMarketingBody} from '@erpx/marketing-server/public/public-form-body';
+import {PublicMarketingForm} from '@erpx/marketing-ui/components/public-marketing-form';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 

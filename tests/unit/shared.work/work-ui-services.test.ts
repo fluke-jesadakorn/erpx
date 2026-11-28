@@ -1,28 +1,33 @@
 import {expect,it,vi} from "vitest";
-import {createFrontAppService,type FrontPorts} from "@erpx/server-work_projection/application/front-app";
-import {createFrontQuickAccessService} from "@erpx/server-work_projection/application/front-quick-access";
-import {createListPageReader} from "@erpx/server-work_projection/application/list-page";
-import {createStaffApiService,type StaffApiPorts} from "@erpx/server-work_projection/application/staff-api";
-import {createStaffPageService} from "@erpx/server-work_projection/application/staff-page";
-import {createNavigationContextService} from "@erpx/server-work_projection/application/navigation-context";
-import {createNavigationCountService} from "@erpx/server-work_projection/application/navigation-counts";
-import {createStorefrontIconService} from "@erpx/server-work_projection/application/front-icon";
-import {createPageLayoutService,type PageLayoutUnit} from "@erpx/server-work_projection/application/page-layouts";
-import {createFlowSettingsHubQuery,type FlowSettingsHubPorts} from "@erpx/server-work_projection/application/flow-settings-hub";
-import {createRequestAdministrationQuery,type RequestAdministrationPorts} from "@erpx/server-records/application/request-administration";
-import {createSocialPageQuery,type SocialPagePorts} from "@erpx/server-collaboration/application/social-page";
-import {createBusinessDocumentBrandQuery,type BusinessDocumentBrandPorts} from "@erpx/server-brand/application/business-document";
-import type {WorkContext,AccountAccessContext} from "@erpx/server-identity_access/public/authorization";
-import type {ActiveWorkSelection} from "@erpx/server-work_projection/domain/work-role-store";
-import type {WorkspaceHoldingChoice} from "@erpx/feature-work_projection/lib/workspace-choice";
-import {ApiError} from "@erpx/server-runtime/public/http";
+import {createFrontAppService,type FrontPorts} from "@erpx/work-projection-server/application/front-app";
+import {createFrontQuickAccessService} from "@erpx/work-projection-server/application/front-quick-access";
+import {createListPageReader} from "@erpx/work-projection-server/application/list-page";
+import {createStaffApiService,type StaffApiPorts} from "@erpx/work-projection-server/application/staff-api";
+import {createStaffPageService} from "@erpx/work-projection-server/application/staff-page";
+import {createNavigationContextService} from "@erpx/work-projection-server/application/navigation-context";
+import {createNavigationCountService} from "@erpx/work-projection-server/application/navigation-counts";
+import {createStorefrontIconService} from "@erpx/work-projection-server/application/front-icon";
+import {createPageLayoutService,type PageLayoutUnit} from "@erpx/work-projection-server/application/page-layouts";
+import {createFlowSettingsHubQuery,type FlowSettingsHubPorts} from "@erpx/work-projection-server/application/flow-settings-hub";
+import {createRequestAdministrationQuery,type RequestAdministrationPorts} from "@erpx/records-server/application/request-administration";
+import {createBusinessDocumentBrandQuery,type BusinessDocumentBrandPorts} from "@erpx/brand-server/application/business-document";
+import type {WorkContext,AccountAccessContext} from "@erpx/identity-access-server/public/authorization";
+import type {ActiveWorkSelection} from "@erpx/work-projection-server/domain/work-role-store";
+import type {WorkspaceHoldingChoice} from "@erpx/work-projection-ui/lib/workspace-choice";
+import {ApiError} from "@erpx/platform-runtime-server/public/http";
+import {nativeSocialPageDataSSR} from "@erpx/collaboration-server/public/native-social-page";
+import * as nativeHttp from "@erpx/platform-runtime-server/public/native-http";
 function only<T>(values:Partial<T>):T {return new Proxy(values,{get(target,name){if(name==="then")return undefined;if(name in target)return Reflect.get(target,name);throw Error(`Unexpected port ${String(name)}`);}}) as T;}
 const actor={userId:"user",sessionId:"session",companyId:"company",holdingId:"holding",holdingSlug:"acme",role:"owner",assignmentId:"assignment",scope:{kind:"holding",holdingSlug:"acme"}} as unknown as WorkContext;
 const error=(status:number,code:string,message:string)=>new ApiError(status,code,message);
 const assignment={id:"assignment",role:"owner",companyId:"company",branchId:null,modules:[],scopeKind:"holding",scopeNodeId:"company",version:2} as AccountAccessContext["assignments"][number];
 const access={sessionId:"session",expiresAt:2000,userId:"user",name:"User",email:"user@test.invalid",scope:{kind:"holding",holdingId:"holding",holdingSlug:"acme",companyId:"company"},assignments:[assignment],requestHeaders:new Headers()} as AccountAccessContext;
 const selection:ActiveWorkSelection={session_id:"session",user_id:"user",company_id:"company",assignment_id:"assignment",assignment_version:2,revision:1,expires_at:1500};
-function front(overrides:Partial<FrontPorts>={}){return createFrontAppService(only<FrontPorts>({error,isApiError:(value):value is ApiError=>value instanceof ApiError,now:()=>1000,prepareSlug:async()=>({id:"holding",slug:"acme"}),prepareHolding:async()=>{},accountAccess:async()=>access,roles:async()=>new Map([["owner",{permissions:["pos.read"]}]]),selection:async()=>selection,...overrides}));}
+function front(overrides:Partial<FrontPorts>={}){return createFrontAppService(only<FrontPorts>({error,isApiError:(value):value is ApiError=>value instanceof ApiError,now:()=>1000,prepareSlug:async()=>({id:"holding",slug:"acme"}),prepareHolding:async()=>{},restore:undefined,accountAccess:async()=>access,roles:async()=>new Map([["owner",{permissions:["pos.read"]}]]),selection:async()=>selection,...overrides}));}
+it("reads Front roles for the requested Company even when another Company is the account default",async()=>{
+ const service=front({accountAccess:async(_scope,options)=>({...access,scope:{...access.scope,companyId:options?.companyId??'another-default-company'}})});
+ expect((await service.frontRoleState('acme','company','pos','holding')).selected?.id).toBe('assignment');
+});
 it("requires the selected role's current version and expiry for Front",async()=>{
  expect((await front().frontRoleState("acme","company","pos","holding")).selected?.id).toBe("assignment");
  for(const changed of [{...selection,expires_at:1000},{...selection,assignment_version:1}])expect((await front({selection:async()=>changed}).frontRoleState("acme","company","pos","holding")).selected).toBeUndefined();
@@ -40,6 +45,11 @@ it("recovers a concurrent Front selection only after rereading current authority
  let selected=false;const service=front({selection:async()=>selected?selection:null,select:async()=>{selected=true;throw error(409,"WORK_CONTEXT_CHANGED","changed");}});
  expect((await service.ensureFrontRole("acme","company","pos","holding")).selected?.id).toBe("assignment");
  await expect(front({selection:async()=>null,select:async()=>{throw error(409,"WORK_CONTEXT_CHANGED","changed");}}).ensureFrontRole("acme","company","pos","holding")).rejects.toMatchObject({code:"WORK_CONTEXT_CHANGED"});
+});
+it('restores an eligible remembered Front role before falling back to the default without rewriting the preference',async()=>{
+ let restored=false;const select=vi.fn<FrontPorts['select']>(),restore=vi.fn<NonNullable<FrontPorts['restore']>>(async()=>{restored=true;return selection;});
+ const state=await front({selection:async()=>restored?selection:null,restore,select}).ensureFrontRole('acme','company','pos','holding');
+ expect(state.selected?.id).toBe('assignment');expect(restore).toHaveBeenCalledExactlyOnceWith(access);expect(select).not.toHaveBeenCalled();
 });
 it("does not hide unexpected selection failures",async()=>{const failure=Error("connection refused");await expect(front({selection:async()=>null,select:async()=>{throw failure;}}).ensureFrontRole("acme","company","pos","holding")).rejects.toBe(failure);});
 it("uses active owner lineage facts and rejects malformed Front locations",async()=>{
@@ -78,13 +88,13 @@ it("keeps Home read cursor scope and injected time consistent with the feed coun
 function staff(overrides:Partial<StaffApiPorts>={}){return createStaffApiService(only<StaffApiPorts>({requireWorkContext:async()=>actor,prepare:async()=>{},now:()=>123,error,requestPublicOrigin:()=>"https://app.test.invalid",...overrides}));}
 function request(path:string,method="GET",headers:Record<string,string>={}){return {request:new Request("https://app.test.invalid/api/"+path,{method,headers,...(method==="GET"?{}:{body:"{}"})}),context:{params:Promise.resolve({holdingSlug:"acme",path:path.split("/")})}};}
 it("rejects mutation origin and missing receipt key before dispatching owner commands",async()=>{for(const [headers,code] of [[{origin:"https://evil.invalid","Idempotency-Key":"key"},"ORIGIN_FORBIDDEN"],[{},"COMMAND_KEY_REQUIRED"]] as const){const r=request("notifications/n/read","POST",headers);await expect(staff()("staff",r.request,r.context)).rejects.toMatchObject({code});}});
-it("marks only the current user's company notification through the owner port",async()=>{const notificationRead=vi.fn(async()=>{}),r=request("notifications/n/read","POST",{"Idempotency-Key":"key"});expect(await staff({facts:only<StaffApiPorts["facts"]>({notificationRead})})("staff",r.request,r.context)).toEqual({id:"n"});expect(notificationRead).toHaveBeenCalledWith(123,"n","company","user");});
+it("marks only the current user's company notification through the owner port",async()=>{const notificationRead=vi.fn(async()=>{}),r=request("notifications/n/read","POST",{"Idempotency-Key":"key"});expect(await staff({markNotificationRead:notificationRead})("staff",r.request,r.context)).toEqual({id:"n"});expect(notificationRead).toHaveBeenCalledWith(actor,"n","key",123);});
 it("guards approval queue projection with live company authority",async()=>{const r=request("pending");await expect(staff({companyAuthority:async()=>false})("approvals",r.request,r.context)).rejects.toMatchObject({code:"NOT_FOUND"});});
 it("loads project ownership before projecting its members and tasks",async()=>{const order:string[]=[];const r=request("project");const service=staff({getProject:async()=>{order.push("project-authority");return {} as Awaited<ReturnType<StaffApiPorts["getProject"]>>;},facts:only<StaffApiPorts["facts"]>({projectMembers:async()=>{order.push("members");return {results:[]};}}),listTasks:async()=>{order.push("tasks");return [] as unknown as Awaited<ReturnType<StaffApiPorts["listTasks"]>>;}});await service("projects",r.request,r.context);expect(order).toEqual(["project-authority","members","tasks"]);});
 it("keeps layout receipt replay inside the transaction and filters now-unavailable widgets",async()=>{
  const snapshot={personal:{schemaVersion:1,widgets:[{id:"current-profiles",columns:6,height:320,hidden:false},{id:"removed-widget",columns:6,height:320,hidden:false}]},organization:null,version:1,organizationVersion:0,canPublish:true};
  type LayoutPorts=Parameters<typeof createPageLayoutService<string>>[0];
- const transactionMock=vi.fn(async(action:(tx:PageLayoutUnit<string>)=>Promise<unknown>)=>action(only<PageLayoutUnit<string>>({lock:async()=>{},workGuards:()=>[],iamGuards:()=>[],clearAssertions:()=>"clear",batch:async()=>{},receipt:async()=>({request_hash:"hash",result_json:JSON.stringify(snapshot)})})));
+ const transactionMock=vi.fn(async(action:(tx:PageLayoutUnit<string>)=>Promise<unknown>)=>action(only<PageLayoutUnit<string>>({lock:async()=>{},workGuards:()=>[],iamGuards:()=>[],clearAssertions:async()=>"clear",batch:async()=>{},receipt:async()=>({request_hash:"hash",result_json:JSON.stringify(snapshot)})})));
  const transaction=transactionMock as LayoutPorts["transaction"];
  const session={session:{user:{id:"user"},session:{id:"session"}}} as unknown as Awaited<ReturnType<LayoutPorts["currentSession"]>>;
  const service=createPageLayoutService<string>(only<LayoutPorts>({error,now:()=>123,hash:()=>"hash",currentSession:async()=>session,requireWorkContext:async()=>({...actor,role:"holding_owner"}),navigation:async()=>({workspaceBase:"/holdings/acme",scopeKind:"holding",role:"holding_owner",adminSections:["people","organization"]}),base:()=>"/holdings/acme",prepare:async()=>{},unit:()=>only<PageLayoutUnit<string>>({companyAuthority:async()=>false}),transaction}));
@@ -138,18 +148,40 @@ it("denies request administration before reading request or route data", async (
   const app = createRequestAdministrationQuery(only<RequestAdministrationPorts>({ prepare: async () => undefined, owner: async () => false }));
   expect(await app("private-request")).toBeNull(); expect(await app()).toBeNull();
 });
+const nativeSocialActor = { ...actor, authority: { sessionId: "session", revision: 1, assignmentVersion: 2 } };
+const socialHeaders = new Headers({ host: "acme.example.test", cookie: "session=fixture" });
+const socialOptions = { branches: [], audiences: [], projects: [] };
+
 it("keeps single-post Home queries separate from feeds and personal schedule", async () => {
-  const post = only<Awaited<ReturnType<SocialPagePorts["post"]>>>({ id: "post" });
-  const result = await createSocialPageQuery(only<SocialPagePorts>({ prepare: async () => undefined, post: async id => { expect(id).toBe("post"); return post; }, audience: async () => only<Awaited<ReturnType<SocialPagePorts["audience"]>>>({ branches: [], audiences: [], projects: [] }), moderate: async () => false }))({ beta: false }, { postId: "post" });
-  expect(result.posts).toHaveLength(1); expect(result.posts[0]).toBe(post); expect(result.post).toBe(post); expect(result.milestones).toEqual([]); expect(result.initialDay).toBeUndefined();
+  vi.stubEnv("ERPX_NATIVE_COLLABORATION_CONFIG", JSON.stringify({ privateBaseUrl: "http://127.0.0.1:3105", timeoutMs: 1000 }));
+  const post = { id: "post" };
+  const request = vi.spyOn(nativeHttp, "nativeRequest").mockResolvedValue(Response.json({ data: {
+    posts: [post], post, milestones: [], options: socialOptions, moderate: false, sourceOnly: false, initialDay: null,
+  } }));
+  try {
+    await expect(nativeSocialPageDataSSR(nativeSocialActor, { postId: post.id, skipDay: true, skipMilestones: true }, socialHeaders))
+      .resolves.toMatchObject({ posts: [post], post, milestones: [], initialDay: null });
+    const url = request.mock.calls[0]![0];
+    expect(url.pathname).toBe("/api/v1/holdings/acme/page");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ postId: "post", skipDay: "1", skipMilestones: "1" });
+    expect(request).toHaveBeenCalledOnce();
+  } finally { request.mockRestore(); vi.unstubAllEnvs(); }
 });
+
 it("recovers Home personal-summary failure without hiding either feed stream", async () => {
-  const feed = vi.fn<SocialPagePorts["feed"]>(async () => []);
-  const result = await createSocialPageQuery(only<SocialPagePorts>({ prepare: async () => undefined, seed: async () => { throw Error("Schedule unavailable"); }, feed, audience: async () => only<Awaited<ReturnType<SocialPagePorts["audience"]>>>({ branches: [], audiences: [], projects: [] }), moderate: async () => true }))({ beta: false }, { tag: "team" });
-  expect(await result.initialDay).toBeNull();
-  expect(feed.mock.calls.map(([filter]) => filter)).toEqual([{ limit: 8, stream: "conversations", tag: "team" }, { limit: 8, stream: "milestones", tag: "team" }]);
-  expect(result.moderate).toBe(true);
+  vi.stubEnv("ERPX_NATIVE_COLLABORATION_CONFIG", JSON.stringify({ privateBaseUrl: "http://127.0.0.1:3105", timeoutMs: 1000 }));
+  const posts = [{ id: "conversation" }], milestones = [{ id: "milestone" }];
+  const request = vi.spyOn(nativeHttp, "nativeRequest").mockResolvedValue(Response.json({ data: {
+    posts, milestones, options: socialOptions, moderate: true, sourceOnly: false, initialDay: null, post: null,
+  } }));
+  try {
+    await expect(nativeSocialPageDataSSR(nativeSocialActor, { tag: "team" }, socialHeaders))
+      .resolves.toMatchObject({ posts, milestones, initialDay: null, moderate: true });
+    expect(Object.fromEntries(request.mock.calls[0]![0].searchParams)).toEqual({ tag: "team" });
+    expect(request).toHaveBeenCalledOnce();
+  } finally { request.mockRestore(); vi.unstubAllEnvs(); }
 });
+
 it("resolves the document's recorded Branch before applying requested print mode", async () => {
   const document = vi.fn<BusinessDocumentBrandPorts["document"]>(async () => only<Awaited<ReturnType<BusinessDocumentBrandPorts["document"]>>>({ mode: "both" }));
   const recordBranch = vi.fn<BusinessDocumentBrandPorts["recordBranch"]>(async () => "recorded-branch");
@@ -184,20 +216,16 @@ it("retains a specifically requested healthy routing record instead of requiring
   expect(detail).toHaveBeenNthCalledWith(1, "selected-service"); expect(detail).toHaveBeenNthCalledWith(2, "selected-service");
   expect(issues?.[0].request).toBe(request); expect(issues?.[0].route).toBeNull();
 });
-it('loads only the exact included conversation and minimal command context without Social discovery or Work snapshots',async()=>{
- const post=only<Awaited<ReturnType<SocialPagePorts['post']>>>({id:'actual-included-post'}),audience=vi.fn<SocialPagePorts['audience']>(),moderate=vi.fn<SocialPagePorts['moderate']>(),feed=vi.fn<SocialPagePorts['feed']>(),seed=vi.fn<SocialPagePorts['seed']>(),presentation=vi.fn<NonNullable<SocialPagePorts['presentation']>>();
- const result=await createSocialPageQuery({prepare:async()=>{},post:async id=>{expect(id).toBe(post.id);return post;},audience,moderate,feed,seed,presentation})({beta:false},{postId:post.id,sourceOnly:true});expect(result.posts).toHaveLength(1);expect(result.posts[0]).toBe(post);expect(result.options).toEqual({branches:[],audiences:[],projects:[]});expect(result.moderate).toBe(false);expect(result.initialDay).toBeUndefined();for(const read of [audience,moderate,feed,seed])expect(read).not.toHaveBeenCalled();expect(presentation).toHaveBeenCalledOnce();
-});
 
 
 import {readFileSync as frontRoleRead} from 'node:fs';
 import {resolve as frontRoleResolve} from 'node:path';
 import {createRequire as frontRoleRequire} from 'node:module';
-import {errorResponse as frontRoleErrorResponse} from '@erpx/server-runtime/public/http';
-import {canonicalDestinationLinks as frontRoleLinks} from '@erpx/feature-work_projection/lib/destination-links';
+import {errorResponse as frontRoleErrorResponse} from '@erpx/platform-runtime-server/public/http';
+import {canonicalDestinationLinks as frontRoleLinks} from '@erpx/work-projection-ui/lib/destination-links';
 type FrontRoleGet=(request:Request,context:{params:Promise<{holdingSlug:string;companySlug:string;app:string;path:string[]}>})=>Promise<Response>;
 function actualFrontRoleGet(service:ReturnType<typeof front>){
- const require=frontRoleRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=frontRoleRead(frontRoleResolve("packages/workplace/src/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts"),'utf8'),tree=ts.createSourceFile('actual-front-route.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),declarations:import('typescript').FunctionDeclaration[]=[];ts.forEachChild(tree,node=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='GET')declarations.push(node);});expect(declarations).toHaveLength(1);const declaration=declarations[0];if(!declaration)throw Error('Actual Front GET missing');
+ const require=frontRoleRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=frontRoleRead(frontRoleResolve("platform/workplace/src/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts"),'utf8'),tree=ts.createSourceFile('actual-front-route.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),declarations:import('typescript').FunctionDeclaration[]=[];ts.forEachChild(tree,node=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='GET')declarations.push(node);});expect(declarations).toHaveLength(1);const declaration=declarations[0];if(!declaration)throw Error('Actual Front GET missing');
  const code=ts.transpileModule(declaration.getText(tree).replace(/^export\s+/,''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
  const load=new Function('ports',`const {frontCompanyBrand,ensureFrontRole,ApiError,errorResponse,canonicalDestinationLinks,frontPmsAttachmentPaths}=ports;\n${code}\nreturn GET;`) as (ports:Record<string,unknown>)=>FrontRoleGet;
  // Only the exact roles branch is exercised. Real Front application authority,
@@ -206,11 +234,11 @@ function actualFrontRoleGet(service:ReturnType<typeof front>){
 }
 it.each(['pos','pms'] as const)('returns public current-user metadata from the original %s role owner without an IAM/session snapshot',async app=>{
  const accountAccess=vi.fn<FrontPorts['accountAccess']>(async()=>access),roles=vi.fn<FrontPorts['roles']>(async()=>new Map([['owner',{permissions:['pos.read','pms.read']}]])),service=front({accountAccess,roles}),get=actualFrontRoleGet(service),response=await get(new Request(`https://${app}-dev-erpx.jesadakorn.com/api/v1/front/acme/hotel/${app}/roles`,{headers:{'x-erpx-front-location':'holding'}}),{params:Promise.resolve({holdingSlug:'acme',companySlug:'hotel',app,path:['roles']})});
- expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toBe('private, no-store');const body=await response.json();expect(body).toEqual({data:{valid:true,userId:access.userId,revision:selection.revision,assignmentId:selection.assignment_id,companyId:'company'}});expect(Object.keys(body.data).sort()).toEqual(['assignmentId','companyId','revision','userId','valid']);expect(JSON.stringify(body)).not.toContain('session');expect(accountAccess).toHaveBeenCalledExactlyOnceWith({kind:'holding',holdingSlug:'acme'});expect(roles).toHaveBeenCalledExactlyOnceWith('company',access.assignments.map(row=>row.role));
+ expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toBe('private, no-store');const body=await response.json();expect(body).toEqual({data:{valid:true,userId:access.userId,revision:selection.revision,assignmentVersion:selection.assignment_version,assignmentId:selection.assignment_id,companyId:'company'}});expect(Object.keys(body.data).sort()).toEqual(['assignmentId','assignmentVersion','companyId','revision','userId','valid']);expect(JSON.stringify(body)).not.toContain('session');expect(accountAccess).toHaveBeenCalledExactlyOnceWith({kind:'holding',holdingSlug:'acme'},{companyId:'company'});expect(roles).toHaveBeenCalledExactlyOnceWith('company',access.assignments.map(row=>row.role));
 });
 it.each(['revoked-session','revoked-role'] as const)('keeps the actual Front %s refusal before returning role identity metadata',async kind=>{
  const roles=vi.fn<FrontPorts['roles']>(async()=>new Map()),accountAccess=vi.fn<FrontPorts['accountAccess']>(async()=>{if(kind==='revoked-session')throw error(401,'SESSION_REVOKED','Current session is revoked.');return access;}),get=actualFrontRoleGet(front({accountAccess,roles})),response=await get(new Request('https://pos-dev-erpx.jesadakorn.com/api/v1/front/acme/hotel/pos/roles'),{params:Promise.resolve({holdingSlug:'acme',companySlug:'hotel',app:'pos',path:['roles']})}),body=await response.json();
- expect(response.status).toBe(kind==='revoked-session'?401:403);expect(body.error.code).toBe(kind==='revoked-session'?'SESSION_REVOKED':'FRONT_ACCESS_DENIED');expect(body.data).toBeUndefined();expect(accountAccess).toHaveBeenCalledExactlyOnceWith({kind:'holding',holdingSlug:'acme'});if(kind==='revoked-session')expect(roles).not.toHaveBeenCalled();
+ expect(response.status).toBe(kind==='revoked-session'?401:403);expect(body.error.code).toBe(kind==='revoked-session'?'SESSION_REVOKED':'FRONT_ACCESS_DENIED');expect(body.data).toBeUndefined();expect(accountAccess).toHaveBeenCalledExactlyOnceWith({kind:'holding',holdingSlug:'acme'},{companyId:'company'});if(kind==='revoked-session')expect(roles).not.toHaveBeenCalled();
 });
 
 
@@ -220,7 +248,7 @@ it("timestamps the named Front role snapshot before current authority without re
  const accountAccess=vi.fn<FrontPorts['accountAccess']>(async()=>{order.push('authority');now=1100;return access;}),roles=vi.fn<FrontPorts['roles']>(async()=>new Map([['owner',{permissions:['pos.read']}]])),select=vi.fn<FrontPorts['select']>();
  const result=await front({now:()=>{order.push('clock');return now;},accountAccess,roles,select}).ensureFrontRoleSnapshot('acme','company','pos','holding');
  expect(result.checkedAt).toBe(1000);expect(result.access).toBe(access);expect(result.selection).toBe(selection);expect(result.selected?.id).toBe(assignment.id);expect(result.options).toEqual([assignment]);
- expect(order[0]).toBe('clock');expect(order.indexOf('authority')).toBeGreaterThan(0);expect(accountAccess).toHaveBeenCalledExactlyOnceWith({kind:'holding',holdingSlug:'acme'});expect(roles).toHaveBeenCalledExactlyOnceWith('company',['owner']);expect(select).not.toHaveBeenCalled();
+ expect(order[0]).toBe('clock');expect(order.indexOf('authority')).toBeGreaterThan(0);expect(accountAccess).toHaveBeenCalledExactlyOnceWith({kind:'holding',holdingSlug:'acme'},{companyId:'company'});expect(roles).toHaveBeenCalledExactlyOnceWith('company',['owner']);expect(select).not.toHaveBeenCalled();
 });
 it.each(['revoked-session','role-unavailable','company-mismatch'] as const)("retains the original %s refusal through the named Front role snapshot",async kind=>{
  const failure=error(401,'SESSION_REVOKED','Current session is revoked.'),accountAccess=vi.fn<FrontPorts['accountAccess']>(async()=>{if(kind==='revoked-session')throw failure;return kind==='company-mismatch'?{...access,scope:{...access.scope,companyId:'other'}}:access;}),roles=vi.fn<FrontPorts['roles']>(async()=>kind==='role-unavailable'?new Map():new Map([['owner',{permissions:['pos.read']}]]));

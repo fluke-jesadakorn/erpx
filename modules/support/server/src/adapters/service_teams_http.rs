@@ -1,0 +1,906 @@
+//! Native Support service-team HTTP ingress.
+//!
+//! Transport facts only: registered Host/Holding targets, optional exact origin,
+//! idempotency, bounded JSON and business-error mapping. The composition backend
+//! resolves the current Account proof, Holding-owner authority, Organization
+//! membership/scope, People category/member facts and the command unit. The
+//! router performs no SQL and imports no composition module.
+use crate::adapters::support_http::{
+    OriginPolicy, SupportHttpFuture, SupportHttpTargetSpec, configure_targets, error_response,
+    no_query, ok, parse_command, parse_json_body, selected_target, unique_header,
+    validation_failed,
+};
+use crate::application::service_teams::{ServiceTeamPreview, ServiceTeamResult};
+use erpx_platform_runtime_server::public::http_support::{
+    HeaderMap, Path, Request, Response, Router, State,
+    body::to_bytes,
+    header,
+    routing::{get, post},
+    serde_json::{self, Value, json},
+};
+use erpx_platform_shared_server::public::{BusinessError, CommandKey};
+use std::{collections::BTreeMap, sync::Arc};
+
+const SERVICE_TEAM_BODY_LIMIT: usize = 192_000;
+
+pub struct ServiceTeamOptionsHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+}
+
+pub struct ServiceTeamListHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+}
+
+pub struct ServiceTeamPreviewHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub id: Option<&'a str>,
+    pub body: &'a Value,
+}
+
+pub struct ServiceTeamSaveHttpRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub id: Option<&'a str>,
+    pub body: &'a Value,
+    pub key: &'a CommandKey,
+}
+
+/// Composition-owned owner/session/scope/command adapter. The router never
+/// mints a session, actor, Company, Holding owner or category catalogue.
+pub trait ServiceTeamHttpBackend: Send + Sync {
+    fn options<'a>(
+        &'a self,
+        request: ServiceTeamOptionsHttpRequest<'a>,
+    ) -> SupportHttpFuture<'a, Value>;
+
+    fn list<'a>(&'a self, request: ServiceTeamListHttpRequest<'a>) -> SupportHttpFuture<'a, Value>;
+
+    fn preview<'a>(
+        &'a self,
+        request: ServiceTeamPreviewHttpRequest<'a>,
+    ) -> SupportHttpFuture<'a, ServiceTeamPreview>;
+
+    fn save<'a>(
+        &'a self,
+        request: ServiceTeamSaveHttpRequest<'a>,
+    ) -> SupportHttpFuture<'a, ServiceTeamResult>;
+}
+
+pub struct ServiceTeamHttpTarget {
+    pub host: String,
+    pub holding_slug: String,
+    /// Exact browser origin for this registered Holding.
+    pub origin: String,
+    pub backend: Arc<dyn ServiceTeamHttpBackend>,
+}
+
+impl SupportHttpTargetSpec for ServiceTeamHttpTarget {
+    fn host(&self) -> &str {
+        &self.host
+    }
+    fn holding_slug(&self) -> &str {
+        &self.holding_slug
+    }
+    fn origin(&self) -> &str {
+        &self.origin
+    }
+}
+
+struct ServiceTeamHttpState {
+    targets: BTreeMap<(String, String), ServiceTeamHttpTarget>,
+}
+
+pub fn service_teams_http_router(
+    targets: Vec<ServiceTeamHttpTarget>,
+) -> Result<Router, BusinessError> {
+    let configured = configure_targets(targets, "SERVICE_TEAMS_HTTP_CONFIGURATION_INVALID")?;
+    Ok(Router::new()
+        .route(
+            "/api/v1/holdings/{holding_slug}/service-teams",
+            get(options).post(save_create),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/service-teams/list",
+            get(list),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/service-teams/preview",
+            post(preview_create),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/service-teams/{id}",
+            post(save_update),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/service-teams/{id}/preview",
+            post(preview_update),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/support/command-plan",
+            post(plan_read),
+        )
+        .with_state(Arc::new(ServiceTeamHttpState {
+            targets: configured,
+        })))
+}
+
+/// Plan an owner-owned caller-unit read. No SQL is accepted from the wire: the
+/// allow-listed read `kind` resolves to the exact statement in the native read
+/// registry, which the TypeScript caller prepares and executes on its own open
+/// unit. Reads carry no write ledger and never execute here.
+async fn plan_read(
+    State(state): State<Arc<ServiceTeamHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let _target = selected_target(&state.targets, request.headers(), &slug)?;
+        no_query(request.uri().query())?;
+        let headers = request.headers().clone();
+        if !unique_header(&headers, header::CONTENT_TYPE)?
+            .is_some_and(|value| {
+                value
+                    .split(';')
+                    .next()
+                    .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
+            })
+        {
+            return Err(validation_failed());
+        }
+        let bytes = to_bytes(request.into_body(), SERVICE_TEAM_BODY_LIMIT)
+            .await
+            .map_err(|_| validation_failed())?;
+        let value: Value = serde_json::from_slice(&bytes).map_err(|_| validation_failed())?;
+        let object = value.as_object().ok_or_else(validation_failed)?;
+        let kind = object
+            .get("kind")
+            .and_then(Value::as_str)
+            .ok_or_else(validation_failed)?;
+        let values = object
+            .get("values")
+            .and_then(Value::as_array)
+            .cloned()
+            .ok_or_else(validation_failed)?;
+        if values.len() > 64 {
+            return Err(validation_failed());
+        }
+        if let Some(statement) = crate::adapters::native_support_read_sql::read_statement(kind) {
+            if values.len() != statement.bind_count {
+                return Err(validation_failed());
+            }
+            return Ok(json!({
+                "statements": [{ "sql": statement.sql, "values": values }]
+            }));
+        }
+        let fragment = crate::adapters::native_support_read_sql::read_fragment(kind)
+            .ok_or_else(validation_failed)?;
+        if !values.is_empty() {
+            return Err(validation_failed());
+        }
+        Ok(json!({
+            "statements": [{
+                "sql": fragment.sql,
+                "values": [],
+                "fragment": true,
+                "tailBindCounts": fragment.tail_bind_counts
+            }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => ok(data),
+        Err(error) => error_response(error),
+    }
+}
+
+fn response_value<T: serde::Serialize>(value: T) -> Result<Value, BusinessError> {
+    erpx_platform_runtime_server::public::http_support::serde_json::to_value(value).map_err(|_| {
+        BusinessError::invalid("SUPPORT_RESPONSE_INVALID", "Invalid Support response.")
+    })
+}
+
+fn valid_id(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 200 && !value.chars().any(char::is_control)
+}
+
+async fn options(
+    State(state): State<Arc<ServiceTeamHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let target = match selected_target(&state.targets, request.headers(), &slug) {
+        Ok(target) => target,
+        Err(error) => return error_response(error),
+    };
+    match target
+        .backend
+        .options(ServiceTeamOptionsHttpRequest {
+            host: &target.host,
+            holding_slug: &target.holding_slug,
+            headers: request.headers(),
+        })
+        .await
+    {
+        Ok(value) => ok(value),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn list(
+    State(state): State<Arc<ServiceTeamHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let target = match selected_target(&state.targets, request.headers(), &slug) {
+        Ok(target) => target,
+        Err(error) => return error_response(error),
+    };
+    match target
+        .backend
+        .list(ServiceTeamListHttpRequest {
+            host: &target.host,
+            holding_slug: &target.holding_slug,
+            headers: request.headers(),
+        })
+        .await
+    {
+        Ok(value) => ok(value),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn save_create(
+    State(state): State<Arc<ServiceTeamHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    save(state, slug, None, request).await
+}
+
+async fn save_update(
+    State(state): State<Arc<ServiceTeamHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    if !valid_id(&id) {
+        return error_response(validation_failed());
+    }
+    save(state, slug, Some(id), request).await
+}
+
+async fn save(
+    state: Arc<ServiceTeamHttpState>,
+    slug: String,
+    id: Option<String>,
+    request: Request,
+) -> Response {
+    let target = match selected_target(&state.targets, request.headers(), &slug) {
+        Ok(target) => target,
+        Err(error) => return error_response(error),
+    };
+    let parsed = match parse_command(
+        request,
+        &target.origin,
+        OriginPolicy::Optional,
+        SERVICE_TEAM_BODY_LIMIT,
+    )
+    .await
+    {
+        Ok(parsed) => parsed,
+        Err(error) => return error_response(error),
+    };
+    let result = target
+        .backend
+        .save(ServiceTeamSaveHttpRequest {
+            host: &target.host,
+            holding_slug: &target.holding_slug,
+            headers: &parsed.headers,
+            id: id.as_deref(),
+            body: &parsed.body,
+            key: &parsed.key,
+        })
+        .await;
+    match result.and_then(response_value) {
+        Ok(value) => ok(value),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn preview_create(
+    State(state): State<Arc<ServiceTeamHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    preview(state, slug, None, request).await
+}
+
+async fn preview_update(
+    State(state): State<Arc<ServiceTeamHttpState>>,
+    Path((slug, id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    if !valid_id(&id) {
+        return error_response(validation_failed());
+    }
+    preview(state, slug, Some(id), request).await
+}
+
+async fn preview(
+    state: Arc<ServiceTeamHttpState>,
+    slug: String,
+    id: Option<String>,
+    request: Request,
+) -> Response {
+    let target = match selected_target(&state.targets, request.headers(), &slug) {
+        Ok(target) => target,
+        Err(error) => return error_response(error),
+    };
+    let parsed = match parse_json_body(
+        request,
+        &target.origin,
+        OriginPolicy::Optional,
+        SERVICE_TEAM_BODY_LIMIT,
+    )
+    .await
+    {
+        Ok(parsed) => parsed,
+        Err(error) => return error_response(error),
+    };
+    let body_id = match parsed.body.get("id").and_then(Value::as_str) {
+        Some(value) if valid_id(value) => Some(value),
+        _ => None,
+    };
+    let selected = id.as_deref().or(body_id);
+    let result = target
+        .backend
+        .preview(ServiceTeamPreviewHttpRequest {
+            host: &target.host,
+            holding_slug: &target.holding_slug,
+            headers: &parsed.headers,
+            id: selected,
+            body: &parsed.body,
+        })
+        .await;
+    match result.and_then(response_value) {
+        Ok(value) => ok(value),
+        Err(error) => error_response(error),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::support_http::block_on;
+    use erpx_platform_runtime_server::public::http_support::{body::Body, json};
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    #[derive(Default)]
+    struct Backend {
+        options: AtomicUsize,
+        list: AtomicUsize,
+        previews: AtomicUsize,
+        saves: AtomicUsize,
+        seen_id: Mutex<Option<String>>,
+        seen_key: Mutex<String>,
+        seen_body: Mutex<Value>,
+    }
+
+    impl ServiceTeamHttpBackend for Backend {
+        fn options<'a>(
+            &'a self,
+            _request: ServiceTeamOptionsHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, Value> {
+            self.options.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async move { Ok(json!({"owner": true, "teams": []})) })
+        }
+
+        fn list<'a>(
+            &'a self,
+            _request: ServiceTeamListHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, Value> {
+            self.list.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async move { Ok(json!({"teams": []})) })
+        }
+
+        fn preview<'a>(
+            &'a self,
+            request: ServiceTeamPreviewHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, ServiceTeamPreview> {
+            self.previews.fetch_add(1, Ordering::SeqCst);
+            *self.seen_id.lock().unwrap() = request.id.map(str::to_owned);
+            *self.seen_body.lock().unwrap() = request.body.clone();
+            Box::pin(async move {
+                Ok(ServiceTeamPreview {
+                    previous_version: 0,
+                    new_version: 1,
+                    previous: None,
+                    proposed: json!({"name": "Desk team"}),
+                    warnings: vec![],
+                    effect: "New intake uses current coverage.",
+                })
+            })
+        }
+
+        fn save<'a>(
+            &'a self,
+            request: ServiceTeamSaveHttpRequest<'a>,
+        ) -> SupportHttpFuture<'a, ServiceTeamResult> {
+            self.saves.fetch_add(1, Ordering::SeqCst);
+            *self.seen_id.lock().unwrap() = request.id.map(str::to_owned);
+            *self.seen_key.lock().unwrap() = request.key.as_str().to_owned();
+            *self.seen_body.lock().unwrap() = request.body.clone();
+            let id = request.id.unwrap_or("team-command-0001").to_owned();
+            Box::pin(async move { Ok(ServiceTeamResult { id, version: 1 }) })
+        }
+    }
+
+    fn target(backend: Arc<Backend>) -> ServiceTeamHttpTarget {
+        ServiceTeamHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend,
+        }
+    }
+
+    fn state(backend: Arc<Backend>) -> Arc<ServiceTeamHttpState> {
+        let target = target(backend);
+        Arc::new(ServiceTeamHttpState {
+            targets: BTreeMap::from([((target.host.clone(), target.holding_slug.clone()), target)]),
+        })
+    }
+
+    fn team_body() -> String {
+        json!({
+            "name":"Desk team","active":true,"expectedVersion":1,
+            "members":[{"userId":"lead","responsibility":"lead"}],
+            "coverage":[{"category":"it","scopeKind":"holding","scopeNodeId":"company"}]
+        })
+        .to_string()
+    }
+
+    fn post(uri: &str, key: Option<&str>, origin: Option<&str>) -> Request {
+        let mut builder = Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("host", "acme.example.test");
+        if let Some(key) = key {
+            builder = builder.header("idempotency-key", key);
+        }
+        if let Some(origin) = origin {
+            builder = builder.header("origin", origin);
+        }
+        builder.body(Body::from(team_body())).unwrap()
+    }
+
+    #[test]
+    fn options_and_list_are_plain_reads() {
+        let backend = Arc::new(Backend::default());
+        let state = state(backend.clone());
+        let response = block_on(options(
+            State(state.clone()),
+            Path("acme".into()),
+            Request::builder()
+                .uri("/service-teams?ticketId=ticket-1")
+                .header("host", "acme.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        ));
+        assert_eq!(response.status(), 200);
+        assert_eq!(backend.options.load(Ordering::SeqCst), 1);
+        let response = block_on(options(
+            State(state.clone()),
+            Path("acme".into()),
+            Request::builder()
+                .uri("/service-teams")
+                .header("host", "acme.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        ));
+        assert_eq!(response.status(), 200);
+        let response = block_on(list(
+            State(state),
+            Path("acme".into()),
+            Request::builder()
+                .uri("/service-teams/list")
+                .header("host", "acme.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        ));
+        assert_eq!(response.status(), 200);
+        assert_eq!(backend.options.load(Ordering::SeqCst), 2);
+        assert_eq!(backend.list.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn save_accepts_optional_origin_but_requires_key() {
+        let backend = Arc::new(Backend::default());
+        let state = state(backend.clone());
+        let response = block_on(save_create(
+            State(state.clone()),
+            Path("acme".into()),
+            post("/service-teams", None, None),
+        ));
+        assert_eq!(response.status(), 422);
+        let response = block_on(save_create(
+            State(state.clone()),
+            Path("acme".into()),
+            post(
+                "/service-teams",
+                Some("service-team-0001"),
+                Some("https://other.test"),
+            ),
+        ));
+        assert_eq!(response.status(), 403);
+        let response = block_on(save_create(
+            State(state.clone()),
+            Path("acme".into()),
+            post("/service-teams", Some("service-team-0001"), None),
+        ));
+        assert_eq!(response.status(), 200);
+        assert_eq!(backend.saves.load(Ordering::SeqCst), 1);
+        assert!(backend.seen_id.lock().unwrap().is_none());
+        assert_eq!(
+            backend.seen_body.lock().unwrap()["name"].as_str(),
+            Some("Desk team")
+        );
+        let response = block_on(save_update(
+            State(state),
+            Path(("acme".into(), "team-command-0001".into())),
+            post(
+                "/service-teams/team-command-0001",
+                Some("service-team-0002"),
+                None,
+            ),
+        ));
+        assert_eq!(response.status(), 200);
+        assert_eq!(
+            backend.seen_id.lock().unwrap().as_deref(),
+            Some("team-command-0001")
+        );
+    }
+
+    #[test]
+    fn preview_is_available_with_and_without_current_team() {
+        let backend = Arc::new(Backend::default());
+        let state = state(backend.clone());
+        let response = block_on(preview_create(
+            State(state.clone()),
+            Path("acme".into()),
+            post("/service-teams/preview", None, None),
+        ));
+        assert_eq!(response.status(), 200);
+        assert!(backend.seen_id.lock().unwrap().is_none());
+        let response = block_on(preview_update(
+            State(state),
+            Path(("acme".into(), "team-command-0001".into())),
+            post("/service-teams/team-command-0001/preview", None, None),
+        ));
+        assert_eq!(response.status(), 200);
+        assert_eq!(
+            backend.seen_id.lock().unwrap().as_deref(),
+            Some("team-command-0001")
+        );
+        assert_eq!(backend.previews.load(Ordering::SeqCst), 2);
+    }
+
+    fn plan_post(uri: &str, body: Value) -> Request {
+        Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("host", "acme.example.test")
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    }
+
+    #[test]
+    fn command_plan_resolves_only_registered_owner_reads() {
+        let state = state(Arc::new(Backend::default()));
+        for (kind, values, expected) in [
+            (
+                "support_rd_service_coverage_history",
+                json!(["company"]),
+                200,
+            ),
+            (
+                "support_rd_service_team_coverage",
+                json!(["company", "it", "company", null, null]),
+                200,
+            ),
+            ("support_rd_service_team_name", json!(["team-1", "company"]), 200),
+            ("support_rd_ticket_portal_response", json!(["binding-1"]), 200),
+            (
+                "support_rd_ticket_portal_acknowledged_at",
+                json!(["binding-1", "response-1"]),
+                200,
+            ),
+            ("support_rd_ticket_portal_valid_bindings", json!([]), 200),
+            (
+                "support_rd_ticket_portal_image_aggregate_full",
+                json!([]),
+                200,
+            ),
+            (
+                "support_rd_ticket_portal_image_aggregate_core",
+                json!([]),
+                200,
+            ),
+            ("support_rd_ticket_portal_installed", json!([]), 200),
+            ("support_rd_ticket_event_history", json!(["ticket-1"]), 200),
+            ("support_rd_incident_event_history", json!(["incident-1"]), 200),
+            ("support_rd_ticket_incident_links", json!(["ticket-1"]), 200),
+            ("support_rd_incident_ticket_links", json!(["incident-1"]), 200),
+            (
+                "support_rd_incident_ticket_candidates",
+                json!(["company", "branch-1", null, "incident-1"]),
+                200,
+            ),
+            (
+                "support_rd_sla_workspace_tickets",
+                json!(["company", "branch-1", "branch-1", null, null]),
+                200,
+            ),
+            ("support_rd_sla_policy_point", json!(["policy-1", "company"]), 200),
+            ("support_rd_sla_policy_approved", json!(["company"]), 200),
+            (
+                "support_rd_sla_alerts",
+                json!(["user-1", "company", null, null, null, null]),
+                200,
+            ),
+            (
+                "support_rd_ticket_recipients",
+                json!(["ticket-1", "company", null, null, null, null]),
+                200,
+            ),
+            (
+                "support_rd_customer_contact_notes",
+                json!(["order-1", "company"]),
+                200,
+            ),
+            ("support_rd_ticket_source_image", json!(["ticket-1", "company"]), 200),
+            (
+                "support_rd_ticket_attachment_source_image",
+                json!(["ticket-1", "company"]),
+                200,
+            ),
+            ("support_rd_attachment_migration_scope", json!(["ticket-1"]), 200),
+            ("support_rd_service_team_options", json!(["company"]), 200),
+            (
+                "support_rd_service_team_option_history",
+                json!(["company", "team-1"]),
+                200,
+            ),
+            (
+                "support_rd_service_team_option_handlers",
+                json!(["team-1", "company"]),
+                200,
+            ),
+            (
+                "support_rd_service_team_option_coverage",
+                json!(["team-1", "company"]),
+                200,
+            ),
+            (
+                "support_rd_calendar_support_tickets",
+                json!([
+                    "Asia/Bangkok", "company", null, null, null, null, "[]",
+                    "assignment", "user", "role", "2026-10-01", "2026-11-01",
+                    "team", "owner", "owner", null, null, "", "", 100
+                ]),
+                200,
+            ),
+            (
+                "support_rd_calendar_support_incidents",
+                json!([
+                    "company", null, null, null, null, "[]", "assignment",
+                    "user", "role", "2026-10-01", "2026-11-01", "team",
+                    "owner", "owner", null, null, "", "", 100
+                ]),
+                200,
+            ),
+            (
+                "support_rd_exec_ticket_metric",
+                json!([
+                    "status", "status", "status", 0, "company", null, null, null, null,
+                    "assignment", "user", "role", "[]", "[]", "[]", 0
+                ]),
+                200,
+            ),
+            (
+                "support_rd_exec_incident_metric",
+                json!([
+                    "status", "status", "status", "status", "company", null, null, null, null,
+                    "assignment", "user", "role"
+                ]),
+                200,
+            ),
+            (
+                "support_rd_incident_attachment_source_image",
+                json!(["user-1", "incident-1", "company"]),
+                200,
+            ),
+            (
+                "support_rd_incident_attachment_source_links",
+                json!(["incident-1", "company"]),
+                200,
+            ),
+            (
+                "support_rd_sales_support_counts",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "company", "branch",
+                    "branch", "dept", "dept", "assignment", "user", "role", "[]"
+                ]),
+                200,
+            ),
+            (
+                "support_rd_sales_open_support_cases",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "company", "branch",
+                    "branch", "dept", "dept", "assignment", "user", "role", "customer"
+                ]),
+                200,
+            ),
+            (
+                "support_rd_sales_customer_source_cases",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "assignment", "user",
+                    "role", "[]", "[]", "[]", "customer"
+                ]),
+                200,
+            ),
+            (
+                "support_rd_service_coverage_history",
+                json!(["company", "extra"]),
+                422,
+            ),
+            ("support_rd_service_team_name", json!(["team-1"]), 422),
+            ("support_rd_ticket_portal_response", json!([]), 422),
+            (
+                "support_rd_ticket_portal_acknowledged_at",
+                json!(["binding-1"]),
+                422,
+            ),
+            ("support_rd_ticket_portal_valid_bindings", json!(["x"]), 422),
+            (
+                "support_rd_ticket_portal_image_aggregate_full",
+                json!(["x"]),
+                422,
+            ),
+            ("support_rd_ticket_portal_installed", json!([1]), 422),
+            ("support_rd_ticket_event_history", json!([]), 422),
+            ("support_rd_incident_event_history", json!([]), 422),
+            ("support_rd_ticket_incident_links", json!([]), 422),
+            ("support_rd_incident_ticket_links", json!([]), 422),
+            ("support_rd_incident_ticket_candidates", json!(["company"]), 422),
+            ("support_rd_sla_workspace_tickets", json!(["company"]), 422),
+            ("support_rd_sla_policy_point", json!(["policy-1"]), 422),
+            ("support_rd_sla_policy_approved", json!([]), 422),
+            ("support_rd_sla_alerts", json!(["user-1", "company"]), 422),
+            ("support_rd_ticket_recipients", json!(["ticket-1"]), 422),
+            ("support_rd_customer_contact_notes", json!(["order-1"]), 422),
+            ("support_rd_ticket_source_image", json!(["ticket-1"]), 422),
+            ("support_rd_ticket_attachment_source_image", json!(["ticket-1"]), 422),
+            ("support_rd_attachment_migration_scope", json!([]), 422),
+            ("support_rd_service_team_options", json!([]), 422),
+            ("support_rd_service_team_option_history", json!(["company"]), 422),
+            ("support_rd_service_team_option_handlers", json!(["team-1"]), 422),
+            ("support_rd_service_team_option_coverage", json!(["team-1"]), 422),
+            (
+                "support_rd_calendar_support_tickets",
+                json!([
+                    "Asia/Bangkok", "company", null, null, null, null, "[]",
+                    "assignment", "user", "role", "2026-10-01", "2026-11-01",
+                    "team", "owner", "owner", null, null, "", ""
+                ]),
+                422,
+            ),
+            (
+                "support_rd_calendar_support_incidents",
+                json!([
+                    "company", null, null, null, null, "[]", "assignment",
+                    "user", "role", "2026-10-01", "2026-11-01", "team",
+                    "owner", "owner", null, null, ""
+                ]),
+                422,
+            ),
+            (
+                "support_rd_exec_ticket_metric",
+                json!([
+                    "status", "status", "status", 0, "company", null, null, null, null,
+                    "assignment", "user", "role", "[]", "[]", "[]"
+                ]),
+                422,
+            ),
+            (
+                "support_rd_exec_incident_metric",
+                json!([
+                    "status", "status", "status", "status", "company", null, null, null, null,
+                    "assignment", "user"
+                ]),
+                422,
+            ),
+            (
+                "support_rd_incident_attachment_source_image",
+                json!(["user-1", "incident-1"]),
+                422,
+            ),
+            (
+                "support_rd_incident_attachment_source_links",
+                json!(["incident-1"]),
+                422,
+            ),
+            (
+                "support_rd_sales_support_counts",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "company", "branch",
+                    "branch", "dept", "dept", "assignment", "user", "role"
+                ]),
+                422,
+            ),
+            (
+                "support_rd_sales_open_support_cases",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "company", "branch",
+                    "branch", "dept", "dept", "assignment", "user", "role"
+                ]),
+                422,
+            ),
+            (
+                "support_rd_sales_customer_source_cases",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "assignment", "user",
+                    "role", "[]", "[]", "[]"
+                ]),
+                422,
+            ),
+            ("SELECT 1 FROM service_teams", json!([]), 422),
+        ] {
+            let response = block_on(plan_read(
+                State(state.clone()),
+                Path("acme".into()),
+                plan_post(
+                    "/support/command-plan",
+                    json!({"kind": kind, "values": values}),
+                ),
+            ));
+            assert_eq!(response.status(), expected, "kind={kind}");
+        }
+
+        let response = block_on(plan_read(
+            State(state.clone()),
+            Path("acme".into()),
+            plan_post(
+                "/support/command-plan",
+                json!({"kind": "support_rd_ticket_portal_valid_bindings", "values": []}),
+            ),
+        ));
+        assert_eq!(response.status(), 200);
+        let bytes = block_on(to_bytes(response.into_body(), SERVICE_TEAM_BODY_LIMIT)).unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["data"]["statements"][0]["fragment"], Value::Bool(true));
+        assert_eq!(body["data"]["statements"][0]["tailBindCounts"], json!([1, 4, 9]));
+        assert_eq!(body["data"]["statements"][0]["values"], json!([]));
+    }
+
+    #[test]
+    fn duplicate_targets_are_rejected() {
+        let backend = Arc::new(Backend::default());
+        let error = match service_teams_http_router(vec![target(backend.clone()), target(backend)])
+        {
+            Ok(_) => panic!("duplicate target accepted"),
+            Err(error) => error,
+        };
+        assert_eq!(error.code, "SERVICE_TEAMS_HTTP_CONFIGURATION_INVALID");
+    }
+}

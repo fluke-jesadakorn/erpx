@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "The Common Brand/Billing frozen bundles were applied on top of the coordinator head and verified on an exact clean archive. The Branding dynamic SQL and test fixtures were repaired; the Billing assign-target and target-evidence commands plus provider command sources are committed. No owner is counted complete: authenticated browser/SSO and legacy-retirement gates remain.",
+  "capability": "brand-billing-exact-tree",
+  "integrationTarget": "codex/rust-backend-migration",
+  "head": "d9f38f778dc65d6e33a4aa4e1dce0397c92145ed",
+  "sourceCommit": "5b57006f9a96c919b07cc1f304cfad572cffbe8c",
+  "scope": {
+    "billingPatches": [
+      "/tmp/common-billing-assign-target.patch sha256 a46b539cf43a25761024b72ad62bbc650435a681e38c03ec92bf7cc94eb22030",
+      "/tmp/common-billing-target-evidence.patch sha256 81cdde5cd7cc184d9e91995b617740874cf370ee461389d7811e16afb0d17cc7"
+    ],
+    "branding": "Native Branding profile/storefront/media commands and tests; AssertSqlSafe on the two internally composed dynamic SQL statements; storefront is owned exclusively by Branding, not identity publication.",
+    "catalogue": "Registered brand.rust-branding-postgres and workflow.rust-task-decision-postgres in the existing suite manifest."
+  },
+  "verification": {
+    "exactTreeCargoCheck": "PASS: cargo check -p erpx-service --locked on git archive d9f38f778 (29.94s), .scratch/dev/rust-migration/current/verify-5b-check.log.",
+    "recordsWrite": "PASS: records_write_postgres 3 passed, 0 failed (12.37s), .scratch/dev/rust-migration/current/verify-5b-records-write.log.",
+    "recordsLib": "PASS: erpx-server-records --lib 18 passed, 0 failed, .scratch/dev/rust-migration/current/verify-5b-records-lib.log.",
+    "workflowLib": "PASS: erpx-server-workflow --lib 8 passed, 0 failed, .scratch/dev/rust-migration/current/verify-5b-workflow-lib.log.",
+    "billingLib": "PASS: erpx-server-billing --lib 9 passed, 0 failed, .scratch/dev/rust-migration/current/verify-5b-billing-lib.log.",
+    "billingPostgres": "PASS: billing_postgres 13 passed, 0 failed, .scratch/dev/rust-migration/current/verify-5b-billing-pg.log.",
+    "recordsVitest": "PASS: native-record-registry transport 7 + route 5 = 12 passed, .scratch/dev/rust-migration/current/verify-d9-records-vitest.log.",
+    "crossOwner": "PASS: field_service_parts_postgres 37 passed, 0 failed, 0 ignored (387.49s) on exact archive d9f38f778, .scratch/dev/rust-migration/current/verify-d9-field-parts.log.",
+    "staticGates": "PASS: architecture:check, test:catalogue (1003 suites), docs:check on exact archive d9f38f778, .scratch/dev/rust-migration/current/verify-d9-*.log.",
+    "brandTests": "PASS: branding_postgres 2/2, brand_identity_postgres 4/4, brand_identity_http_postgres 4/4 on the working source."
+  },
+  "blocked": {
+    "browserSso": "The shared acme public root returns 500 because the native Account session is not configured; authenticated browser/SSO gates cannot run without the operator/isolated keyed runtime.",
+    "legacy": "Brand TS writer/read consumers and the Billing TS route/consumer retirement have not been proven removed; legacy-retirement gates remain open.",
+    "billingDecision": "Billing rollout approval still needs a product decision because the installed TS success path is unreachable."
+  },
+  "workflowClosure": {
+    "promoted": 0,
+    "reason": "Exact-tree compile, owner, cross-owner and static gates pass, but browser/SSO and legacy-retirement gates are not complete. No owner or workflow is promoted."
+  },
+  "counts": {
+    "verified": 65,
+    "partial": 57,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownerTotal": 41
+  },
+  "nextAction": "Provide/point to a configured native Account session runtime for authenticated browser/SSO, then audit and retire the remaining Brand/Billing TS consumers before owner certification."
+}

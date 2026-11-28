@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import {companyRates} from '@erpx/server-finance/public/company-money-rates';
-import {configureCurrencyScale,confirmManualRate,quoteMoneyConversion,saveCurrencyPreference,snapshotMoney,snapshotMoneyBatch,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/server-finance/public/company-money';
-import { executeCommand } from "@erpx/server-workflow/public/commands";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import {companyRates} from '@erpx/finance-server/public/company-money-rates';
+import {configureCurrencyScale,confirmManualRate,quoteMoneyConversion,saveCurrencyPreference,snapshotMoney,snapshotMoneyBatch,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/finance-server/public/company-money';
+import { executeCommand } from "@erpx/workflow-server/public/commands";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", async () => {
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", async () => {
   const { env } = await import("../../support/runtime-env");
   return { holdingResources: async () => ({ write: env.H001_DB }) };
 });

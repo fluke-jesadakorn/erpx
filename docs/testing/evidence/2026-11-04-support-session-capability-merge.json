@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Support temporary-access sessions and capabilities merged; SLA watch and attachments remain open",
+  "capability": "support-session-capability-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 24,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/24",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T19:52:14Z",
+    "base": "ca53be7ce1ec4e929de7095d1d1f0bbffe64f6fe",
+    "head": "5cada733a33b90d3718d48c6778690ef57b9e3a1",
+    "mergeCommit": "38b14d6529e4f206145d78bda9e7d074441a03de",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflows": ["support/feature-support-sessions", "support/feature-capabilities"],
+    "changedFiles": 19,
+    "nativeWriter": "src/composition/src/support_session_command.rs",
+    "http": "src/composition/src/support_session_http.rs",
+    "transport": "packages/feature-support/src/adapters/server/native-support-session.ts",
+    "excluded": ["support/sla-watch", "support/feature-attachments", "support/incidents"]
+  },
+  "verification": {
+    "postgres": "support.rust-support-session-command-postgres.integration 3/3",
+    "unit": "erpx-server-support 28/28",
+    "transport": "support.native-support-session-transport.unit 4/4",
+    "gates": "cargo clippy, typecheck, structure, architecture, docs, catalogue (33 modules, 776 suites), rust-runtime-foundation 6/6",
+    "browser": "Desktop and mobile normal-auth lifecycles: request, independent approve, issue customer_order_context, capability-gated order context visible, revoke capability, revoke session; persisted revoked v5 with five receipts/audit/outbox rows; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 0,
+    "ownersTotal": 41,
+    "workflowsVerified": 10,
+    "workflowsPartial": 6,
+    "workflowsMerged": 10,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "SLA watch and attachments remain separate Support workflows.",
+    "The browser lifecycle exercised customer_order_context; ticket_evidence_metadata is covered by domain/application tests.",
+    "The Support app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

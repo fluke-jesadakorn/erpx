@@ -2,12 +2,12 @@ import { chmod, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
-import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
-import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { RuntimeEnv } from "@erpx/platform-runtime-server/adapters/runtime/env";
+import { isTransactionalSqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
 import { seedExpenseCompany } from "../../expenses/company";
 import { mapSpendingOrganization } from "../../../tests/support/helpers/spending-organization";
-import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
-import registry from "@erpx/catalogue/module-registry.json";
+import { businessRoles } from "@erpx/identity-access-ui/lib/business-roles";
+import registry from "@erpx/platform-catalogue/module-registry.json";
 import { moduleBrowserHoldingDisplayName } from "../../../scripts/testing/browser-fixture-metadata";
 
 /** Called only after browser-simulation validated its exact eight owned DBs. */
@@ -27,7 +27,7 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
     // Tests use the normal explicitly declared Acme staffing personas; the
     // workflow's separate development CLI retains its existing dev-only guard.
     const { companyId, actors } = await (await import("../../../scripts/seed/seed-acme-organization")).seedAcmeOrganizationForBrowser(directory);
-    const current = (await import("@erpx/server-runtime/adapters/runtime/env")).getRuntime();
+    const current = (await import("@erpx/platform-runtime-server/adapters/runtime/env")).getRuntime();
     if (profile === "local-seed") await (await import("./local-browser-erpx-realm")).seedLocalBrowserRealm(current, directory);
     await (await import("../../people_payroll/builders/local-browser-roster-directory")).seedLocalBrowserRosterDirectory(current, directory);
     await (await import("../../people_payroll/builders/local-browser-leave")).seedLocalBrowserLeave(current, directory);
@@ -84,16 +84,24 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
         .bind(eventId, packageImage.companyId, packageImage.packageId, actors.owner.userId,
           createHash("sha256").update(JSON.stringify([eventId, packageImage])).digest("hex"), JSON.stringify(packageImage), now).run();
     });
-    const { createExternalConnection } = await import("@erpx/server-runtime/public/executive/connections");
-    const issued = await createExternalConnection(env.CONTROL_DB, env.H001_DB, actors.owner,
-      { name: "Executive read-only browser proof", scopeId: f.company, expiresDays: 7 }, randomUUID());
-    const assignment = await env.H001_DB.prepare("SELECT version FROM assignments WHERE id=? AND company_id=? AND user_id=?")
-      .bind(actors.owner.assignmentId, f.company, actors.owner.userId).first<{ version: number }>();
-    if (!assignment) throw new Error("EXECUTIVE_WORK_OWNER_ASSIGNMENT_REQUIRED");
+    // Native Runtime owns Executive connection creation. The browser fixture
+    // seeds the exact owner rows the native route and MCP resolver read.
+    const assignment = await env.H001_DB.prepare("SELECT role,version,valid_until FROM assignments WHERE id=? AND company_id=? AND user_id=?")
+      .bind(actors.owner.assignmentId, f.company, actors.owner.userId).first<{ role: string; version: number; valid_until: number }>();
+    const companyNode = await env.H001_DB.prepare("SELECT display_name FROM organization_nodes WHERE id=? AND company_id=?")
+      .bind(f.company, f.company).first<{ display_name: string }>();
+    if (!assignment || !companyNode) throw new Error("EXECUTIVE_WORK_OWNER_ASSIGNMENT_REQUIRED");
+    const tokenId = randomUUID(), tokenSecret = `erpx_exec_${randomBytes(32).toString("base64url")}`;
+    const createdAt = Date.now(), expiresAt = Math.min(createdAt + 7 * 86400000, Number(assignment.valid_until));
+    await env.CONTROL_DB.prepare(`INSERT INTO executive_external_tokens(id,secret_hash,name,user_id,holding_id,company_id,assignment_id,assignment_version,role,assignment_scope_kind,assignment_scope_node_id,branch_id,department_id,scope_label,created_at,expires_at)
+      VALUES(?,?,?,?,'h001',?,?,?,?,'holding',NULL,NULL,NULL,?,?,?)`)
+      .bind(tokenId, createHash("sha256").update(tokenSecret).digest("hex"), "Executive read-only browser proof", actors.owner.userId,
+        f.company, actors.owner.assignmentId, Number(assignment.version), assignment.role,
+        `${companyNode.display_name} · Company-wide`, createdAt, expiresAt).run();
     const credentials = {
       profile: "executive-work", run, companyId: f.company,
       assignmentId: actors.owner.assignmentId, assignmentVersion: Number(assignment.version), email: actors.owner.email,
-      password, token: issued.secret,
+      password, token: tokenSecret,
     };
     const credentialPath = join(directory, "executive-work-credentials.json");
     await writeFile(credentialPath, JSON.stringify(credentials, null, 2) + "\n", { mode: 0o600 }); await chmod(credentialPath, 0o600);

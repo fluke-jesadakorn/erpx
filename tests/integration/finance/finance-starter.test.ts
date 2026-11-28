@@ -1,4 +1,4 @@
-import { packageGrantStore } from "@erpx/server-commercial/public/package-grants";
+import { packageGrantStore } from "@erpx/commercial-server/public/package-grants";
 import { beforeAll, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
@@ -9,9 +9,9 @@ import {
 import {
   createFinanceStarter,
   financeSetupAuthority,
-} from "@erpx/server-finance/public/finance-starter";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+} from "@erpx/finance-server/public/finance-starter";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

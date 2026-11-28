@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { attachmentPolicy } from "@erpx/server-files/public/attachments/policy";
-import { assertSanitizedEvidenceMetadata, financeOperationsAttachmentPolicies } from "@erpx/server-files/public/attachments/finance-operations-policy";
+import { describe, expect, it, vi } from "vitest";
+import { attachmentPolicy } from "@erpx/files-server/public/attachments/policy";
+import { assertSanitizedEvidenceMetadata, financeOperationsAttachmentPolicies } from "@erpx/files-server/public/attachments/finance-operations-policy";
+import { FinanceAttachmentFinanceFacts } from "@erpx/finance-server/public/attachments-finance-facts";
+import { attachmentServiceFinanceFacts } from "@erpx/finance-server/public/attachments-service-facts";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+
+vi.mock("@erpx/workflow-server/public/command-assertions", () => ({
+  assertion: () => { throw new Error("The TypeScript attachment guard assertion was retired."); },
+}));
 
 describe("Finance, hospitality, Organization and system attachment policy", () => {
 it("keeps its owner/purpose/component inventory exact and excludes projections and sensitive material", () => {
@@ -42,5 +49,130 @@ it("rejects dangerous filenames and labels even when their generic MIME is other
     ] as const)
       expect(() => assertSanitizedEvidenceMetadata(policy, filename, caption)).toThrow(/must never be uploaded/i);
     expect(() => assertSanitizedEvidenceMetadata(policy, "access-review.pdf", "Identifiers redacted; sanitized findings only")).not.toThrow();
+  });
+});
+
+describe("finance attachment version guard cutover (retire.finance.attachment-version-guard-cut oracle)", () => {
+  const financeTable: Record<string, string> = {
+    finance_billing_correction: "finance_billing_corrections",
+    finance_business_bill: "finance_business_billing_runs",
+    finance_plan_edition: "finance_plan_editions",
+    finance_book_rule: "finance_book_rules",
+    finance_book_adjustment: "finance_book_adjustments",
+    finance_bank_match_group: "finance_bank_match_groups",
+    finance_collection_case: "finance_collection_cases",
+    finance_business_contract: "finance_business_contracts",
+    finance_recognition_run: "finance_recognition_runs",
+    finance_instrument: "finance_instrument_editions",
+    finance_instrument_run: "finance_instrument_runs",
+    finance_asset_policy: "finance_asset_policy_editions",
+    finance_asset_policy_run: "finance_asset_policy_runs",
+    finance_group_report: "finance_group_report_editions",
+    finance_ownership_interest: "finance_ownership_interests",
+    finance_acquisition: "finance_acquisitions",
+    finance_intercompany_pair: "finance_intercompany_document_pairs",
+    finance_journal: "finance_journals",
+    finance_bank_statement: "finance_bank_statements",
+    finance_bank_transaction: "finance_bank_transactions",
+    finance_period: "finance_periods",
+    finance_accrual_schedule: "finance_accrual_schedules",
+    finance_asset: "finance_assets",
+    finance_tax_identity: "finance_tax_identities",
+    finance_lease: "finance_leases",
+    finance_loan: "finance_loans",
+    finance_revenue_contract: "finance_revenue_contracts",
+    finance_payment: "finance_payments",
+    finance_refund_obligation: "finance_refund_obligations",
+    finance_supplier_batch: "finance_supplier_batches",
+  };
+  const actor = {
+    companyId: "company-1",
+    userId: "user-1",
+    assignmentId: "assignment-1",
+    role: "finance.manager",
+    assignmentScope: "holding",
+  } as never;
+
+  function stubDb() {
+    const prepared: string[] = [];
+    const db = {
+      prepare: (sql: string) => {
+        prepared.push(sql);
+        return {
+          bind: () => ({
+            first: async () => null,
+            all: async () => ({ results: [], success: true, meta: { changes: 0, duration: 0 } }),
+            run: async () => ({ results: [], success: true, meta: { changes: 0, duration: 0 } }),
+          }),
+        };
+      },
+    } as unknown as SqlDatabase;
+    return { db, prepared };
+  }
+
+  it("routes every finance target guard to the native owner with no local SQL", async () => {
+    expect(Object.keys(financeTable)).toHaveLength(30);
+    for (const targetType of Object.keys(financeTable)) {
+      const { db, prepared } = stubDb();
+      const guard = FinanceAttachmentFinanceFacts(db).versionGuard(
+        "command-1", targetType, "target-1", "company-1", 2, 0, actor,
+      ) as { __nativeWrite?: boolean; query?: string } | null;
+      expect(guard, `${targetType} guard`).not.toBeNull();
+      expect(guard!.__nativeWrite).toBe(true);
+      expect(guard!.query, `${targetType} must author no assertion SQL`).toBeUndefined();
+      await expect((guard as { run: () => Promise<unknown> }).run()).rejects.toThrow(
+        "The native Finance owner write is unavailable.",
+      );
+      expect(prepared, `${targetType} must prepare no local SQL`).toHaveLength(0);
+    }
+  });
+
+  it("routes every finance version step to the mounted native port with no local SQL", async () => {
+    for (const targetType of Object.keys(financeTable)) {
+      const { db, prepared } = stubDb();
+      const step = FinanceAttachmentFinanceFacts(db).versionStep(
+        targetType, "target-1", 2, 77, { actor, commandId: "command-1" },
+      ) as { __nativeWrite?: boolean; query?: string; run: () => Promise<unknown> } | null;
+      expect(step, `${targetType} step`).not.toBeNull();
+      expect(step!.__nativeWrite).toBe(true);
+      expect(step!.query, `${targetType} must author no step SQL`).toBeUndefined();
+      await expect(step!.run(), `${targetType} native delegation`).rejects.toThrow(
+        "The native Finance owner write is unavailable.",
+      );
+      expect(prepared, `${targetType} must prepare no local SQL`).toHaveLength(0);
+    }
+  });
+
+  it("fails closed when a version step has no authorized actor", () => {
+    const { db } = stubDb();
+    expect(() => FinanceAttachmentFinanceFacts(db).versionStep("finance_journal", "target-1", 2, 77))
+      .toThrow("requires an authorized actor");
+  });
+
+  it("fails closed for unknown finance targets without touching the native guard", () => {
+    const { db, prepared } = stubDb();
+    const facts = FinanceAttachmentFinanceFacts(db);
+    for (const targetType of ["finance_unknown", "finance_journal; DROP TABLE finance_journals", "", "invoice_payment"])
+      expect(facts.versionGuard("command-1", targetType, "target-1", "company-1", 1, 0, actor)).toBeNull();
+    expect(prepared).toHaveLength(0);
+  });
+
+  it("routes invoice-payment and supplier-bill guards to the native owner only", async () => {
+    const { db, prepared } = stubDb();
+    const facts = attachmentServiceFinanceFacts(db);
+    for (const targetType of ["invoice_payment", "supplier_bill"]) {
+      const guard = facts.versionGuard("command-1", targetType, "target-1", actor, 4, 1) as {
+        __nativeWrite?: boolean;
+        query?: string;
+        run: () => Promise<unknown>;
+      } | null;
+      expect(guard, `${targetType} guard`).not.toBeNull();
+      expect(guard!.__nativeWrite).toBe(true);
+      expect(guard!.query).toBeUndefined();
+      await expect(guard!.run()).rejects.toThrow("The native Finance owner write is unavailable.");
+      expect(prepared).toHaveLength(0);
+    }
+    for (const targetType of ["finance_journal", "invoice_payment; DROP TABLE finance_invoices", ""])
+      expect(facts.versionGuard("command-1", targetType, "target-1", actor, 1, 0)).toBeNull();
   });
 });

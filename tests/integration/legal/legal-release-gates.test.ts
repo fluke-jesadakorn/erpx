@@ -1,20 +1,20 @@
 import { beforeAll, expect, it, vi } from 'vitest';
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { legalProductionScope, legalReleaseCriteria, productionScope, releaseCriteria } from "@erpx/catalogue/production-scope";
-import { companyReleaseStatus, currentReleaseInputs, submitReleaseAcceptance, reviewReleaseAcceptance } from "@erpx/server-platform_administration/public/release-acceptance";
-import { acceptedReleasePredicate } from "@erpx/server-platform_administration/public/release-predicate";
-import { changeCompanyFeatureRollout } from "@erpx/server-pms/public/hospitality-rollout";
-import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
-import { legalCompanyCapabilityReady } from "@erpx/server-legal/public/legal/runtime-gate";
-import { legalReminders, drainLegalAi } from "@erpx/server-legal/public/legal/jobs";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { legalProductionScope, legalReleaseCriteria, productionScope, releaseCriteria } from "@erpx/platform-catalogue/production-scope";
+import { companyReleaseStatus, currentReleaseInputs, submitReleaseAcceptance, reviewReleaseAcceptance } from "@erpx/platform-administration-server/public/release-acceptance";
+import { acceptedReleasePredicate } from "@erpx/platform-administration-server/public/release-predicate";
+import { changeCompanyFeatureRollout } from "@erpx/pms-server/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/pms-server/public/feature-availability";
+import { legalCompanyCapabilityReady } from "@erpx/legal-server/public/legal/runtime-gate";
+import { legalReminders, drainLegalAi } from "@erpx/legal-server/public/legal/jobs";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 import { mkdtemp, mkdir, readdir, symlink, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
+import { migrateDatabase } from "@erpx/platform-runtime-server/adapters/runtime/migrations";
 
-vi.mock("@erpx/catalogue/release-artifact.json", () => ({ default: { softwareVersion: 'legal-release-fixture' } }));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
+vi.mock("@erpx/platform-catalogue/release-artifact.json", () => ({ default: { softwareVersion: 'legal-release-fixture' } }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 
 async function fixture() {
@@ -88,7 +88,7 @@ it('gates production claims per Company and keeps paused AI queued without provi
       if (company===paused) await db.prepare(`INSERT INTO legal_ai_proposals(id,item_id,source_version,source_hash,question,state,created_by,created_at,actor_json)
         VALUES(?,?,1,?,'Synthetic AI question','queued',?,1,?)`).bind(`ai-${id}`,id,'a'.repeat(64),company.owner.userId,JSON.stringify(company.owner)).run();
     }
-    await legalReminders(db); await legalReminders(db);
+    await legalReminders(db, "h001"); await legalReminders(db, "h001");
     expect(await db.prepare("SELECT count(*) count FROM staff_notifications WHERE company_id=? AND record_type='legal'").bind(f.company).first()).toEqual({count:1});
     expect(await db.prepare("SELECT count(*) count FROM staff_notifications WHERE company_id=? AND record_type='legal'").bind(paused.company).first()).toEqual({count:0});
     const generate = vi.fn(); await drainLegalAi(db,{},generate);

@@ -1,26 +1,25 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createExecutiveAccessApplication,type ExecutiveAccessPorts} from "@erpx/server-runtime/application/executive/access";
-import {createAdministrationApplication,type AdministrationPorts} from "@erpx/server-runtime/application/administration";
-import {createBusinessReadinessApplication} from "@erpx/server-runtime/application/business-readiness";
-import {createExecutiveContextApplication,type ExecutiveContextPorts} from "@erpx/server-runtime/application/executive/context";
-import {executiveScope} from "@erpx/server-runtime/domain/executive/access";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {MetricData} from "@erpx/feature-shared/lib/executive/canvas";
-import {defaultFilters as explicitDefaultFilters} from "@erpx/server-runtime/public/rules/canvas-domain";
-import {createExecutiveReportApplication,type ExecutiveReportPorts} from "@erpx/server-runtime/application/executive/reports";
+import {createExecutiveAccessApplication,type ExecutiveAccessPorts} from "@erpx/platform-runtime-server/application/executive/access";
+import {createAdministrationApplication,type AdministrationPorts} from "@erpx/platform-runtime-server/application/administration";
+import {createBusinessReadinessApplication} from "@erpx/platform-runtime-server/application/business-readiness";
+import {createExecutiveContextApplication,type ExecutiveContextPorts} from "@erpx/platform-runtime-server/application/executive/context";
+import {executiveScope} from "@erpx/platform-runtime-server/domain/executive/access";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import type {MetricData} from "@erpx/platform-shared-ui/lib/executive/canvas";
+import {defaultFilters as explicitDefaultFilters} from "@erpx/platform-runtime-server/public/rules/canvas-domain";
+import {createExecutiveReportApplication,type ExecutiveReportPorts} from "@erpx/platform-runtime-server/application/executive/reports";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[]};
 function strict<T extends object>(facts:Partial<T>):T{return new Proxy(facts,{get(target,name){if(name==='then')return undefined;if(name in target)return target[name as keyof T];return ()=>{throw Error('Unexpected port: '+String(name));};}}) as T;}
 function access(facts:Partial<ExecutiveAccessPorts['repository']>={}){return createExecutiveAccessApplication({clock:{now:()=>42},repository:{authority:async()=>true,eligibleEngagement:async()=>false,sharedReport:async()=>false,...facts}});}
 describe('Executive report date defaults use the injected clock',()=>{
  test('uses the explicit UTC year at its boundary regardless of the host year',()=>{expect(explicitDefaultFilters(new Date('2031-01-01T00:00:00Z'))).toEqual({from:'2031-01-01',to:'2031-12-31',currency:'THB'});expect(explicitDefaultFilters(new Date('2030-12-31T23:59:59Z')).to).toBe('2030-12-31');});
  test('creates the original report and revision filters from the supplied application clock',async()=>{
-  const first=vi.fn(()=> 'report'),revision=vi.fn(()=> 'revision'),commitSpy=vi.fn(),now=Date.parse('2031-01-01T00:00:00Z');
+  const create=vi.fn(()=> 'native-create'),commitSpy=vi.fn(),now=Date.parse('2031-01-01T00:00:00Z');
   const commit:ExecutiveReportPorts<string>['commands']['commit']=async(...args)=>{commitSpy(...args);return args[6];};
-  const app=createExecutiveReportApplication(strict<ExecutiveReportPorts<string>>({clock:{now:()=>now},requireAuthor:async()=>{},commands:strict<ExecutiveReportPorts<string>['commands']>({commit}),repository:strict<ExecutiveReportPorts<string>['repository']>({stageCreateReportEffect:first,stageCreateReportEffect2:revision})}));
+  const app=createExecutiveReportApplication(strict<ExecutiveReportPorts<string>>({clock:{now:()=>now},requireAuthor:async()=>{},commands:strict<ExecutiveReportPorts<string>['commands']>({commit}),repository:strict<ExecutiveReportPorts<string>['repository']>({stageCreateReport:create})}));
   expect(await app.createReport(actor,'key','Annual report')).toEqual({id:'report-key'});
-  expect(first).toHaveBeenCalledWith('report-key','company','owner',expect.any(String),JSON.stringify({from:'2031-01-01',to:'2031-12-31',currency:'THB'}),now,now);
-  expect(revision).toHaveBeenCalledWith('report-key',expect.any(String),JSON.stringify({from:'2031-01-01',to:'2031-12-31',currency:'THB'}),'owner',now);
-  expect(commitSpy).toHaveBeenCalledWith(actor,'key','executive.report.create',{title:'Annual report'},'report-key',1,{id:'report-key'},['report','revision']);
+  expect(create).toHaveBeenCalledWith('report-key','company','owner',expect.any(String),JSON.stringify({from:'2031-01-01',to:'2031-12-31',currency:'THB'}),now);
+  expect(commitSpy).toHaveBeenCalledWith(actor,'key','executive.report.create',{title:'Annual report'},'report-key',1,{id:'report-key'},['native-create']);
  });
 });
 describe('Runtime executive access uses current actor facts',()=>{
@@ -46,14 +45,24 @@ const metric:MetricData={schemaVersion:2,metric:'headcount',total:'21',rows:Arra
 function context(overrides:Partial<ExecutiveContextPorts>={}){return createExecutiveContextApplication({clock:{now:()=>42},currentAuthority:async()=>{},catalog:async()=>[],metric:async()=>metric,nodes:async()=>[],positions:async()=>[],...overrides});}
 describe('Executive model context contains only authorized bounded facts',()=>{
  test('unavailable catalogue metrics are never sent to metric adapters',async()=>{const read=vi.fn(async()=>metric),app=context({catalog:async()=>[{id:'headcount',label:'People',description:'People',unit:'count',dateBasis:'current',available:false}],metric:read});expect((await app.executiveAiContext(actor,filters)).snapshots).toEqual([]);expect(read).not.toHaveBeenCalled();});
+ test('unavailable owner metrics are excluded while another authorized metric remains usable',async()=>{
+  const unavailable=Error('unavailable');
+  const app=context({catalog:async()=>[
+   {id:'headcount',label:'People',description:'People',unit:'count',dateBasis:'current',available:true},
+   {id:'receivables',label:'Receivables',description:'Receivables',unit:'money',dateBasis:'current',available:true},
+  ],metric:async(_actor,id)=>{if(id==='receivables')throw unavailable;return metric;},sourceUnavailable:error=>error===unavailable});
+  const result=await app.executiveAiContext(actor,filters);
+  expect(result.catalog.map(m=>m.id)).toEqual(['headcount']);
+  expect(result.unavailableMetrics).toEqual(['receivables']);
+ });
  test('authorized snapshot rows are capped at20 and truthfully marked truncated',async()=>{const app=context({catalog:async()=>[{id:'headcount',label:'People',description:'People',unit:'count',dateBasis:'current',available:true}]});expect((await app.executiveAiContext(actor,filters)).snapshots[0]).toMatchObject({rows:metric.rows.slice(0,20),rowsTruncated:true,total:'21'});});
  test('out-of-snapshot manager references are removed from the model context',async()=>{const app=context({positions:async()=>[{id:'one',reports_to_position_id:'two'},{id:'two',reports_to_position_id:'hidden'}]});expect((await app.executiveAiContext(actor,filters)).organization).toMatchObject({positions:[{id:'one',reports_to_position_id:'two'},{id:'two',reports_to_position_id:null}]});});
  test('revocation after snapshots prevents returning any generated context',async()=>{let reads=0;const app=context({currentAuthority:async()=>{if(++reads===2)throw Error('revoked during read');}});await expect(app.executiveAiContext(actor,filters)).rejects.toThrow('revoked during read');});
 });
 
-import {createExecutiveMetricApplication,type ExecutiveMetricPorts,type RawMetricRow} from "@erpx/server-runtime/application/executive/metrics";
-import {exactInteger,sumExact,percentHundredths,moneyRatioMinor} from "@erpx/server-runtime/domain/executive/metrics";
-import {createAgentEvidenceApplication,type AgentEvidencePorts} from "@erpx/server-runtime/application/executive/agent-evidence";
+import {createExecutiveMetricApplication,type ExecutiveMetricPorts,type RawMetricRow} from "@erpx/platform-runtime-server/application/executive/metrics";
+import {exactInteger,sumExact,percentHundredths,moneyRatioMinor} from "@erpx/platform-runtime-server/domain/executive/metrics";
+import {createAgentEvidenceApplication,type AgentEvidencePorts} from "@erpx/platform-runtime-server/application/executive/agent-evidence";
 const metricActor:WorkContext={...actor,modules:['people_payroll','pms','inventory','finance','agent','operations','brand']};
 const metricFilters={from:'2026-10-01',to:'2026-10-31',currency:'THB'};
 function metricApp(raw:RawMetricRow[],overrides:Partial<ExecutiveMetricPorts>={}){return createExecutiveMetricApplication({clock:{now:()=>99},digest:async value=>value,production:()=>false,companyAuthority:async()=>true,enabledModules:async()=>new Set(['finance']),assertModule:async()=>{},read:async()=>({raw,referenceAtOverride:null,watermarks:async()=>[],source:async()=>({row:{name:'group',description:'source'},rows:[],page:1,hasNext:false})}),...overrides});}
@@ -61,6 +70,18 @@ describe('Executive metrics keep exact calculations separate from source adapter
  test('unsafe floating point source values fail rather than round silently',()=>{expect(()=>exactInteger(Number.MAX_SAFE_INTEGER+1)).toThrow();expect(()=>exactInteger('1.5')).toThrow();});
  test('large integer totals remain exact beyond JavaScript number precision',()=>{expect(sumExact(['9007199254740993','9007199254740993'])).toBe('18014398509481986');});
  test('weighted percentage totals use summed numerators and denominators',async()=>{const result=await metricApp([{label:'one',numerator:'1',denominator:'2'},{label:'two',numerator:'9',denominator:'10'}]).queryMetric(metricActor,'hotel-occupancy',metricFilters);expect(result).toMatchObject({total:'8333',rows:[{label:'one',value:'5000'},{label:'two',value:'9000'}]});});
+ test('native Field completion facts retain the original report values and forbidden-module error',async()=>{
+  // Source membership/current authorization/audits execute in the native
+  // PostgreSQL case. This existing presentation port keeps its public wire values.
+  const fieldActor={...metricActor,modules:['field_service']};
+  for(const [breakdown,raw,rows]of [
+   ['default',[{label:'Field visits',numerator:'1',denominator:'2'}],[{label:'Field visits',value:'5000'}]],
+   ['month',[{label:'2026-10',numerator:'1',denominator:'2'}],[{label:'2026-10',value:'5000'}]],
+   ['status',[{label:'completed',numerator:'1',denominator:'1'},{label:'scheduled',numerator:'0',denominator:'1'}],[{label:'completed',value:'10000'},{label:'scheduled',value:'0'}]],
+  ] as const){const report=await metricApp([...raw]).queryMetric(fieldActor,'field-visit-completion',metricFilters,breakdown);expect(report).toMatchObject({total:'5000',rows});}
+  const read=vi.fn(async()=>{throw Error('Forbidden Field reader must not run');});
+  await expect(metricApp([],{read}).queryMetric({...fieldActor,modules:['support']},'field-visit-completion',metricFilters)).rejects.toMatchObject({code:'METRIC_FORBIDDEN'});expect(read).not.toHaveBeenCalled();
+ });
  test('invalid percentages are rejected with their stable business error',()=>{expect(()=>percentHundredths('11','10')).toThrow();expect(()=>percentHundredths('-1','10')).toThrow();expect(percentHundredths('0','0')).toBe('0');});
  test('money ratios round positive and negative half values symmetrically',()=>{expect(moneyRatioMinor('5','2')).toBe('3');expect(moneyRatioMinor('-5','2')).toBe('-3');expect(moneyRatioMinor('5','0')).toBe('0');});
  test('incompatible product units have no synthetic combined total',async()=>{const result=await metricApp([{label:'water',value:'1200',unit:'litre'},{label:'bolts',value:'4500',unit:'piece'}]).queryMetric(metricActor,'available-stock',metricFilters);expect(result).toMatchObject({total:null,valueScale:3,rows:[{label:'water',value:'1200',unit:'litre'},{label:'bolts',value:'4500',unit:'piece'}]});});
@@ -79,10 +100,10 @@ describe('Executive evidence projections enforce scope and fresh authority',()=>
  test('empty searches do not produce misleading record access receipts',async()=>{const source0=vi.fn(async()=>({success:true}));expect(await agentEvidence({searchRows0:async()=>({rows:[],fields:[]}),source0}).searchAgentEvidence(metricActor,{metric:'approved-agent-versions',filters:metricFilters})).toMatchObject({items:[],hasMore:false,nextCursor:null});expect(source0).not.toHaveBeenCalled();});
 });
 
-import {createExecutiveEvidenceApplication,type ExecutiveEvidencePorts} from "@erpx/server-runtime/application/executive/evidence";
-import {createExecutiveGenerationApplication,type ExecutiveGenerationPorts} from "@erpx/server-runtime/application/executive/generation";
-import type {Job} from "@erpx/server-runtime/domain/executive/generation";
-import {emptyDefinition} from "@erpx/feature-shared/lib/executive/canvas";
+import {createExecutiveEvidenceApplication,type ExecutiveEvidencePorts} from "@erpx/platform-runtime-server/application/executive/evidence";
+import {createExecutiveGenerationApplication,type ExecutiveGenerationPorts} from "@erpx/platform-runtime-server/application/executive/generation";
+import type {Job} from "@erpx/platform-runtime-server/domain/executive/generation";
+import {emptyDefinition} from "@erpx/platform-shared-ui/lib/executive/canvas";
 const invoiceFact={id:'invoice',invoice_number:'INV-1',kind:'receivable' as const,invoice_date:'2026-10-05',due_date:'2026-10-31',currency:'THB',total_minor:'100',outstanding_minor:'80',status:'posted',version:3};
 function mainEvidence(repository:Partial<ExecutiveEvidencePorts['repository']>,overrides:Partial<ExecutiveEvidencePorts>={}){return createExecutiveEvidenceApplication(strict<ExecutiveEvidencePorts>({clock:{now:()=>77},digest:async()=> 'evidence-query',repository:strict(repository),currentAuthority:async()=>{},metricCatalogFor:async()=>[{id:'receivables',available:true,label:'Receivables',description:'Posted',unit:'money',dateBasis:'invoice date'},{id:'approved-leave-duration',available:true,label:'Approved leave',description:'Personal',unit:'quantity',dateBasis:'work date'}],assertProductionModuleEnabled:async()=>{},...overrides}));}
 describe('Main Executive evidence keeps owner facts bounded and current',()=>{
@@ -106,16 +127,16 @@ describe('Executive generation maintains replay and lease policies without a pro
  test('read-only viewers cannot see the author generation history',async()=>{const source2=vi.fn(async()=>({results:[generationJob]}));expect(await generation({source2},{reportAccess:async()=>({...reportFacts,canEdit:false})}).generationHistory(metricActor,'report')).toEqual([]);expect(source2).not.toHaveBeenCalled();});
 });
 
-import {metricSourceSelection} from "@erpx/server-runtime/domain/executive/metric-sources";
+import {metricSourceSelection} from "@erpx/platform-runtime-server/domain/executive/metric-sources";
 describe('Metric source groups follow the aggregate boundary',()=>{
  test('a vanished group is rejected before owner source callbacks',async()=>{const source=vi.fn(async()=>{throw Error('unexpected source query');}),app=metricApp([],{read:async()=>({raw:[{label:'January',value:'100'}],referenceAtOverride:null,watermarks:async()=>[],source})});await expect(app.queryMetric(metricActor,'receivables',metricFilters,'default',{label:'December',page:1})).rejects.toMatchObject({code:'METRIC_GROUP_NOT_FOUND'});expect(source).not.toHaveBeenCalled();});
  test('a source group unit must match the selected aggregate unit',()=>{expect(()=>metricSourceSelection({label:'Water',unit:'piece',page:1},[{label:'Water',unit:'litre',value:'1000'}])).toThrow();});
  test('Other sources exclude exactly the first99 displayed groups',()=>{const raw=Array.from({length:101},(_,i)=>({label:'Group '+i,value:'1'}));expect(metricSourceSelection({label:'Other',page:1},raw)).toEqual({other:true,labels:raw.slice(0,99).map(row=>row.label)});});
 });
 
-import {inventoryExecutiveOwnerProjections as commerceSnapshots} from "@erpx/server-commerce/public/inventory-executive-owner-projections";
-import {inventoryExecutiveOwnerProjections as peopleSnapshots} from "@erpx/server-people_payroll/public/inventory-executive-owner-projections";
-import {inventoryExecutiveOwnerProjections as financeSnapshots} from "@erpx/server-finance/public/inventory-executive-owner-projections";
+import {inventoryExecutiveOwnerProjections as commerceSnapshots} from "@erpx/commerce-server/public/inventory-executive-owner-projections";
+import {inventoryExecutiveOwnerProjections as peopleSnapshots} from "@erpx/people-payroll-server/public/inventory-executive-owner-projections";
+import {inventoryExecutiveOwnerProjections as financeSnapshots} from "@erpx/finance-server/public/inventory-executive-owner-projections";
 describe('Closed owner projections keep native Executive snapshots bounded',()=>{
  test('consumer code cannot replace an owner projection with arbitrary SQL',()=>{
   const original=peopleSnapshots.hr_people;

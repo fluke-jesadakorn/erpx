@@ -1,18 +1,18 @@
 import { beforeAll, expect, it, vi } from 'vitest';
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { productionScope, releaseCriteria } from "@erpx/catalogue/production-scope";
-import { companyReleaseStatus, currentReleaseInputs, releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance } from "@erpx/server-platform_administration/public/release-acceptance";
-import { acceptedReleasePredicate } from "@erpx/server-platform_administration/public/release-predicate";
-import { changeCompanyFeatureRollout } from "@erpx/server-pms/public/hospitality-rollout";
-import { assertProductionModuleEnabled, enabledProductionModules, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { productionScope, releaseCriteria } from "@erpx/platform-catalogue/production-scope";
+import { companyReleaseStatus, currentReleaseInputs, releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance } from "@erpx/platform-administration-server/public/release-acceptance";
+import { acceptedReleasePredicate } from "@erpx/platform-administration-server/public/release-predicate";
+import { changeCompanyFeatureRollout } from "@erpx/pms-server/public/hospitality-rollout";
+import { assertProductionModuleEnabled, enabledProductionModules, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/pms-server/public/feature-availability";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 import { mkdtemp, mkdir, readdir, symlink, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
-import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
+import { migrateDatabase } from "@erpx/platform-runtime-server/adapters/runtime/migrations";
 
-vi.mock("@erpx/catalogue/release-artifact.json", () => ({ default: { softwareVersion: 'release-integration-fixture' } }));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
+vi.mock("@erpx/platform-catalogue/release-artifact.json", () => ({ default: { softwareVersion: 'release-integration-fixture' } }));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 
 async function fixture() {

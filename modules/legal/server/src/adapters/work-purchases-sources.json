@@ -1,0 +1,6 @@
+{
+  "recordSource": "SELECT id work_id,id item_id,'record' source FROM legal_items",
+  "approvalSource": "SELECT 'legal-approval:'||id,id,'approval' FROM legal_items",
+  "featureSource": "SELECT 'legal-task:'||id,item_id,'task' FROM {table}",
+  "rows": "SELECT source.work_id,source.source,i.kind,{memberEdit} can_edit FROM ({sources}) source JOIN legal_items i ON i.id=source.item_id WHERE source.work_id IN ({inList}) AND {scope} AND {purchase}"
+}

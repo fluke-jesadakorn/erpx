@@ -1,0 +1,9 @@
+//! Public owner-read registry facade. The command-plan route on the mounted
+//! customer-access router resolves these kinds; the TS bridge sends only the
+//! kind and its positional values.
+pub use crate::adapters::owner_read_sql::{
+    NativeReadStatement, RD_ACCESS_EVENTS, RD_ACCESS_IDENTITIES, RD_ACCESS_READS,
+    RD_DUPLICATE_REVIEW_HISTORY, RD_DUPLICATE_REVIEWS_PENDING, RD_IDENTITY_CHANGE_EVENTS_ACTION,
+    RD_IDENTITY_CHANGE_EVENTS_MONTH, RD_IDENTITY_CHANGE_HISTORY, RD_SALES_REVIEW_COUNTS, is_read,
+    read_statement,
+};

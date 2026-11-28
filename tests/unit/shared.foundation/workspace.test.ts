@@ -4,15 +4,15 @@ import {
   workspaceApiHref,
   workspaceBase,
   workspaceHref,
-} from "@erpx/feature-work_projection/lib/workspace";
+} from "@erpx/work-projection-ui/lib/workspace";
 import {
   assignmentApplies,
   isRoleValidAtScope,
-} from "@erpx/server-identity_access/public/rules/workspace-access";
+} from "@erpx/identity-access-server/public/rules/workspace-access";
 import type {
   ResolvedWorkspaceScope,
   WorkAssignment,
-} from "@erpx/server-identity_access/public/authorization";
+} from "@erpx/identity-access-server/public/authorization";
 
 const branch: Exclude<ResolvedWorkspaceScope, { kind: "platform" }> = {
   kind: "branch",

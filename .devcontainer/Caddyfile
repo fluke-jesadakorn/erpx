@@ -1,0 +1,36 @@
+{
+	admin off
+	auto_https disable_redirects
+	skip_install_trust
+}
+
+# A registered TLS SNI with an unknown HTTP Host must also fail explicitly.
+https://:3443 {
+	tls internal
+	respond 421
+}
+
+https://account.erpx.localhost:3443, https://acme.erpx.localhost:3443, https://northstar.erpx.localhost:3443, https://erpx-internal.erpx.localhost:3443 {
+	tls internal
+	# Match the full authority: the TLS hostname alone does not isolate ports.
+	@registered expression `{http.request.hostport} in ['account.erpx.localhost:3443', 'acme.erpx.localhost:3443', 'northstar.erpx.localhost:3443', 'erpx-internal.erpx.localhost:3443']`
+	handle @registered {
+		request_header -Forwarded
+		request_header -X-Forwarded-*
+        # Native Account and SSO share the same leased Control/Holding data as
+        # the selected Count. This exact private boundary forbids proxy metadata.
+        @native path /api/auth/sign-in/email /api/auth/get-session /api/auth/sign-out /api/v1/account/device-accounts /api/v1/account/device-accounts/initialize /api/v1/account/device-accounts/active /api/v1/account/device-accounts/sign-in /sso/start /sso/authorize /sso/callback
+        reverse_proxy @native 127.0.0.1:44817 {
+            header_up Host {http.request.hostport}
+            header_up -Forwarded
+            header_up -X-Forwarded-*
+            header_up -X-Original-Host
+        }
+		reverse_proxy 127.0.0.1:3100 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Host {http.request.hostport}
+			header_up X-Forwarded-Port 3443
+		}
+	}
+	respond 421
+}

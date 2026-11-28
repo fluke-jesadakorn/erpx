@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance opening balances verified on desktop and mobile; finance/feature-opening-balances closes",
+  "capability": "finance-opening-balances-native",
+  "base": "1effc5b68ce9e24b37087e2864b4e4ae5a497c8d",
+  "branch": "codex/rust-backend-migration",
+  "sourceCommit": "ec58a41551ccc9bff33ceb13e1e4651f43a53f30",
+  "implementation": {
+    "adapter": "packages/server-finance/src/adapters/finance_opening.rs",
+    "public": "packages/server-finance/src/public/finance_opening.rs",
+    "composition": "src/composition/src/finance_journal_detail.rs (opening_balance_preview/import_opening_balance)",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "boundary": "src/composition/src/private_development_api.rs (finance_opening_balances)",
+    "transport": "packages/feature-finance/src/adapters/server/native-opening-balance.ts",
+    "nextRoute": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/finance/setup/opening/_screen.tsx",
+    "blockingFixes": [
+      "The opening-balance native branch must be selected before the route consumes the request body; cloning after body read returned 500.",
+      "nativeFieldJournalFlowWorkspace now returns undefined when the Field invoice config is absent so generic opening journals render in the record drawer."
+    ]
+  },
+  "behavior": {
+    "preview": "validates the active chart/base currency, open period/date, active accounts, balanced debits/credits, control-account direction and matching subledger schedules, party kind/currency, unique references and the single-opening guard; returns a 64-hex token over the chart/period/account/party/input facts",
+    "import": "recomputes the preview, rejects a stale token, reuses the native journal preparation/store for an opening_import draft with is_opening=1/source_id=chartId, then inserts the subledger opening invoices in the same serializable transaction",
+    "journal": "memo 'Verified opening trial balance and subledger schedules'; finance.journal.create command receipt, audit and outbox; exact replay returns the retained result before the opening-exists guard",
+    "invoices": "finance_invoices source_type=opening_import, status=draft, journal_id=journal, created_by=actor.userId, receivable/ payable control and offset accounts",
+    "authority": "current Account/Holding authority, rendered-context CAS, finance.read/finance.write, module.finance.read and the finance.accounting or finance.sales-posting purchase",
+    "atomicity": "serializable transaction with chart/account/party/period/journal/invoice share-row-exclusive locks"
+  },
+  "checks": {
+    "postgres": "finance.rust-finance-opening-postgres.integration 4/4",
+    "cases": [
+      "preview balanced receivable control line + matching schedule returns THB 500.00/500.00 and a 64-hex token",
+      "import writes the opening_import journal, two lines, the draft subledger invoice and finance.journal.create receipt/audit/outbox",
+      "exact replay returns the retained journal without a second journal or invoice",
+      "unbalanced lines, duplicate accounts, missing schedule, schedule mismatch, wrong currency and foreign Company are rejected",
+      "stale preview token 409; changed body under the same key 409 IDEMPOTENCY_CONFLICT; a second opening 409 OPENING_BALANCE_EXISTS",
+      "HTTP preview 200, import 201 and missing Idempotency-Key 422 with a real cookie/CAS/key"
+    ],
+    "regressions": "finance.rust-finance-setup-postgres 4/4; finance.rust-invoice-read-postgres 3/3; finance.rust-sales-invoice-edit-postgres 4/4; finance.rust-sales-receipt-postgres 2/2; finance.rust-sales-defaults-postgres 3/3; finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 796 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "chart": "chart-1793702143770 (Field cohort chart, THB)",
+      "period": "period-1793702162843 (Field cohort period)",
+      "preview": {
+        "status": 200,
+        "tokenLength": 64,
+        "debit": "500.00",
+        "credit": "500.00",
+        "subledgerCount": 1
+      },
+      "import": {
+        "status": 201,
+        "journalId": "journal-38d120fc-53a0-456a-bd6e-54ff6db2356e",
+        "debit": "500.00",
+        "subledgerCount": 1
+      },
+      "journal": "OPENING IMPORT J-38d120fc-53a0-456a-bd6e-54ff6db2356e · Verified opening trial balance and subledger schedules · 2026-11-04 · THB · draft",
+      "lines": [
+        [
+          "1100 · Candidate receivable",
+          "500.00",
+          "0.00"
+        ],
+        [
+          "1999 · Browser report cash",
+          "0.00",
+          "500.00"
+        ]
+      ],
+      "invoice": "OPEN-BROWSER-DESKTOP-1793765054 · receivable · opening_import · draft · 500.00",
+      "pageErrors": 0
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "chart": "chart-1ad84522-6649-4213-9e0c-c01cbcad2e4f (Browser setup ledger 982899, THB)",
+      "period": "period-d19b7b97-2391-46ec-a7cd-d51a65bd2d62",
+      "preview": {
+        "status": 200,
+        "tokenLength": 64,
+        "debit": "500.00",
+        "credit": "500.00",
+        "subledgerCount": 1
+      },
+      "import": {
+        "status": 201,
+        "journalId": "journal-51a6e5dd-4ec3-4380-ab6c-2f96b2f752dc",
+        "debit": "500.00",
+        "subledgerCount": 1
+      },
+      "journal": "OPENING IMPORT J-51a6e5dd-4ec3-4380-ab6c-2f96b2f752dc · Verified opening trial balance and subledger schedules · 2049-04-15 · THB · draft",
+      "lines": [
+        [
+          "1199 · Mobile opening receivable",
+          "500.00",
+          "0.00"
+        ],
+        [
+          "182899 · Browser imported",
+          "0.00",
+          "500.00"
+        ]
+      ],
+      "invoice": "OPEN-BROWSER-MOBILE-1793765133 · receivable · opening_import · draft · 500.00",
+      "pageErrors": 0
+    },
+    "persisted": "both journals are is_opening=1/source_type=opening_import/draft with two lines; both invoices are opening_import/draft linked to the journal with created_by the owner; one finance.journal.create receipt, audit event and outbox event per journal"
+  },
+  "limits": [
+    "The import creates a draft opening journal; independent approval/posting remains the existing journal review workflow.",
+    "The broader setup readiness/profile/books/tools projections remain TS and belong to other workflows.",
+    "The Finance app still logs pre-existing hydration/work-source console errors; pageErrors stay 0."
+  ]
+}

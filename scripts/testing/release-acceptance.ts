@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync,readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { repositoryRoot as root } from './catalogue';
-import { appDefinitions } from '@erpx/contracts/apps';
+import { appDefinitions } from '@erpx/platform-contracts/apps';
 import { verifyWorkspaceRelease } from '../local/workspace-release-manifest';
 // This entry is deliberately separate from dev/CI selection and is never invoked there.
 const args=process.argv.slice(2),candidate=args.find(arg=>arg.startsWith('--candidate='))?.slice(12);

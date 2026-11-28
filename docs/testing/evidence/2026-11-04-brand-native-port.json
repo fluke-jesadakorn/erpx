@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Brand HTTP ingress is wire-qualified under a normal Account session and reachable through the private API boundary; diagnostic current-source browser draft save/readback passed on desktop and mobile. Category locks, publish/rollback and a frozen-release final gate remain open.",
+  "capability": "brand-native-port",
+  "integrationTarget": "codex/rust-backend-migration",
+  "commits": [
+    "d60b81d4c",
+    "pending-integration"
+  ],
+  "scope": {
+    "domain": "Strict identity parsing, canonical storage order, category locks, independent publication, rollback and cancellation rules.",
+    "application": "save/publish/rollback/category-lock/cancel plus workspace and published reads with command receipts, audit and outbox.",
+    "http": "Registered-Holding GET/POST /api/v1/holdings/{holding_slug}/brand; mounted for configured private Finance read targets; wire-qualified.",
+    "frontend": "Native-only Next transport for the Brand console, settings presenter, identity/history pages and API route; missing or failed native configuration returns 503 NATIVE_BRAND_UNAVAILABLE and never falls back to the retained TypeScript owner."
+  },
+  "tests": [
+    "cargo check -p erpx-server-brand and erpx-service --features existing-business: pass",
+    "brand.rust-brand-identity-policy.unit: 7 passed",
+    "brand.rust-brand-identity-postgres.integration: 4 passed (draft/replay, CAS, independent publish, locks/media, rollback/cancel, Company isolation, concurrent publication)",
+    "feature-brand/feature-admin/workplace typechecks: pass",
+    "eslint changed Brand files: 0 errors",
+    "architecture:check and structure:check: pass",
+    "brand.rust-brand-identity-http-postgres.integration: 2 passed (normal session GET workspace, POST draft save with audit/outbox, missing key, foreign origin, unknown host)",
+    "brand.rust-brand-identity-policy.unit + brand.rust-brand-identity-postgres.integration re-run on the fallback-removal candidate: 7 + 4 passed",
+    "feature-brand/feature-admin/workplace typechecks: pass after the fallback removal",
+    "tests/unit/brand/brand-application.test.ts: 14 passed",
+    "brand_route_is_reachable_through_the_private_api_boundary: 1 passed (real Account session, private API boundary, GET 200)",
+    "diagnostic current-source browser: Brand draft save POST 200 + reload Draft version 1 on desktop and mobile, 0 page/console/http errors (2026-11-04-brand-finance-browser-current-source.json)",
+    "diagnostic current-source browser persisted brand_identity_drafts draft v1 with the submitted tagline on desktop and mobile"
+  ],
+  "limits": [
+    "No authenticated browser journey has exercised the native Brand route; http/ssr remain partial.",
+    "The private API mount reuses the financeJournalReads Company targets; a dedicated Brand target map is not added.",
+    "Cross-language replay of TypeScript-written Brand receipts is not claimed; after cutover only Rust writes Brand receipts.",
+    "Jobs/providers are not applicable to this owner."
+  ]
+}

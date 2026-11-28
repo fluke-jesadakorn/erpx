@@ -1,1 +1,0 @@
-export {posStartupBootstrapFinanceReferences,posStartupMasterFinanceLeases,posStartupMasterFinanceSource,posStartupProductMoneySource,posStartupProductMoneyMatches,type PosStartupProductMoney} from '@erpx/server-finance/adapters/pos-startup-master-sources';

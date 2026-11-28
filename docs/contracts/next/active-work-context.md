@@ -1,5 +1,7 @@
 # Active business work context — 2026-09-14
 
+Current development routing follows the [Holding address contract](holding-addresses.md): exact Holding hosts plus central Account, explicit root/unscoped selection, and retired Console generic404. The dated verification section below preserves its original2026-09-14 topology; it does not override this address model.
+
 Business authorization uses one selected assignment. This supersedes the combined-responsibility and preferred-role behavior described in earlier workplace plans. Platform authorization remains separate.
 
 ## Identity and authorization

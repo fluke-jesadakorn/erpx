@@ -1,0 +1,906 @@
+import { describe, it, expect, vi } from 'vitest';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+vi.mock('server-only', () => ({}));
+vi.mock('next/headers', () => ({
+  headers: async () =>
+    new Headers({
+      host: 'erpx-internal.example.test',
+      cookie: '__Host-erpx-product=session',
+      origin: 'https://erpx-internal.example.test',
+    }),
+}));
+vi.mock('@erpx/identity-access-server/public/authorization', () => ({
+  requireManageErpxContext: async () => ({
+    work: {
+      userId: 'operator', holdingId: 'h003', holdingSlug: 'erpx', companyId: 'erpx',
+      branchId: null, departmentId: null, assignmentId: 'work-assignment',
+      authority: { revision: 7, assignmentVersion: 3 },
+      modules: ['manage_erpx'], iam: { permissions: ['manage_erpx.access'] },
+    },
+    platform: {
+      userId: 'operator', assignmentId: 'platform-assignment', role: 'platform_admin',
+      modules: ['manage_erpx'],
+    },
+  }),
+}));
+vi.mock('@erpx/platform-runtime-server/public/app-native-sources', () => ({
+  customerHoldingBindingExists: vi.fn(async () => true),
+}));
+vi.mock('@erpx/billing-server/public/native-billing', () => ({
+  nativeBillingConfiguration: (raw: string) => JSON.parse(raw),
+  nativeBillingFailure: () => undefined,
+  createNativeBillingClient: () => ({
+    holding: (id: string) => (id === 'h001' ? { holdingSlug: 'acme' } : undefined),
+    forecast: async () => ({
+      generatedAt: 10, forecastMonth: '2026-10', sourceMonth: '2026-09',
+      model: 'seat_what_if', price: null, priceEffectiveForMonth: false,
+      seats: { count: 282, observedAt: 1 },
+      storage: { originalBytes: 1_000_000_000, observedAt: 1, coverage: 'measured' },
+    }),
+  }),
+}));
+import {
+  createNativePlatformAdminClient,
+  nativePlatformAdminConfiguration,
+  nativePlatformAdminFailure,
+  NativePlatformAdminError,
+  type NativePlatformAdminActor,
+} from '../../../modules/platform-administration/ui/src/adapters/server/native-platform-administration';
+import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformMigrate, nativePlatformOperationsForPresentation, nativePlatformExecutiveForPresentation, nativePlatformExecutiveSourcesForPresentation } from '../../../modules/platform-administration/ui/src/lib/native-platform-administration';
+import { GET as forecastGet } from '@erpx/product-admin-ui/routes/api/v1/platform/billing/forecast/route';
+import { canonicalDestinationLinks } from '@erpx/work-projection-ui/lib/destination-links';
+import { nativeApiPath } from '../../../scripts/local/native-api-proxy';
+import { expandNativeApiPaths, loadNativeApiPaths } from '../../../scripts/local/native-api-paths';
+
+const config = (overrides: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    privateBaseUrl: 'http://127.0.0.1:44991',
+    timeoutMs: 1000,
+    holdings: [
+      { origin: 'https://erpx-internal.example.test', holdingSlug: 'erpx', holdingId: 'h003' },
+    ],
+    ...overrides,
+  });
+const incoming = (overrides: Record<string, string> = {}) =>
+  new Headers({
+    host: 'erpx-internal.example.test',
+    cookie: '__Host-erpx-product=session',
+    origin: 'https://erpx-internal.example.test',
+    ...overrides,
+  });
+const work = {
+  userId: 'operator',
+  holdingId: 'h003',
+  holdingSlug: 'erpx',
+  companyId: 'erpx',
+  branchId: null,
+  departmentId: null,
+  assignmentId: 'work-assignment',
+  authority: { revision: 7, assignmentVersion: 3 },
+  modules: ['manage_erpx'],
+  iam: { permissions: ['manage_erpx.access'] },
+};
+const platform = { userId: 'operator', assignmentId: 'platform-assignment', role: 'platform_admin' };
+const actor: NativePlatformAdminActor = platformAdminActor(work, platform);
+const context = {
+  userId: 'operator',
+  holdingId: 'h003',
+  holdingSlug: 'erpx',
+  companyId: 'erpx',
+  branchId: null,
+  departmentId: null,
+  workAssignmentId: 'work-assignment',
+  platformAssignmentId: 'platform-assignment',
+  platformRole: 'platform_admin',
+  assignmentVersion: 3,
+  revision: 7,
+  modules: ['manage_erpx'],
+  permissions: ['manage_erpx.access'],
+  expiresAt: 9_007_199_254_740_991,
+};
+const slot = { id: 'h004', write: 'H004_DB', read: 'H004_READ_DB', files: 'H004_FILES' };
+const row = {
+  id: 'holding-provisioning-1',
+  holdingId: 'h004',
+  slug: 'northstar',
+  displayName: 'Northstar',
+  writeBinding: 'H004_DB',
+  readBinding: 'H004_READ_DB',
+  filesBinding: 'H004_FILES',
+  status: 'active',
+  requestedBy: 'operator',
+  reason: 'Reviewed onboarding and verified health.',
+  error: null,
+  version: 2,
+  requestedAt: 1,
+  activatedAt: 2,
+  updatedAt: 2,
+};
+const snapshot = {
+  provisioning: { rows: [row], availableSlots: [slot] },
+  operations: {
+    generatedAt: 10,
+    actorRole: 'platform_admin',
+    controlHealth: [{ service: 'jobs', heartbeatAt: 9, details: '{}' }],
+    holdings: [
+      {
+        id: 'h001',
+        slug: 'acme',
+        displayName: 'Acme',
+        status: 'attention',
+        pendingEvents: 1,
+        deadLetterEvents: 1,
+        claimedEvents: 0,
+        oldestPendingAt: 3,
+        jobHeartbeatAt: 9,
+        error: null,
+        deadLetters: [
+          {
+            id: 'event',
+            eventType: 'test.operation',
+            aggregateId: 'aggregate',
+            aggregateVersion: 1,
+            attempts: 6,
+            lastError: 'PROJECTOR_TIMEOUT',
+            deadLetterAt: 4,
+          },
+        ],
+        migrations: {
+          track: 'holding-write',
+          applied: 10,
+          pending: [],
+          latestApplied: '0010',
+          error: null,
+        },
+      },
+    ],
+    totals: { holdings: 1, pendingEvents: 1, deadLetterEvents: 1, claimedEvents: 0 },
+  },
+};
+const ok = (value: unknown) =>
+  new Response(JSON.stringify(value), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+const executiveSnapshotData = {
+  scope: 'platform',
+  referenceAt: 10,
+  filters: { from: '2026-06-01', to: '2026-06-30' },
+  sourceRevision: 'a'.repeat(64),
+  metrics: [
+    {
+      id: 'failed-provisioning',
+      label: 'Failed provisioning jobs',
+      formula: 'Count failed provisioning events.',
+      dateBasis: 'Failure event time (UTC)',
+      total: '1',
+      rows: [{ label: '2026-06', value: '1' }],
+      status: 'ready',
+      sourceReferences: [
+        {
+          dataset: 'platform_holding_provisioning_events',
+          revision: 'a'.repeat(64),
+          referencedAt: 10,
+        },
+      ],
+    },
+    {
+      id: 'abnormal-platform-services',
+      label: 'Abnormal platform services',
+      formula: 'Count abnormal health observations.',
+      dateBasis: 'Latest health observation',
+      total: '0',
+      rows: [],
+      status: 'empty',
+      sourceReferences: [
+        { dataset: 'platform_health', revision: 'a'.repeat(64), referencedAt: 10 },
+      ],
+    },
+  ],
+};
+const executiveSourcesData = {
+  id: '2026-06',
+  name: '2026-06',
+  metric: 'failed-provisioning',
+  filters: { from: '2026-06-01', to: '2026-06-30' },
+  rows: [{ created_at: 1, action: 'failed' }],
+  page: 1,
+  hasNext: false,
+};
+
+describe('native Platform Administration transport', () => {
+  it('rejects reserved, non-loopback and duplicate targets', () => {
+    expect(() =>
+      nativePlatformAdminConfiguration(
+        config({ privateBaseUrl: 'http://127.0.0.1:3101' }),
+      ),
+    ).toThrow(NativePlatformAdminError);
+    expect(() =>
+      nativePlatformAdminConfiguration(
+        config({ privateBaseUrl: 'http://192.168.1.1:44991' }),
+      ),
+    ).toThrow(NativePlatformAdminError);
+    expect(() =>
+      nativePlatformAdminConfiguration(
+        config({
+          holdings: [
+            { origin: 'https://erpx-internal.example.test', holdingSlug: 'erpx', holdingId: 'h003' },
+            { origin: 'https://erpx-internal.example.test', holdingSlug: 'erpx', holdingId: 'h003' },
+          ],
+        }),
+      ),
+    ).toThrow(NativePlatformAdminError);
+    expect(() =>
+      nativePlatformAdminConfiguration(
+        config({
+          holdings: [
+            { origin: 'http://erpx-internal.example.test', holdingSlug: 'erpx', holdingId: 'h003' },
+          ],
+        }),
+      ),
+    ).toThrow(NativePlatformAdminError);
+  });
+
+  it('forwards the actual session, work context and platform assignment', async () => {
+    const transport = vi.fn().mockResolvedValue(ok({ data: snapshot, context }));
+    const client = createNativePlatformAdminClient(JSON.parse(config()), transport as never);
+    const result = await client.operations(incoming(), actor);
+    expect(result.provisioning.rows[0]).toMatchObject({ slug: 'northstar', status: 'active' });
+    expect(result.operations.holdings[0]).toMatchObject({ status: 'attention', pendingEvents: 1 });
+    expect(result.operations.holdings[0].deadLetters[0]).toMatchObject({ eventType: 'test.operation' });
+    const [method, url, headers] = transport.mock.calls[0]!;
+    expect(method).toBe('GET');
+    expect(url.toString()).toBe('http://127.0.0.1:44991/api/v1/platform/operations');
+    expect(headers.get('host')).toBe('erpx-internal.example.test');
+    expect(headers.get('cookie')).toBe('__Host-erpx-product=session');
+    expect(headers.get('x-erpx-context-company')).toBe('erpx');
+    expect(headers.get('x-erpx-context-assignment')).toBe('work-assignment');
+    expect(headers.get('x-erpx-context-revision')).toBe('7');
+    expect(headers.get('x-erpx-context-assignment-version')).toBe('3');
+    expect(headers.get('x-erpx-platform-assignment')).toBe('platform-assignment');
+  });
+
+  it('requires the exact Platform Holding, role and current work context', () => {
+    expect(() => platformAdminActor({ ...work, holdingId: 'h001' }, platform)).toThrow(
+      NativePlatformAdminError,
+    );
+    expect(() => platformAdminActor({ ...work, holdingSlug: 'acme' }, platform)).toThrow(
+      NativePlatformAdminError,
+    );
+    expect(() =>
+      platformAdminActor(work, { ...platform, role: 'holding_owner' }),
+    ).toThrow(NativePlatformAdminError);
+    expect(() => platformAdminActor(work, { ...platform, userId: 'other' })).toThrow(
+      NativePlatformAdminError,
+    );
+  });
+
+  it('sends one keyed provisioning command with the exact origin and returns the receipt', async () => {
+    const response = {
+      data: {
+        id: 'holding-provisioning-1',
+        holdingId: 'h004',
+        slug: 'northstar',
+        displayName: 'Northstar',
+        status: 'active',
+        version: 2,
+        activatedAt: 2,
+      },
+      context,
+    };
+    const transport = vi.fn().mockResolvedValue(ok(response));
+    const client = createNativePlatformAdminClient(JSON.parse(config()), transport as never);
+    const body = {
+      holdingId: 'h004',
+      slug: 'northstar',
+      displayName: 'Northstar',
+      reason: 'Reviewed onboarding and verified health.',
+    };
+    const result = await client.provision(incoming(), actor, body, 'platform-provision-key-1');
+    expect(result).toEqual(response.data);
+    const [method, url, headers, sent] = transport.mock.calls[0]!;
+    expect(method).toBe('POST');
+    expect(url.toString()).toBe('http://127.0.0.1:44991/api/v1/platform/operations/provision');
+    expect(headers.get('origin')).toBe('https://erpx-internal.example.test');
+    expect(headers.get('idempotency-key')).toBe('platform-provision-key-1');
+    expect(headers.get('content-type')).toBe('application/json');
+    expect(headers.get('x-erpx-method')).toBe('POST');
+    expect(headers.get('x-erpx-request-method')).toBe('POST');
+    expect(JSON.parse(sent)).toEqual(body);
+  });
+
+  it('sends a reviewed dead-letter recovery and rejects malformed receipts', async () => {
+    const response = {
+      data: {
+        eventId: 'event',
+        holdingId: 'h001',
+        status: 'queued',
+        previousAttempts: 6,
+        previousError: 'PROJECTOR_TIMEOUT',
+        recoveredAt: 10,
+      },
+      context,
+    };
+    const transport = vi.fn().mockResolvedValue(ok(response));
+    const client = createNativePlatformAdminClient(JSON.parse(config()), transport as never);
+    const result = await client.recover(
+      incoming(),
+      actor,
+      {
+        holdingId: 'h001',
+        eventId: 'event',
+        expectedAttempts: 6,
+        expectedLastError: 'PROJECTOR_TIMEOUT',
+        reason: 'Provider is healthy and the projection is safe to replay.',
+      },
+      'platform-recovery-key-1',
+    );
+    expect(result.status).toBe('queued');
+    expect(transport.mock.calls[0]![1].toString()).toBe(
+      'http://127.0.0.1:44991/api/v1/platform/operations/recover',
+    );
+    const invalid = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(ok({ data: { ...response.data, extra: true }, context })) as never,
+    );
+    await expect(
+      invalid.recover(incoming(), actor, {}, 'platform-recovery-key-2'),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID' });
+  });
+
+  it('sends one keyed Holding migration command and rejects an invalid receipt', async () => {
+    const response = {
+      data: {
+        runId: 'platform-migration-1',
+        holdingId: 'h001',
+        track: 'holding-write',
+        status: 'succeeded',
+        appliedBefore: 4,
+        appliedAfter: 10,
+        pending: [],
+        finishedAt: 10,
+      },
+      context,
+    };
+    const transport = vi.fn().mockResolvedValue(ok(response));
+    const client = createNativePlatformAdminClient(JSON.parse(config()), transport as never);
+    const body = {
+      holdingId: 'h001',
+      track: 'holding-write',
+      reason: 'Apply the reviewed release schema before enabling the next workflow.',
+    };
+    const result = await client.migrate(
+      incoming(),
+      actor,
+      body,
+      'platform-migration-key-1',
+    );
+    expect(result).toEqual(response.data);
+    const [method, url, headers, sent] = transport.mock.calls[0]!;
+    expect(method).toBe('POST');
+    expect(url.toString()).toBe('http://127.0.0.1:44991/api/v1/platform/operations/migrate');
+    expect(headers.get('origin')).toBe('https://erpx-internal.example.test');
+    expect(headers.get('idempotency-key')).toBe('platform-migration-key-1');
+    expect(headers.get('content-type')).toBe('application/json');
+    expect(JSON.parse(sent)).toEqual(body);
+    const invalid = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(
+        ok({ data: { ...response.data, appliedAfter: 3 }, context }),
+      ) as never,
+    );
+    await expect(
+      invalid.migrate(incoming(), actor, body, 'platform-migration-key-2'),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID' });
+    const missingContext = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(ok({ data: response.data })) as never,
+    );
+    await expect(
+      missingContext.migrate(incoming(), actor, body, 'platform-migration-key-3'),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID' });
+  });
+
+  it('fails closed when the native Platform configuration is absent or invalid', async () => {
+    const previous = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const previousLong = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      await expect(
+        nativePlatformMigrate(
+          work,
+          platform,
+          incoming(),
+          {
+            holdingId: 'h001',
+            track: 'holding-write',
+            reason: 'Apply the reviewed release schema before enabling the next workflow.',
+          },
+          'platform-migration-key-4',
+        ),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+      process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = '{}';
+      await expect(
+        nativePlatformMigrate(
+          work,
+          platform,
+          incoming(),
+          {
+            holdingId: 'h001',
+            track: 'holding-write',
+            reason: 'Apply the reviewed release schema before enabling the next workflow.',
+          },
+          'platform-migration-key-5',
+        ),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+    } finally {
+      if (previous === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = previous;
+      if (previousLong === undefined)
+        delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = previousLong;
+    }
+  });
+
+  it('fails closed for operations when either configuration name is unset', async () => {
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      expect(nativePlatformAdminAvailable()).toBe(false);
+      await expect(
+        nativePlatformOperationsForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+
+      process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = '{}';
+      expect(nativePlatformAdminAvailable()).toBe(true);
+      await expect(
+        nativePlatformOperationsForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = '{}';
+      expect(nativePlatformAdminAvailable()).toBe(true);
+      await expect(
+        nativePlatformOperationsForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+    }
+  });
+
+  it('fails closed for executive presentation reads when the native configuration is absent or invalid', async () => {
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      await expect(
+        nativePlatformExecutiveForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+      await expect(
+        nativePlatformExecutiveSourcesForPresentation(work, platform, incoming(), {
+          metric: 'failed-provisioning',
+          group: '2026-06',
+          from: '2026-06-01',
+          to: '2026-06-30',
+        }),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+
+      process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = '{}';
+      await expect(
+        nativePlatformExecutiveForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+      await expect(
+        nativePlatformExecutiveSourcesForPresentation(work, platform, incoming(), {
+          metric: 'failed-provisioning',
+          group: '2026-06',
+          from: '2026-06-01',
+          to: '2026-06-30',
+        }),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+    }
+  });
+
+  it('surfaces a configured but unavailable native service without retaining data', async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(503, { 'content-type': 'application/json' });
+      response.end(
+        JSON.stringify({ error: { code: 'SERVICE_UNAVAILABLE', message: 'offline' } }),
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = config({
+        privateBaseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        timeoutMs: 250,
+      });
+      await expect(
+        nativePlatformOperationsForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE', status: 503 });
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('rejects a foreign reply context and preserves a bounded owner failure', async () => {
+    const foreign = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(ok({ data: snapshot, context: { ...context, companyId: 'foreign' } })) as never,
+    );
+    await expect(foreign.operations(incoming(), actor)).rejects.toMatchObject({
+      code: 'NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID',
+    });
+    const denied = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ error: { code: 'FORBIDDEN', message: 'Only a Platform administrator can perform this action.' } }),
+          { status: 403, headers: { 'content-type': 'application/json' } },
+        ),
+      ) as never,
+    );
+    await expect(
+      denied.provision(
+        incoming(),
+        actor,
+        { holdingId: 'h004' },
+        'platform-provision-key-2',
+      ),
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+  });
+
+  it('reads the native operations projection and executive metrics without a retained fallback', async () => {
+    const transport = vi
+      .fn()
+      .mockResolvedValueOnce(ok({ data: snapshot.operations, context }))
+      .mockResolvedValueOnce(ok({ data: executiveSnapshotData, context }))
+      .mockResolvedValueOnce(ok({ data: executiveSourcesData, context }));
+    const client = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      transport as never,
+    );
+    const projection = await client.operationsProjection(incoming(), actor);
+    expect(projection.totals).toEqual({
+      holdings: 1,
+      pendingEvents: 1,
+      deadLetterEvents: 1,
+      claimedEvents: 0,
+    });
+    expect(transport.mock.calls[0][0]).toBe('GET');
+    expect(transport.mock.calls[0][1].pathname).toBe(
+      '/api/v1/platform/operations/projection',
+    );
+    const executive = await client.executive(incoming(), actor, {
+      from: '2026-06-01',
+      to: '2026-06-30',
+    });
+    expect(transport.mock.calls[1][1].searchParams.get('from')).toBe('2026-06-01');
+    expect(executive.metrics.map((metric) => metric.total)).toEqual(['1', '0']);
+    const sources = await client.executiveSources(incoming(), actor, {
+      metric: 'failed-provisioning',
+      group: '2026-06',
+      from: '2026-06-01',
+      to: '2026-06-30',
+      page: 2,
+    });
+    expect(transport.mock.calls[2][1].searchParams.get('page')).toBe('2');
+    expect(sources.rows).toEqual([{ created_at: 1, action: 'failed' }]);
+    const invalid = createNativePlatformAdminClient(
+      JSON.parse(config()),
+      vi.fn().mockResolvedValue(
+        ok({
+          data: {
+            ...executiveSnapshotData,
+            metrics: [{ ...executiveSnapshotData.metrics[0], total: 1 }, executiveSnapshotData.metrics[1]],
+          },
+          context,
+        }),
+      ) as never,
+    );
+    await expect(
+      invalid.executive(incoming(), actor, { from: '2026-06-01', to: '2026-06-30' }),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID' });
+    await expect(
+      client.executive(incoming(), actor, {
+        metric: 'failed-provisioning',
+        group: '2026-06',
+        from: '2026-06-01',
+        to: '2026-06-30',
+        page: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_REQUEST_INVALID' });
+  });
+
+  it('maps configuration, context and response failures without inventing success', () => {
+    expect(
+      nativePlatformAdminFailure(new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID')),
+    ).toMatchObject({ status: 503, code: 'NATIVE_PLATFORM_ADMIN_UNAVAILABLE' });
+    expect(
+      nativePlatformAdminFailure(new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_CONTEXT_CHANGED')),
+    ).toMatchObject({ status: 409, code: 'WORK_CONTEXT_CHANGED' });
+    expect(
+      nativePlatformAdminFailure(new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_RESPONSE_INVALID')),
+    ).toMatchObject({ status: 502 });
+    expect(
+      nativePlatformAdminFailure(new NativePlatformAdminError('NATIVE_PLATFORM_ADMIN_REQUEST_INVALID')),
+    ).toMatchObject({ status: 422 });
+    expect(nativePlatformAdminFailure(new Error('plain'))).toBeUndefined();
+  });
+});
+
+describe('native Platform Executive transport through the canonical owner helper', () => {
+  it('reads executive snapshots and sources through the canonical presentation helper', async () => {
+    const paths: string[] = [];
+    const server = createServer((request, response) => {
+      paths.push(request.url ?? '');
+      const data = paths.length === 1 ? executiveSnapshotData : executiveSourcesData;
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ data, context }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = config({
+        privateBaseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        timeoutMs: 1000,
+      });
+      const executive = await nativePlatformExecutiveForPresentation(work, platform, incoming(), {
+        from: '2026-06-01',
+        to: '2026-06-30',
+      });
+      expect(executive.metrics.map((metric) => metric.total)).toEqual(['1', '0']);
+      const sources = await nativePlatformExecutiveSourcesForPresentation(work, platform, incoming(), {
+        metric: 'failed-provisioning',
+        group: '2026-06',
+        from: '2026-06-01',
+        to: '2026-06-30',
+      });
+      expect(sources.rows).toEqual([{ created_at: 1, action: 'failed' }]);
+      expect(paths[0]).toContain('/api/v1/platform/executive?from=2026-06-01&to=2026-06-30');
+      expect(paths[1]).toContain('metric=failed-provisioning');
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('rejects a foreign work context or role through the canonical presentation helper', async () => {
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = config();
+      await expect(
+        nativePlatformExecutiveForPresentation({ ...work, holdingId: 'h001' }, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONTEXT_CHANGED' });
+      await expect(
+        nativePlatformExecutiveForPresentation(work, { ...platform, role: 'legal_editor' }, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONTEXT_CHANGED' });
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+    }
+  });
+});
+
+/** The retained billing forecast Next GET transport must return the owner payload
+ *  unchanged and never execute owner SQL. The other Admin routes now reach the
+ *  same owner payloads through the native gateway. */
+describe('native platform billing forecast GET route parity', () => {
+  const source = (path: string) =>
+    readFileSync(new URL(`../../../products/admin/ui/src/routes/api/v1/platform/${path}`, import.meta.url), 'utf8');
+
+  it('returns the exact native billing forecast payload without a TypeScript binding read', async () => {
+    const { customerHoldingBindingExists } = await import('@erpx/platform-runtime-server/public/app-native-sources');
+    vi.mocked(customerHoldingBindingExists).mockClear();
+    const previous = process.env.ERPX_NATIVE_BILLING_CONFIG;
+    try {
+      process.env.ERPX_NATIVE_BILLING_CONFIG = '{}';
+      const response = await forecastGet(
+        new Request('http://erpx-internal.example.test/api/v1/platform/billing/forecast?holdingId=h001'),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+      const body = await response.json();
+      expect(Object.keys(body)).toEqual(['data']);
+      expect(body.data).toEqual({
+        generatedAt: 10, forecastMonth: '2026-10', sourceMonth: '2026-09',
+        model: 'seat_what_if', price: null, priceEffectiveForMonth: false,
+        seats: { count: 282, observedAt: 1 },
+        storage: { originalBytes: 1_000_000_000, observedAt: 1, coverage: 'measured' },
+      });
+      expect(customerHoldingBindingExists).not.toHaveBeenCalled();
+      expect(source('billing/forecast/route.ts')).not.toMatch(/customerHoldingBindingExists|runtimeEnv|\.query\(|\bSELECT\b/);
+      const reserved = await forecastGet(
+        new Request('http://erpx-internal.example.test/api/v1/platform/billing/forecast?holdingId=h003'),
+      );
+      expect(reserved.status).toBe(422);
+      expect((await reserved.json()).error.code).toBe('HOLDING_REQUIRED');
+      const unknown = await forecastGet(
+        new Request('http://erpx-internal.example.test/api/v1/platform/billing/forecast?holdingId=h999'),
+      );
+      expect(unknown.status).toBe(404);
+      expect((await unknown.json()).error.code).toBe('NOT_FOUND');
+    } finally {
+      if (previous === undefined) delete process.env.ERPX_NATIVE_BILLING_CONFIG;
+      else process.env.ERPX_NATIVE_BILLING_CONFIG = previous;
+    }
+  });
+});
+
+/** Nine native-ready Admin capabilities no longer have a Next transport. The
+ *  gateway selects the exact Axum owner route and the owner `{data}` payload is
+ *  already accepted by the existing browser/feature consumers. */
+describe('native Admin API route retirement', () => {
+  const holdingHosts = ['acme.jesadakorn.com', 'northstar.jesadakorn.com', 'admin.jesadakorn.com'];
+  const checkedIn = loadNativeApiPaths(fileURLToPath(new URL('../../../scripts/local/native-api-paths.json', import.meta.url)));
+  const holdingHostsForExpansion = [
+    { hostname: 'acme.jesadakorn.com', holdingSlug: 'acme' },
+    { hostname: 'northstar.jesadakorn.com', holdingSlug: 'northstar' },
+    { hostname: 'admin.jesadakorn.com', holdingSlug: 'erpx' },
+  ];
+  const platformEntries = [
+    ...(checkedIn.platform ?? []).map(({ host, method, path }) => `${host}|${method}|${path}`),
+    ...(checkedIn.platformPrefixes ?? []).map(({ host, path }) => `${host}|${path}`),
+  ];
+  const holdingEntries = holdingHosts.flatMap((host) => [
+    `${host}|GET|/api/v1/holdings/{holding_slug}/brand`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/brand`,
+    `${host}|GET|/api/v1/holdings/{holding_slug}/ai-providers`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers`,
+    `${host}|GET|/api/v1/holdings/{holding_slug}/ai-providers/{provider}/models`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/{provider}`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/{provider}/{action}`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/discover`,
+    `${host}|POST|/api/v1/holdings/{holding_slug}/ai-providers/selection`,
+  ]);
+  const gatewayEntries = [
+    ...platformEntries,
+    ...holdingEntries,
+    ...expandNativeApiPaths(checkedIn, holdingHostsForExpansion).paths.split(','),
+  ];
+  const retiredFiles = [
+    'products/admin/ui/src/routes/api/v1/platform/operations/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/operations/migrate/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/operations/recover/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/billing/ai-gateway/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/executive/route.ts',
+    'products/admin/ui/src/routes/api/v1/platform/billing/target/route.ts',
+    'products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/brand/route.ts',
+    'products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts',
+    'products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts',
+  ];
+  const appReexports = [
+    'apps/admin/src/app/api/v1/platform/operations/route.ts',
+    'apps/admin/src/app/api/v1/platform/operations/migrate/route.ts',
+    'apps/admin/src/app/api/v1/platform/operations/recover/route.ts',
+    'apps/admin/src/app/api/v1/platform/billing/ai-gateway/route.ts',
+    'apps/admin/src/app/api/v1/platform/executive/route.ts',
+    'apps/admin/src/app/api/v1/platform/billing/target/route.ts',
+    'apps/admin/src/app/api/v1/holdings/[holdingSlug]/brand/route.ts',
+    'apps/admin/src/app/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts',
+    'apps/admin/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts',
+    'apps/compat/src/app/api/v1/platform/operations/route.ts',
+    'apps/compat/src/app/api/v1/platform/operations/migrate/route.ts',
+    'apps/compat/src/app/api/v1/platform/operations/recover/route.ts',
+    'apps/compat/src/app/api/v1/platform/billing/ai-gateway/route.ts',
+    'apps/compat/src/app/api/v1/platform/executive/route.ts',
+    'apps/compat/src/app/api/v1/platform/billing/target/route.ts',
+    'apps/compat/src/app/api/v1/holdings/[holdingSlug]/brand/route.ts',
+    'apps/compat/src/app/api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]/route.ts',
+    'apps/compat/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts',
+  ];
+
+  it('keeps the nine retired handlers and every app re-export unresolvable', () => {
+    expect(retiredFiles).toHaveLength(9);
+    for (const file of [...retiredFiles, ...appReexports])
+      expect(existsSync(new URL(`../../../${file}`, import.meta.url)), file).toBe(false);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/platform/operations/provision/route.ts', import.meta.url))).toBe(true);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/platform/billing/forecast/route.ts', import.meta.url))).toBe(true);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/target/route.ts', import.meta.url))).toBe(true);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/platform/billing/target/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../apps/admin/src/app/api/v1/platform/billing/target/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../apps/compat/src/app/api/v1/platform/billing/target/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../products/admin/ui/src/routes/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../apps/admin/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../../../apps/compat/src/app/api/v1/holdings/[holdingSlug]/billing/forecast/route.ts', import.meta.url))).toBe(false);
+  });
+
+  it('routes every retired path and method to the native owner by exact gateway entry', () => {
+    expect(platformEntries).toEqual([
+      'admin.jesadakorn.com|GET|/api/v1/platform/operations',
+      'admin.jesadakorn.com|POST|/api/v1/platform/operations/migrate',
+      'admin.jesadakorn.com|POST|/api/v1/platform/operations/recover',
+      'admin.jesadakorn.com|GET|/api/v1/platform/executive',
+      'erpx-internal.jesadakorn.com|GET|/api/v1/platform/operations',
+      'erpx-internal.jesadakorn.com|POST|/api/v1/platform/operations/migrate',
+      'erpx-internal.jesadakorn.com|POST|/api/v1/platform/operations/recover',
+      'erpx-internal.jesadakorn.com|GET|/api/v1/platform/executive',
+      'acme.jesadakorn.com|GET|/api/v1/onboarding',
+      'acme.jesadakorn.com|POST|/api/v1/onboarding',
+      'northstar.jesadakorn.com|GET|/api/v1/onboarding',
+      'northstar.jesadakorn.com|POST|/api/v1/onboarding',
+      'erpx-internal.jesadakorn.com|GET|/api/v1/onboarding',
+      'erpx-internal.jesadakorn.com|POST|/api/v1/onboarding',
+      'admin.jesadakorn.com|GET|/api/v1/platform/billing/target',
+      'erpx-internal.jesadakorn.com|GET|/api/v1/platform/billing/target',
+      'admin.jesadakorn.com|/api/v1/platform/billing/ai-gateway',
+      'erpx-internal.jesadakorn.com|/api/v1/platform/billing/ai-gateway',
+    ]);
+    const platformCases: [host: string, method: string, url: string][] = [
+      ...(checkedIn.platform ?? []).map(({ host, method, path }): [string, string, string] => [host, method, path]),
+      ...(checkedIn.platformPrefixes ?? []).flatMap(({ host, path }): [string, string, string][] => [
+        [host, 'GET', `${path}?holdingId=h003`],
+        [host, 'POST', path],
+      ]),
+    ];
+    const holdingCases: [host: string, method: string, url: string][] = [
+      ['acme.jesadakorn.com', 'GET', '/api/v1/holdings/acme/brand'],
+      ['acme.jesadakorn.com', 'POST', '/api/v1/holdings/acme/brand'],
+      ['acme.jesadakorn.com', 'GET', '/api/v1/holdings/acme/ai-providers'],
+      ['acme.jesadakorn.com', 'GET', '/api/v1/holdings/acme/ai-providers/ai-1/models'],
+      ['acme.jesadakorn.com', 'POST', '/api/v1/holdings/acme/ai-providers/ai-1/test'],
+      ['acme.jesadakorn.com', 'POST', '/api/v1/holdings/acme/ai-providers/discover'],
+      ['northstar.jesadakorn.com', 'GET', '/api/v1/holdings/northstar/brand'],
+      ['northstar.jesadakorn.com', 'POST', '/api/v1/holdings/northstar/ai-providers'],
+      ['admin.jesadakorn.com', 'GET', '/api/v1/holdings/erpx/brand'],
+      ['admin.jesadakorn.com', 'POST', '/api/v1/holdings/erpx/ai-providers/selection'],
+    ];
+    const environment = { NODE_ENV: 'test' as const, ERPX_DEV_NATIVE_PATHS: gatewayEntries.join(',') };
+    for (const [host, method, url] of [...platformCases, ...holdingCases]) {
+      expect(nativeApiPath(environment, url, host, method), `${host} ${method} ${url}`).toBe(true);
+      expect(nativeApiPath(environment, url, 'unregistered.example.test', method)).toBe(false);
+    }
+    expect(nativeApiPath(environment, '/api/v1/platform/executive', 'admin.jesadakorn.com', 'POST')).toBe(false);
+    expect(nativeApiPath(environment, '/api/v1/platform/billing/forecast?holdingId=h001', 'admin.jesadakorn.com', 'GET')).toBe(false);
+    expect(nativeApiPath(environment, '/api/v1/platform/billing/target?holdingId=h001', 'admin.jesadakorn.com', 'GET')).toBe(true);
+    expect(nativeApiPath(environment, '/api/v1/platform/billing/target?holdingId=h001', 'erpx-internal.jesadakorn.com', 'GET')).toBe(true);
+    expect(nativeApiPath(environment, '/api/v1/holdings/acme/billing/forecast', 'acme.jesadakorn.com', 'GET')).toBe(true);
+    expect(nativeApiPath(environment, '/api/v1/holdings/acme/billing/target?month=2026-10', 'acme.jesadakorn.com', 'GET')).toBe(false);
+  });
+
+  it('accepts the native owner payload in the existing response envelope without canonicalisation', () => {
+    const ownerPayloads = [
+      snapshot.operations,
+      executiveSnapshotData,
+      executiveSourcesData,
+      { runId: 'platform-migration-1', holdingId: 'h001', track: 'holding-write', status: 'succeeded', appliedBefore: 4, appliedAfter: 10, pending: [], finishedAt: 10 },
+      { eventId: 'event', holdingId: 'h001', status: 'queued', previousAttempts: 6, previousError: 'PROJECTOR_TIMEOUT', recoveredAt: 10 },
+      { holdingId: 'h003', enabled: true, updatedAt: 10, reason: 'Reviewed policy.' },
+      { providers: [{ id: 'ai-1', name: 'Provider' }], connections: [] },
+      { actorId: 'operator', canManage: true, drafts: [], versions: [], active: null },
+    ];
+    for (const payload of ownerPayloads) {
+      expect(canonicalDestinationLinks(payload)).toEqual(payload);
+      expect(canonicalDestinationLinks({ data: payload }).data).toEqual(payload);
+    }
+  });
+});

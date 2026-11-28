@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "date": "2026-11-09",
+  "status": "Clean integration HEAD e208578b4 had two committed Rust integration tests that were absent from the catalogue inventory: the Files shared business-evidence suite and the Assets cost-composition suite. ab06f19aa registers both suites and changes the Assets fixture to the public NewAsset parser so the committed test compiles against RecordId. This is a gate repair and does not close or promote any workflow.",
+  "capability": "clean-head-rust-evidence-suite-registration",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "e208578b4ed0a95912a7a2dfaa4f492182d21e04",
+  "commit": "ab06f19aa01ee4c269b3dcf2b1c197e327fe2d33",
+  "scope": {
+    "manifest": "Added existing-catalogue entries for files.rust-business-evidence-postgres.integration (target business_evidence_postgres) and assets.rust-asset-cost-composition-postgres.integration (target asset_cost_composition_postgres, feature existing-business). No new registry or harness.",
+    "assetsFixture": "The committed Assets test constructed NewAsset with &str.into() for RecordId. Replaced only the fixture constructor with NewAsset::parse using the public create schema; no assertion was removed or weakened.",
+    "filesEvidence": "The committed Files business-evidence test was already present but had no catalogue entry. No source or assertion changed."
+  },
+  "verification": {
+    "cleanArchiveCatalogue": "PASS: git archive ab06f19aa, bun scripts/testing/test.ts --check: TEST_CATALOGUE_VALID:33 modules, 997 suites.",
+    "cleanArchiveFilesEvidence": "PASS: cargo test -p erpx-server-files --locked --test business_evidence_postgres: 2 passed, 0 failed, 0 ignored (binds_exact_scanned_sets_and_retains_bound_state, rejects_foreign_scope_wrong_target_missing_context_and_short_sets).",
+    "cleanArchiveAssetsCost": "PASS: cargo test -p erpx-service --locked --test asset_cost_composition_postgres --features existing-business: 1 passed, 0 failed, 0 ignored (composition_finance_cost_snapshot_is_exact_and_rolls_back_with_the_asset_unit).",
+    "workingTreeGates": "PASS: bun run architecture:check; bun run structure:check; bun run test:catalogue; bun run docs:check.",
+    "workingTreeAssetsCandidate": "PASS: 4/4 on the current uncommitted candidate source (asset cost rollback, linked purchase image, Maintenance purchase image, retirement work); this is not part of ab06f19aa and is not a workflow claim.",
+    "logs": [
+      ".scratch/dev/rust-migration/current/head-catalogue2.log",
+      ".scratch/dev/rust-migration/current/head-files-evidence.log",
+      ".scratch/dev/rust-migration/current/head-assets-fixed.log",
+      ".scratch/dev/rust-migration/current/architecture2.log",
+      ".scratch/dev/rust-migration/current/structure.log",
+      ".scratch/dev/rust-migration/current/catalogue.log",
+      ".scratch/dev/rust-migration/current/docs.log"
+    ]
+  },
+  "hashes": {
+    "tests/catalogue/suite-manifest.json": "b221ac4c9cea59dfbb3d9b4e12a6be7647b71175afa166d8171736fe64d2be20",
+    "tests/integration/assets/rust-asset-cost-composition-postgres.test.rs": "9b3ff7984566429fa50ca4030354981dc0988e722ff2e703481467c5f45f5674",
+    "tests/integration/files/rust-business-evidence-postgres.test.rs": "3c7a5ed2ac10eb3f01de9d01e0dd4ac9cd46ab27c2705c2c37a1232eff8a851f",
+    "packages/server-files/src/adapters/business_evidence.rs": "90c66f3966fceadf79e4840952dd9a763d2a64304b574c79eea59096ad9d463b"
+  },
+  "workflowClosure": {
+    "promoted": 0,
+    "reason": "This commit only repairs clean-HEAD gate inventory. The Files business-evidence port remains unmounted for owner workflows; the Assets candidate sources and their 4/4 evidence are uncommitted WIP and remain partial."
+  },
+  "counts": {
+    "verified": 66,
+    "partial": 56,
+    "unstarted": 84,
+    "total": 206,
+    "ownersComplete": 0,
+    "ownerTotal": 41
+  },
+  "remaining": [
+    "Mount the shared business-evidence port in the Finance period-close and other owner commands before claiming their attachment scope.",
+    "Complete the six Field Count/Parts/Files/Finance gaps and the independent owner bundles.",
+    "Run authenticated desktop/mobile browser verification on the frozen source; no fallback or mock counts as closure."
+  ],
+  "nextAction": "Integrate the native Finance period-close workpaper binding through the shared business-evidence port, then verify the exact frozen source and continue the Field Count/Parts/Files/Finance seams."
+}

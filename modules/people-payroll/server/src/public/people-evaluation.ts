@@ -1,0 +1,3 @@
+/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
+export { evaluationQuerySchema, saveEvaluationDefinition, evaluationWorkspace, importEvaluationMarket, createEvaluationAssessment, saveEvaluationAssessment, transitionEvaluationAssessment, evaluationDetail, evaluationEvidenceSources, addEvaluationEvidence, readEvaluationEvidence, confirmEvaluationPayBasis, createEvaluationCompensationDraft, approveEvaluationCompensation, cancelEvaluationCompensation } from "@erpx/people-payroll-server/adapters/people-evaluation";
+export type { EvaluationQuery, EvaluationEmployee, EvaluationRow, EvaluationWorkspace } from "@erpx/people-payroll-server/adapters/people-evaluation";

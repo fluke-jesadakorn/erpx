@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Inventory movement history merged",
+  "capability": "inventory-movements-merge",
+  "integrationTarget": "codex/rust-backend-migration",
+  "pullRequest": {
+    "number": 36,
+    "url": "https://github.com/fluke-jesadakorn/erpx/pull/36",
+    "state": "MERGED",
+    "mergedAt": "2026-11-03T22:00:46Z",
+    "base": "3547db50c30b9bc55181758414330d8c9941c990",
+    "head": "b68337d12ea3401c68fab512d5a150455abed52a",
+    "mergeCommit": "d53b0b3c2edfe8ab5e81c1dcf3e00d7b5336e133",
+    "mergeMethod": "merge commit"
+  },
+  "scope": {
+    "workflow": "inventory/feature-issues-movements",
+    "changedFiles": 19,
+    "domain": "packages/server-inventory/src/domain/movement.rs",
+    "adapter": "packages/server-inventory/src/adapters/movement_read.rs",
+    "http": "src/composition/src/inventory_availability_http.rs",
+    "transport": "packages/feature-inventory/src/adapters/server/native-availability.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/inventory-quality/stock/_screen.tsx"
+  },
+  "verification": {
+    "postgres": "inventory.rust-inventory-movements-postgres.integration 3/3",
+    "availabilityRegression": "3/3",
+    "unit": "inventory.native-inventory-availability-transport.unit 6/6; erpx-server-inventory lib 4/4",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 784 suites), rust-runtime-foundation 6/6",
+    "browser": "Desktop and mobile normal-auth stock pages: POS-BROWSER-2 return 0.5 units and POS-BROWSER-1 sale -2 units in movement history; pageErrors 0."
+  },
+  "register": {
+    "ownersComplete": 1,
+    "ownersTotal": 41,
+    "workflowsVerified": 16,
+    "workflowsPartial": 2,
+    "workflowsMerged": 16,
+    "workflowsTotal": 206
+  },
+  "limits": [
+    "Source-specific issue/transfer/count commands remain with their owning modules; the Field issue writer is already native.",
+    "The browser exercised POS sale/return; the SQL view covers the remaining source tables structurally.",
+    "The stock page falls back to the legacy commercePage movements when ERPX_NATIVE_INVENTORY_AVAILABILITY_CONFIG is absent."
+  ]
+}

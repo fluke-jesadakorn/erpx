@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Ecommerce now has a bounded native channel/listing storefront catalog read, a native channel-draft command, native channel/listing review commands, an owner-local HTTP router and a configured SSR catalog cutover. The Ecommerce owner remains pending/partial: listing create, cart, checkout, fulfillment and return commands, shared composition mounting, root workspace membership, purchase-atomic composition and browser acceptance remain open.",
+  "capability": "ecommerce-owner-catalog-channel-review-closure",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "88b12c368",
+  "scope": {
+    "workflows": [
+      "ecommerce/channels",
+      "ecommerce/listings"
+    ],
+    "workflowBoundary": "The qualified read returns the current Company's channel rows and listing rows used by the retained Ecommerce workspace catalog. The qualified commands create one draft channel and perform the retained channel activate/reject/retire and listing publish/reject/retire review transitions. Listing create, carts, checkout, Sales order handoff, Inventory reservation, Finance posting, fulfillment, returns, attachments, purchase controls and the retained command client are not claimed.",
+    "domain": "Ecommerce actor policy (commerce.read for the catalog, commerce.sales for writes, commerce.approve plus a Company-only assignment for review, the exact ecommerce module and selected-context expiry), Company-scoped channel/listing rows, exact channel/listing source column shapes, bounded 500-row collections with strict descending updated_at/id order, unique ids and listing channel/product pairs, currency/status/version/timestamp/config validation, trimmed 2..160 channel names, web/marketplace/social channel types, 3..2000 review reasons, kind-specific transitions, exact expected-version status/version requirements and creator independence for activate/publish/reject while allowing creator retirement.",
+    "application": "One storefront_catalog read requires the current actor before any repository call, reads only Company-scoped Ecommerce rows and validates every channel/listing and the descending page before presentation. create_channel resolves the canonical receipt first, inserts one draft channel, writes the idempotency receipt, audit and outbox in the same unit and validates persisted readback. review_ecommerce_record requires commerce.sales plus commerce.approve and a Company assignment, locks the owner row FOR UPDATE, validates the current status/version and creator independence, applies the exact expected-version CAS, writes the receipt, audit and outbox and validates persisted readback.",
+    "adapters": "Read/write SQL is Ecommerce-owned only: ecommerce_channels and ecommerce_listings, plus the existing shared command_receipts, audit_events and outbox_events written by the retained workflow command boundary. The caller's serializable Holding transaction is required and no commit occurs in the adapter. No product, customer, warehouse, Sales order, Inventory, Finance or Commercial row is read or written; no cross-owner SQL is invented.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/ecommerce/catalog, POST /api/v1/holdings/{holding_slug}/ecommerce/channels and POST /api/v1/holdings/{holding_slug}/ecommerce/reviews. Exact Host/Holding targets, exact HTTPS origin validation, empty-query rejection, application/json, Idempotency-Key, an 8 KiB body, exact catalog/channel/review input shapes, private/no-store, no-referrer and nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, current Company/branch scope, purchase admission and serializable owner unit.",
+    "transport": "ERPX_NATIVE_ECOMMERCE_CATALOG_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/5432/5433/5435/8080 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact channel/listing/context shapes, Company scope, unique ids and channel/product pairs, strict order, status/currency/config/version/timestamp validation and a 2 MiB response bound. A configured failure never falls back to the retained read.",
+    "ssr": "The Ecommerce workplace screen retains ecommerceWorkspace for carts, checkouts, purchase controls, products, parties and warehouses, then uses the native catalog for the channel catalog and listing cards when ERPX_NATIVE_ECOMMERCE_CATALOG_CONFIG is present. An unset configuration retains the existing workspace lists; once configured, an invalid or failed native read is surfaced through pageError rather than silently replaced.",
+    "purchaseAndIdentity": "The retained ecommerceWorkspace read remains the page's purchase-admission preflight and the composition backend must repeat current IAM, Holding/Company scope and package admission inside its own serializable read. The native read itself has no Commercial entitlement port yet; this is a composition responsibility and an explicit open item. Native channel create/review require commerce.sales, commerce.approve, the ecommerce module and a live Company assignment; composition must repeat current authority and package admission.",
+    "notClaimed": "No browser journey, authenticated page render, Next dev server, shared composition mount, root workspace membership in the final tree, catalogue acceptance qualification, listing-create/cart/checkout/fulfillment/return command, Sales/Inventory/Finance/Commercial same-transaction write guard, purchase-atomic owner unit, attachment/media review, job, provider, production or staging acceptance."
+  },
+  "changedFiles": [
+    "packages/server-ecommerce/Cargo.toml",
+    "packages/server-ecommerce/src/lib.rs",
+    "packages/server-ecommerce/src/domain/mod.rs",
+    "packages/server-ecommerce/src/domain/actor.rs",
+    "packages/server-ecommerce/src/domain/catalog.rs",
+    "packages/server-ecommerce/src/domain/channel.rs",
+    "packages/server-ecommerce/src/domain/command.rs",
+    "packages/server-ecommerce/src/domain/review.rs",
+    "packages/server-ecommerce/src/application/mod.rs",
+    "packages/server-ecommerce/src/application/catalog.rs",
+    "packages/server-ecommerce/src/application/channel.rs",
+    "packages/server-ecommerce/src/application/review.rs",
+    "packages/server-ecommerce/src/adapters/mod.rs",
+    "packages/server-ecommerce/src/adapters/catalog.rs",
+    "packages/server-ecommerce/src/adapters/command.rs",
+    "packages/server-ecommerce/src/adapters/ecommerce_http.rs",
+    "packages/server-ecommerce/src/public/mod.rs",
+    "packages/server-ecommerce/src/public/catalog.rs",
+    "packages/server-ecommerce/src/public/channel.rs",
+    "packages/server-ecommerce/src/public/review.rs",
+    "packages/server-ecommerce/src/public/ecommerce_http.rs",
+    "packages/feature-sales/package.json",
+    "packages/feature-sales/src/public/native-ecommerce-catalog.ts",
+    "packages/feature-sales/src/public/native-ecommerce-catalog-page.ts",
+    "packages/feature-sales/src/adapters/server/next-native-ecommerce-catalog.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/ecommerce/screen.tsx",
+    ".env.example",
+    "tests/unit/ecommerce/rust-ecommerce-commands.test.rs",
+    "tests/unit/ecommerce/rust-ecommerce-http.test.rs",
+    "tests/integration/ecommerce/rust-ecommerce-postgres.test.rs",
+    "tests/unit/ecommerce/native-ecommerce-catalog-transport.test.ts"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "cargo test -p erpx-server-ecommerce --locked -- --test-threads=1",
+      "result": "19 passed, 0 failed, 0 ignored across 3 test targets plus the empty lib/doc targets (lib 0, ecommerce_commands 10, ecommerce_http 5, ecommerce_postgres 4, doc-tests 0)",
+      "workspaceNote": "The crate is not listed in the root workspace members, which this subagent is prohibited from editing. The exact --locked command was run with a transient local member entry and the transient Cargo.lock package entry; both root files are restored to the session-start SHA-256 values and are absent from the final owned diff. A fresh checkout must add packages/server-ecommerce to [workspace] members and regenerate Cargo.lock before the command is reproducible.",
+      "targets": {
+        "ecommerce_commands": "10 passed: actor/module/expiry policy before source, foreign/duplicate/orphan/unordered/invalid listing and oversized page rejection, exact serialized catalog keys, trimmed draft insert plus receipt/audit/outbox sequencing, replay without a fresh write, idempotency conflict, invalid create input, duplicate owner identity, readback mismatch, Company-only approval, independent-review conflict, creator retirement, kind/action mismatch, stale source, CAS loss, missing record and bad review readback",
+        "ecommerce_http": "5 passed: exact targets/origin/session forwarding, catalog response and private/no-referrer/nosniff headers, duplicate/unknown query and malformed backend data negatives, trimmed channel input, exact review forwarding, invalid body/header/kind/action negatives, conflict mapping, bad receipt failure, and duplicate/invalid target configuration",
+        "ecommerce_postgres": "4 passed: committed channel/receipt/audit/outbox readback plus replay, idempotency conflict and duplicate identity, forced rollback with no persisted row/receipt/outbox, channel activate/publish/retire with exact reviewed_by/version, stale CAS, creator independence, foreign Company isolation, branch-assignment refusal, Company-scoped catalog ordering, serializable/missing-transaction guards, in-transaction insert visibility and rollback readback"
+      }
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-ecommerce --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-ecommerce warning"
+    },
+    "rustfmt": {
+      "command": "cargo fmt --package erpx-server-ecommerce -- --check",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "ecommerce_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database on 127.0.0.1:5432)",
+      "fixture": "Real Holding Write migrations with synthetic commerce products, Ecommerce channels/listings and foreign-Company rows. No cross-owner row is written by the qualified commands.",
+      "limit": "The local fixture helper is an Ecommerce-local copy without tokio; it leases and drops only the database it creates. Tests use sqlx::test_block_on for the current-thread runtime."
+    },
+    "httpRouter": {
+      "limit": "The HTTP test calls the exact owner dispatch functions with HeaderMap/body inputs and inspects the axum Response; it does not open a socket or prove Router mounting in src/composition. Router construction and target validation are covered."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/ecommerce/native-ecommerce-catalog-transport.test.ts: 8 passed",
+      "typechecks": [
+        "tsc --noEmit -p packages/feature-sales/tsconfig.json: pass",
+        "tsc --noEmit -p packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit -p tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "eslint on the four changed TypeScript files and the new transport test: pass (existing Pages directory warning only)",
+      "runner": "The transport test was run with an ignored temporary Vitest config at .scratch/ecommerce/vitest.config.mts because tests/catalogue/suite-manifest.json is a shared register concurrently rewritten by other owners. This subagent did not retain a shared catalogue edit."
+    },
+    "architecture": {
+      "command": "cargo test -p erpx-server-runtime --test rust_architecture --locked -- --test-threads=1",
+      "result": "6 passed, 1 failed; the remaining shared-owner violations are in server-pos, server-support, server-brand, server-manage_erpx, server-platform_administration, server-legal and server-maintenance. No server-ecommerce path appears in the failure.",
+      "notClaimed": "This slice does not repair or validate other owners' architecture state."
+    },
+    "static": {
+      "diffCheck": "git diff --check on owned tracked files: pass",
+      "trailingWhitespace": "no trailing whitespace or missing final newline in the new Ecommerce-owned files",
+      "structureCheck": "not run: Bun is not installed in this worktree environment"
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed",
+    "dependencyDelta": "no new external dependency; the new crate uses existing workspace dependencies only; no package lockfile change",
+    "ownerPublicApi": [
+      "erpx_server_ecommerce::public::catalog::{EcommerceActor, EcommerceCatalogRepository, PgEcommerceCatalogRead, storefront_catalog, EcommerceChannelRow, EcommerceListingRow, StorefrontCatalog, CATALOG_LIMIT}",
+      "erpx_server_ecommerce::public::channel::{EcommerceCommandRepository, PgEcommerceCommand, CreateChannel, create_channel, EcommerceReceipt, CommandReceipt, AuditEntry, OutboxEntry, ReceiptEntry}",
+      "erpx_server_ecommerce::public::review::{ReviewKind, ReviewAction, ReviewCommand, ValidatedReview, ReviewSource, ReviewReadback, review_ecommerce_record}",
+      "erpx_server_ecommerce::public::ecommerce_http::{EcommerceHttpBackend, EcommerceHttpState, EcommerceHttpTarget, EcommerceHttpResponse, ecommerce_router}"
+    ],
+    "backendRequired": "Implement EcommerceHttpBackend in src/composition: parse the normal Account/Holding request and rendered context, require the configured Holding/Company/scope, repeat the retained Ecommerce purchase admission and current assignment authority inside one serializable transaction, build EcommerceActor, call storefront_catalog with PgEcommerceCatalogRead or create_channel/review_ecommerce_record with PgEcommerceCommand, map PgTransactionError to BusinessError, and return the owner data plus the validated context. The Next purchase preflight is not atomic.",
+    "privateDevelopmentApi": [
+      "Build one EcommerceHttpTarget per registered Holding with exact host, slug, HTTPS origin and backend.",
+      "router = router.merge(erpx_server_ecommerce::public::ecommerce_http::ecommerce_router(targets).map_err(|_| \"PRIVATE_API_ECOMMERCE_CONFIGURATION_INVALID\")?);",
+      "Mount /ecommerce/catalog, /ecommerce/channels and /ecommerce/reviews before the generic 404 fallback."
+    ],
+    "rootWorkspace": "Add \"packages/server-ecommerce\" to the root Cargo.toml [workspace] members and a corresponding erpx-server-ecommerce workspace dependency entry, then regenerate Cargo.lock in the integration change. This subagent did not retain that shared edit.",
+    "nextEnvironment": "Set ERPX_NATIVE_ECOMMERCE_CATALOG_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app.",
+    "whyNotAppliedHere": "This subagent is prohibited from editing src/composition/**, root Cargo.toml/Cargo.lock, package lockfiles, docs/status/** and other owners' implementation."
+  },
+  "legacyInventory": {
+    "removed": [
+      "When ERPX_NATIVE_ECOMMERCE_CATALOG_CONFIG is present, the Ecommerce workspace screen no longer presents the retained ecommerceWorkspace channel rows or listing rows; the native catalog replaces those two collections.",
+      "No retained TypeScript Ecommerce file was deleted. Listing create, cart, checkout, fulfillment, return, media and every other Ecommerce path remain on their existing owner paths."
+    ],
+    "retainedWithConsumers": [
+      "packages/server-ecommerce/src/adapters/ecommerce.ts::ecommerceWorkspace remains the unset-config workspace read and still supplies carts, checkouts, product/party/warehouse candidates and purchase controls to the screen.",
+      "packages/server-ecommerce/src/adapters/ecommerce.ts::createChannel, createListing, createCart, addCartLine, checkoutCart, changeEcommerce and ecommerceDetail remain the Next command/detail paths and existing integration-test source.",
+      "packages/feature-ecommerce/src/components/ecommerce-console.tsx and its useCRMCommand path retain all create/review/cart/checkout/abandon controls.",
+      "The retained Ecommerce API route, attachments/media panels, purchase preflight and package enforcement remain unchanged."
+    ]
+  },
+  "concurrentWork": {
+    "preserved": "This worktree also contains concurrent uncommitted Planning, Manufacturing and Customer 360 native work plus shared manifests and screen changes. Those files were not edited, reverted or included in the Ecommerce changed-file inventory. A previous local addition to tests/catalogue/suite-manifest.json was replaced by another owner's concurrent rewrite; the Ecommerce transport test is therefore verified with an ignored temporary Vitest config and is not registered in the shared catalogue.",
+    "typecheckImpact": "No concurrent-owner typecheck error remained in the final feature-sales, workplace or tests/config projects."
+  },
+  "limits": [
+    "No shared composition backend is mounted, so no private/production route serves the Ecommerce catalog or command routers yet. The HTTP test backend is a recording fake.",
+    "The new crate is not a root workspace member in the final tree; a fresh cargo test -p erpx-server-ecommerce --locked requires the shared integration edit.",
+    "The Next screen purchase preflight and native catalog read are separate transactions. A composition mount must keep authoritative IAM, Company scope, package purchase and the serializable owner read together.",
+    "The native catalog read has no typed Commercial entitlement port; package admission currently relies on the retained page preflight and must be repeated by composition.",
+    "Listing create was not migrated because it requires a product-owner guard and a Finance money snapshot in the same transaction. Cart, checkout, fulfillment and return remain retained.",
+    "The native command identity is owner-canonical and uses a different JSON key order from the retained workflow fingerprint; a command key must not cross the legacy/native boundary.",
+    "The shared architecture test still fails on unrelated owners; no Ecommerce architecture violation was reported.",
+    "The Ecommerce transport test is not registered in tests/catalogue/suite-manifest.json because that shared register was concurrently rewritten by other owners; the ignored .scratch/ecommerce/vitest.config.mts runner is not a published test path.",
+    "No browser, Next dev server or public URL verification was performed."
+  ]
+}

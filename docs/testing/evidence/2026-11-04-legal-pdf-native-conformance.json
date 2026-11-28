@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Rust is the only Legal PDF production validator; offline trust/revocation/timestamp/document-modification/three-state conformance and a bounded supervisor are qualified, while release packaging and browser/runtime acceptance remain open",
+  "capability": "legal-native-pdf-conformance",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "trust": "Explicit operator trust roots only; no OS/browser roots and no certificate/document network fetch. Trust directories reject symlinks, special files, duplicates, excess items and oversized material.",
+    "revocation": "CRL/OCSP revocation, scopes, deltas, freshness and responder authorization preserve the retained B0 corpus, including trusted/revoked/stale OCSP.",
+    "timestamp": "Trusted timestamps are required on the valid path; missing, invalid or future timestamps remain indeterminate. The retained document-timestamp policy remains explicit.",
+    "modification": "DocMDP/FieldMDP/DSS/XMP, byte-range and CMS tampering preserve permitted/forbidden form-fill and integrity outcomes.",
+    "entrypoint": "New erpx-verify-pdf bounded supervisor (10 MiB input, 90 s, 2 MiB output, sibling erpx-validate-pdf) fails closed as indeterminate and never invokes Python.",
+    "python": "scripts/legal/validate_pdf.py was deleted; Python remains only under tests/support/legal/pdf-oracle for development conformance. Release scripts copy only the compiled DOCX extractor."
+  },
+  "tests": [
+    "cargo test -p erpx-server-legal --features pdf-verifier,document-provider --no-fail-fast: 107 passed, 0 failed across 17 targets",
+    "cargo test -p erpx-server-legal --features pdf-verifier --test pdf_validation --test pdf_process: 12 + 23 passed",
+    "cargo test -p erpx-server-legal --features pdf-verifier --test pdf_verification_postgres: 5 passed",
+    "cargo clippy -p erpx-server-legal --features pdf-verifier,document-provider --all-targets -- -D warnings: passed",
+    "cargo fmt -p erpx-server-legal -- --check: clean",
+    "Manual supervisor: trusted_crl valid; revoked_signer_crl invalid; missing_timestamp/untrusted_root/unsigned indeterminate; oversized PDF PDF_SIZE_LIMIT",
+    "root tsc, changed-file ESLint, docs check and structure check: passed"
+  ],
+  "limits": [
+    "The release scripts do not yet build/copy erpx-verify-pdf and erpx-validate-pdf; operators must supply ERPX_LEGAL_PDF_VERIFIER_BIN until release packaging lands.",
+    "No native Legal HTTP/SSR route or durable production Legal worker was activated; no browser/runtime acceptance is claimed.",
+    "No automated source assertion proves every production path is Python-free; the deleted production copy and release-script removal are the concrete evidence.",
+    "Existing B0 limitations remain: document timestamps are indeterminate, seed/attestation edge cases and uncommon CRL/OCSP encodings are unresolved.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

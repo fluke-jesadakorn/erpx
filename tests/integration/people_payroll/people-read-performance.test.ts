@@ -1,12 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { beforeAll, expect, it, vi } from "vitest";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { holdingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
-import { peopleExplorerDetail } from "@erpx/server-people_payroll/public/people-explorer-detail";
-import { measureReads } from "@erpx/server-runtime/adapters/runtime/read-metrics";
+import { holdingPeopleDirectory } from "@erpx/organization-server/public/holding-people-directory";
+import { peopleExplorerDetail } from "@erpx/people-payroll-server/public/people-explorer-detail";
+import { measureReads } from "@erpx/platform-runtime-server/adapters/runtime/read-metrics";
 import { applyMigrations, env } from "../../support/runtime-env";
 
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   holdingBindingBySlug: async (slug: string) => {
     if (slug !== "test") throw new Error("HOLDING_NOT_FOUND");
     return { id: "h001", slug, displayName: "Test Holding" };

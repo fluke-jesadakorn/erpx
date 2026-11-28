@@ -1,8 +1,8 @@
 import { createElement, type ComponentProps } from 'react';
 import { renderToReadableStream } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
-import { SelfServiceHome } from "@erpx/feature-people_payroll/components/self-service/home";
-import type { SelfServiceSeed } from "@erpx/server-records/public/self-service";
+import { SelfServiceHome } from "@erpx/people-payroll-ui/components/self-service/home";
+import type { SelfServiceSeed } from "@erpx/records-server/public/self-service";
 vi.mock('next/link', () => ({ default: 'a' }));
 it('streams the feed while the day summary loads, then renders the supplied schedule', async () => {
   let resolve!: (value: SelfServiceSeed) => void;

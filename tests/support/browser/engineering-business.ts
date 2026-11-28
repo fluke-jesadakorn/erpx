@@ -12,7 +12,6 @@ export type BusinessFixture={
  preventive:{assetId:string;id:string;firstDueAt:number;warehouseId:string;spareId:string;openingCountId:string;initialValueMinor:number};
  production:{warehouseId:string;materialId:string;outputId:string;specificationId:string;resourceId:string;openingCountId:string;initialQuantityMilli:number;initialValueMinor:number;salesDemandId:string;incomingSupplyId:string};
  ecommerce:{channelId:string;listingId:string;cartId:string;warehouseId:string;productId:string;partyId:string;openingCountId:string;initialQuantityMilli:number;initialValueMinor:number;amountMinor:number};
- fieldService:{id:string;ticketId:string;agreementId:string;amountMinor:number;bankAccountId:string;bankTransactionId:string};
  retail:{registerId:string;registerName:string;warehouseId:string;productId:string;productName:string;openingCountId:string;initialQuantityMilli:number;initialValueMinor:number;priceMinor:number};
  customerAuthority:{bindingId:string;orderId:string;excludedOrderId:string;recipientUserId:string;recipientEmail:string;invitedBindingId:string;invitedEmail:string;unrelatedUserId:string};
 };

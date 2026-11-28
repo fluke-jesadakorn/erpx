@@ -1,19 +1,19 @@
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env,type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { activateAiConnection,aiConnectionSchema,aiSelectionSchema,saveAiConnection,selectAiProviders,testAiConnection } from "@erpx/server-agent/public/ai-providers";
-import {createInvoice,createParty,invoiceSchema} from '@erpx/server-finance/public/finance';
-import { applyFinanceAiDraft,dismissFinanceAi,financeAiWorkspace,queueFinanceAi,runFinanceAi,saveFinanceAiPolicy,scanFinanceAi } from "@erpx/server-finance/public/finance-ai";
-import { financeAiSnapshot,validateFinanceAiResult,type FinanceAiSnapshot } from "@erpx/server-finance/public/finance-ai-source";
-import { financeAiDate,financeAiPolicySchema } from "@erpx/feature-finance/lib/finance-ai";
+import { seedAiProvider } from "../agent/ai-provider-seed";
+import {createInvoice,createParty,invoiceSchema} from '@erpx/finance-server/public/finance';
+import { applyFinanceAiDraft,dismissFinanceAi,financeAiWorkspace,queueFinanceAi,runFinanceAi,saveFinanceAiPolicy,scanFinanceAi } from "@erpx/finance-server/public/finance-ai";
+import { financeAiSnapshot,validateFinanceAiResult,type FinanceAiSnapshot } from "@erpx/finance-server/public/finance-ai-source";
+import { financeAiDate,financeAiPolicySchema } from "@erpx/finance-ui/lib/finance-ai";
 vi.mock("server-only",()=>({}));
 const aiEnv={AI_CREDENTIAL_KEY_ID:"v1",AI_CREDENTIAL_KEYS:JSON.stringify({v1:btoa(String.fromCharCode(...new Uint8Array(32).fill(23)))})};
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>aiEnv}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>aiEnv}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 const generate=vi.fn(async()=>({result:{summary:"Review the original supplier document.",checks:["Confirm the business purpose."],draftText:null,accounts:{debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable,taxAccountId:null},bankPaymentId:null,citations:[{sourceId:"",field:"total_minor"}]},inputTokens:20,outputTokens:10}));
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS as TestMigration[]);});
 beforeEach(async()=>{f=await expenseFixture();generate.mockClear();});
-async function provider(){const connection=await saveAiConnection(db,f.it,aiEnv,null,aiConnectionSchema.parse({name:"Finance proposals",baseUrl:"https://opencode.ai/zen/v1",apiKey:"synthetic-private-key",textModel:"gpt-5.6-luna"}),key());await testAiConnection(db,f.it,aiEnv,String(connection.id),1,key(),async()=>({result:{ok:true},inputTokens:1,outputTokens:1}));await activateAiConnection(db,f.it,String(connection.id),2,key());await selectAiProviders(db,f.it,aiSelectionSchema.parse({expectedVersion:0,mode:"custom",textConnectionId:connection.id}),key());return connection;}
+async function provider(){const connection=await seedAiProvider(db,aiEnv,f.it,{name:"Finance proposals",baseUrl:"https://opencode.ai/zen/v1",apiKey:"synthetic-private-key",textModel:"gpt-5.6-luna"});return connection;}
 const policyInput=(overrides:Record<string,unknown>={})=>financeAiPolicySchema.parse({expectedVersion:0,enabled:true,kinds:["invoice_review"],timezone:"Asia/Bangkok",dailyLimit:10,monthlyLimit:100,reason:"Authorize advisory Finance preparation",...overrides});
 async function policy(overrides:Record<string,unknown>={}){await provider();return saveFinanceAiPolicy(db,f.owner,aiEnv,policyInput(overrides),key());}
 async function invoice(){const supplier=await createParty(f.reviewer,{kind:"supplier",code:key(),name:"Synthetic supplier",currency:"THB",paymentTermsDays:30,creditLimit:"0"},key());return createInvoice(f.reviewer,invoiceSchema.parse({partyId:supplier.id,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-10",dueDate:"2026-10-10",currency:"THB",subtotal:"100",tax:"0",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());}

@@ -1,0 +1,8 @@
+import {canonicalDestinationLinks} from "@erpx/work-projection-ui/lib/destination-links";
+import {requireWorkContext} from "@erpx/identity-access-server/public/authorization";
+import {requestPublicOrigin} from "@erpx/manage-erpx-server/public/public-origin";
+import {ApiError,errorResponse} from "@erpx/platform-runtime-server/public/http";
+import {recordSupplierPromise} from "@erpx/procurement-server/public/supplier-promises";
+import {ownedRecordSupplierPromise} from "@erpx/procurement-ui/public/native-supplier-promise-history-owned";
+type Context={params:Promise<{holdingSlug:string;id:string}>};
+export async function POST(request:Request,context:Context){try{const origin=request.headers.get('origin');if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');const {holdingSlug,id}=await context.params,actor=await requireWorkContext(holdingSlug),key=request.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');const body=await request.json();const attachmentSetIds=(body as {attachmentSetIds?:unknown}).attachmentSetIds;const hasAttachments=Array.isArray(attachmentSetIds)&&attachmentSetIds.length>0;/* Native confirmations do not bind Files evidence yet (the owner refuses non-empty sets); keep those commands on the retained path until attachment parity lands. */const data=hasAttachments?await recordSupplierPromise(actor,id,body,key):(await ownedRecordSupplierPromise(actor,holdingSlug,id,body,key))??await recordSupplierPromise(actor,id,body,key);return Response.json(canonicalDestinationLinks({data}),{headers:{'Cache-Control':'private, no-store'}});}catch(error){return errorResponse(error);}}

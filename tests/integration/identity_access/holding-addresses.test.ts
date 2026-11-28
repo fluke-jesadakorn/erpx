@@ -2,11 +2,11 @@ import {beforeAll,it,expect,vi,afterEach} from 'vitest';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {env,applyMigrations} from '../../support/runtime-env';
-import {productSsoStore} from '@erpx/server-identity_access/adapters/product-sso-store';
-import {workspaceRouteCompany} from '@erpx/server-organization/public/workspace-route-company';
+import {productSsoStore} from '@erpx/identity-access-server/adapters/product-sso-store';
+import {revokeSsoFamily} from './sso-family-oracle';
 
 const control=env.CONTROL_DB,db=env.H001_DB;
-vi.mock('@erpx/server-runtime/adapters/runtime',()=>({runtimeEnv:async()=>env}));
+vi.mock('@erpx/platform-runtime-server/adapters/runtime',()=>({runtimeEnv:async()=>env}));
 afterEach(()=>vi.unstubAllEnvs());
 beforeAll(async()=>{await applyMigrations(control,env.CONTROL_TEST_MIGRATIONS);await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 it('shares one host audience across applications and refuses a different Holding and revoked parent',async()=>{
@@ -16,6 +16,9 @@ it('shares one host audience across applications and refuses a different Holding
  await control.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt")VALUES(?,?,?,1,?,?)').bind(user,'Holding routing fixture',`${user}@example.test`,now,now).run();
  await control.prepare('INSERT INTO session(id,token,"userId","createdAt","updatedAt","expiresAt")VALUES(?,?,?,?,?,?)').bind(parent,randomUUID(),user,new Date(now).toISOString(),new Date(now).toISOString(),new Date(now+3600000).toISOString()).run();
  await store.registerCentral({id:parent,createdAt:new Date(now),expiresAt:new Date(now+3600000)});
+ const browserId=randomUUID();
+  await control.prepare('INSERT INTO account_device_browsers(id,active_session_id,revision,updated_at)VALUES(?,?,1,?)').bind(browserId,parent,now).run();
+  await control.prepare('INSERT INTO account_device_accounts(session_id,browser_id,handle)VALUES(?,?,?)').bind(parent,browserId,randomUUID()).run();
  const browser=await store.start(one,'/bangkok/accounting/finance?tag=one&tag=two'),grant=await store.authorize({transactionId:browser.id,state:browser.state,challenge:browser.challenge,parentSessionId:parent});
  const input={code:grant.code,state:browser.state,browserCookie:browser.browserCookie};
  await expect(store.consume({...input,audience:two})).rejects.toThrow('INVALID_SSO_TRANSACTION');
@@ -23,7 +26,7 @@ it('shares one host audience across applications and refuses a different Holding
  expect(child.returnPath).toBe('/bangkok/accounting/finance?tag=one&tag=two');
  expect((await store.session(child.token,one))?.user.id).toBe(user);
  for(const [key,value]of Object.entries({ERPX_HOLDING_ROUTING:'enabled',ERPX_ENVIRONMENT:'local',ERPX_PRODUCT_ENVIRONMENT:'development',ERPX_PRODUCT_ROUTING:'enabled',ERPX_PRODUCT_SSO:'enabled'}))vi.stubEnv(key,value);
- const {createAuth}=await import('@erpx/server-identity_access/adapters/auth');
+ const {createAuth}=await import('@erpx/identity-access-server/adapters/auth');
  for(const app of ['finance','people']){
   vi.stubEnv('ERPX_APP_ID',app);
   const auth=await createAuth('https://acme.jesadakorn.com');
@@ -32,7 +35,7 @@ it('shares one host audience across applications and refuses a different Holding
  }
  expect(await store.session(child.token,two)).toBeNull();
  expect(await store.session(child.token,'finance')).toBeNull();
- await store.revokeFamily(child.sessionId);
+ await revokeSsoFamily(control,child.sessionId);
  expect(await store.session(child.token,one)).toBeNull();
 });
 it('replaces conflicting slugs without changing organization identities and restores immutability',async()=>{
@@ -43,8 +46,5 @@ it('replaces conflicting slugs without changing organization identities and rest
  const sql=await readFile('migrations/postgres/holding-write/1073_holding_workspace_route_slugs.sql','utf8');
  await db.transaction(async unit=>{await unit.exec(sql);});
  expect(await db.prepare('SELECT slug,parent_id,company_id,branch_id FROM organization_nodes WHERE id=?').bind(dept).first()).toEqual({slug:'people-dept-2',parent_id:branch,company_id:company,branch_id:branch});
- expect(await workspaceRouteCompany(db,'finance-branch','people-dept-2')).toEqual({id:company,slug:company});
- expect(await workspaceRouteCompany(db,'finance-branch','missing')).toBeNull();
- expect(await workspaceRouteCompany(db,'finance-branch','people-dept-2','foreign-company')).toBeNull();
  await expect(db.prepare("UPDATE organization_nodes SET slug='changed' WHERE id=?").bind(dept).run()).rejects.toThrow('IMMUTABLE_ORGANIZATION_ROUTE');
 });

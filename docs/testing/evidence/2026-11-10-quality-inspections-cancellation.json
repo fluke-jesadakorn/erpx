@@ -1,0 +1,96 @@
+{
+  "schema": "erpx.evidence/quality-inspections-cancellation/v1",
+  "recorded_at": "2026-11-10T22:27:13+07:00",
+  "head": "fdfac5ab21c6dc8e04434b058c03c0a85153fc62",
+  "owner": "quality",
+  "package": "erpx-server-quality",
+  "workflows": [
+    "quality/inspections",
+    "quality/feature-cancellation"
+  ],
+  "workflow_counts": {
+    "total": 4,
+    "verified": 3,
+    "partial": 1,
+    "unstarted": 0
+  },
+  "scope_decision": {
+    "decision": "Quality inspections and cancellation certified on the native owner route; results remains partial",
+    "included": "Native inspection with direct/set attachments and specification measurements, native cancellation request/approve/reject, native specification save/activate, and the native Quality workspace/detail decision flags.",
+    "excluded": "quality/results remains partial because the workspace/detail presenter still reads the retained Quality shape and overlays native flags. Manual hold creation and alert acknowledgement remain retained auxiliary consumers outside these two workflows.",
+    "retained_consumer": "createQualityHold and acknowledgeQualityAlert remain in the product route as auxiliary consumers; the results presenter still calls qualityWorkspace/qualityDetail for the full workspace/detail shape.",
+    "follow_up": "Expand the native Quality workspace/detail read to the full UI shape (specifications, products, stock, lots and product labels) before certifying quality/results."
+  },
+  "surfaces": {
+    "domain": "active",
+    "application": "active",
+    "http": "active",
+    "ssr": "partial",
+    "jobs": "pending",
+    "providers": "pending"
+  },
+  "native_paths": {
+    "route": "packages/feature-supply/src/routes/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts now requires the native Quality transport for inspect, cancel and specification commands and returns 503 NATIVE_QUALITY_UNAVAILABLE when it is unset. The retained inspectQualityHold/cancelQualityHold/saveQualitySpec/transitionQualitySpec fallbacks were removed.",
+    "inspect": "The native command validates the current hold version, active specification measurements, attachment witness, receipt/audit/outbox and independent-review state in the caller's serializable unit.",
+    "cancel": "The native cancellation command validates the current hold version, uninspected state, independence and purchase admission, then writes the request/approve/reject event, receipt/audit/outbox and staff notifications.",
+    "composition": "The duplicate Quality HTTP target push that rejected holdings without a finance journal read was removed; the target now mounts once per Holding/Company."
+  },
+  "gates": [
+    {
+      "name": "quality Rust unit suites",
+      "result": "rust-quality-decisions 10/10"
+    },
+    {
+      "name": "quality TS unit suites",
+      "result": "37/37 across native-quality-transport.unit and semantic-services.unit"
+    },
+    {
+      "name": "quality.quality.integration",
+      "result": "31/31 pass"
+    },
+    {
+      "name": "quality Rust PostgreSQL integration suites",
+      "result": "consumption-holds 7/7, commands 4/4, read-cancel 21/21, HTTP 5/5, HTTP-postgres 4/4"
+    },
+    {
+      "name": "cargo build -p erpx-service --bin erpx-server",
+      "result": "private-field-api,existing-business,legal-pdf-worker,legal-document-worker,legal-queue pass"
+    },
+    {
+      "name": "typecheck",
+      "result": "bun run typecheck exit 0"
+    },
+    {
+      "name": "structure",
+      "result": "bun run structure:check pass"
+    }
+  ],
+  "browser": {
+    "page": {
+      "url": "/holdings/acme/inventory-quality/quality?company=acme-co",
+      "result": "Rendered the native-configured Quality page in 17 s with the hold list, alerts, two specifications and quarantine stock; page errors 0.",
+      "log": ".scratch/dev/rust-migration/current/quality-browser.log",
+      "viewport": "1440x900"
+    },
+    "inspect": {
+      "result": "Authenticated product-route POST /api/v1/holdings/acme/quality/quality-demo-failed-scrap/inspect returned 200 {status:awaiting_release,result:pass,version:4}. PostgreSQL readback: hold v4 last_result pass last_inspector usr_jesadakorn; inspection row inspection-quality-native-inspect-20261110b evidence 'Native Quality inspection acceptance' reviewed_version 3.",
+      "log": ".scratch/dev/rust-migration/current/quality-native-inspect2.log"
+    },
+    "cancellation": {
+      "result": "A fresh uninspected hold quality-quality-native-cancel-hold-20261110 was created (retained auxiliary) at held v1. Native request returned 200 cancel_pending v2 with cancellationId quality-cancel-quality-native-cancel-request2-20261110; native approve by independent usr_mali returned 200 cancelled v3. PostgreSQL readback: cancelled_by usr_mali, cancel_reason persisted, request/approve events with actors usr_jesadakorn and usr_mali.",
+      "log": ".scratch/dev/rust-migration/current/quality-native-cancel2.log"
+    },
+    "fixture": "The development Company acme-co received the supply-quality add-on with a recorded grant event (grant-acme-co-supply-quality-2026-11-10) because the native inspection/cancellation purchase admission requires supply.quality. This is a development fixture grant, not production evidence."
+  },
+  "legacy": {
+    "removed": "The product Quality route no longer falls back to inspectQualityHold, cancelQualityHold, saveQualitySpec or transitionQualitySpec.",
+    "remaining": "createQualityHold and acknowledgeQualityAlert remain retained auxiliary consumers. The workspace/detail presenter still reads qualityWorkspace/qualityDetail and overlays native decision flags, which is why quality/results remains partial.",
+    "results": "quality/results is not certified in this bundle."
+  },
+  "notes": [
+    "The Quality detail page's source-record backdrop returned 404 for the demo hold, so the native inspect command was exercised through the authenticated product route with the same session and real specification metrics; the command and DB effects are native.",
+    "No 6-subagent roster or Common frozen-bundle coordination is present; this bundle follows the user-directed execution without claiming that process evidence."
+  ],
+  "status": "bundle-complete",
+  "surfaces_scope": "The native HTTP surface is active for the Quality owner. The SSR surface remains partial because the workspace/detail presenter still uses the retained shape; quality/results is not certified."
+}

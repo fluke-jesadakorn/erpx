@@ -6,15 +6,15 @@ import {
   AttachmentFeatureProvider,
   canMutateAttachments,
   useAttachmentFeatureMode,
-} from "@erpx/feature-files/components/attachment-feature-context";
-import { RecordDocumentDrawer } from "@erpx/feature-files/components/record-document-drawer";
+} from "@erpx/files-ui/components/attachment-feature-context";
+import { RecordDocumentDrawer } from "@erpx/files-ui/components/record-document-drawer";
 
 function ModeProbe() {
   return <span>{useAttachmentFeatureMode()}</span>;
 }
 
 it("provides one server-derived attachment mode at the application root", () => {
-  const source = readFileSync("packages/workplace/src/routes/layout.tsx", "utf8");
+  const source = readFileSync("platform/workplace/src/routes/layout.tsx", "utf8");
   expect(source).toContain("attachmentsV2Enabled()");
   expect(source).toContain("attachmentsV2ReadOnly()");
   expect(source.match(/<AttachmentFeatureProvider\b[^>]*mode=\{attachmentFeatureMode\}/g)).toHaveLength(1);
@@ -71,10 +71,10 @@ it("allows attachment mutations only in enabled mode with domain authorization",
 
 it("wraps attachment-only cards and consoles in the global feature surface", () => {
   for (const path of [
-    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/planning/screen.tsx",
-    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/screen.tsx",
-    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/ecommerce/screen.tsx",
-    "packages/feature-support/src/components/support-incident-console.tsx",
+    "platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/planning/screen.tsx",
+    "platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/screen.tsx",
+    "platform/workplace/src/routes/holdings/[holdingSlug]/_presenters/ecommerce/screen.tsx",
+    "modules/support/ui/src/components/support-incident-console.tsx",
   ]) {
     expect(readFileSync(path, "utf8"), path).toContain(
       "AttachmentFeatureSurface",
@@ -84,11 +84,11 @@ it("wraps attachment-only cards and consoles in the global feature surface", () 
 
 it("keeps external legacy file mutations behind enabled-mode guards", () => {
   const branding = readFileSync(
-    "packages/feature-brand/src/components/brand-administration.tsx",
+    "modules/brand/ui/src/components/brand-administration.tsx",
     "utf8",
   );
   const support = readFileSync(
-    "packages/feature-support/src/components/support-evidence-console.tsx",
+    "modules/support/ui/src/components/support-evidence-console.tsx",
     "utf8",
   );
   expect(branding).toContain('if (attachmentMode !== "enabled") return;');
@@ -103,13 +103,13 @@ it("keeps external legacy file mutations behind enabled-mode guards", () => {
   );
 });
 
-it("suppresses staged attachment IDs as soon as the global mode stops allowing mutations", () => {
+it("suppresses staged attachment IDs as soon as the global mode stops allowing mutations", async () => {
   const panel = readFileSync(
-    "packages/feature-files/src/components/attachment-panel.tsx",
+    "modules/files/ui/src/components/attachment-panel.tsx",
     "utf8",
   );
   const incident = readFileSync(
-    "packages/feature-support/src/components/support-incident-console.tsx",
+    "modules/support/ui/src/components/support-incident-console.tsx",
     "utf8",
   );
   expect(panel).toContain("onChange={mutationsEnabled ? onChange : undefined}");
@@ -118,7 +118,16 @@ it("suppresses staged attachment IDs as soon as the global mode stops allowing m
   );
   expect(panel).toContain("if (!wasEnabled || mutationsEnabled) return;");
   expect(panel).toContain("{draftMutable && fieldName && set?.id && (");
-  expect(panel).toContain("const submissionBlocked =\n    draftMutable &&");
+  const ts = await import("typescript"), file = ts.createSourceFile("panel.tsx", panel, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let expression: import("typescript").Expression | undefined;
+  const visit = (node: import("typescript").Node) => { if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "submissionBlocked") expression = node.initializer; ts.forEachChild(node, visit); };
+  visit(file);
+  expect(expression).toBeDefined();
+  const evaluate = new Function("pendingWithdrawal", "pendingBind", "draftMutable", "requiredCount", "readyCount", "activeLinks", "bindable", `return (${expression!.getText(file)});`) as (withdrawal: boolean, bind: boolean, mutable: boolean, required: number, ready: number, links: unknown[], bindable: boolean) => boolean;
+  expect(evaluate(false, false, false, 1, 0, [{}], false)).toBe(false);
+  expect(evaluate(false, false, true, 1, 0, [{}], false)).toBe(true);
+  expect(evaluate(true, false, false, 0, 0, [], true)).toBe(true);
+  expect(evaluate(false, true, false, 0, 0, [], true)).toBe(true);
   expect(incident).toContain('attachmentMode === "enabled"');
 });
 

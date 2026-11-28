@@ -1,0 +1,662 @@
+{
+  "schema": "erpx-commercial-packages/v1",
+  "products": [
+    "apps",
+    "pos",
+    "pms",
+    "finance",
+    "people",
+    "sales",
+    "supply",
+    "assets",
+    "projects",
+    "recruit",
+    "learn",
+    "support",
+    "service",
+    "legal",
+    "manufacturing"
+  ],
+  "packages": [
+    {
+      "id": "work",
+      "version": 1,
+      "productId": "apps",
+      "kind": "base",
+      "visibleCapabilities": [
+        "work.today",
+        "work.actions",
+        "work.calendar",
+        "work.handbook"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "pos",
+      "version": 1,
+      "productId": "pos",
+      "kind": "base",
+      "visibleCapabilities": [
+        "pos.sales",
+        "pos.payments",
+        "pos.refunds",
+        "pos.shifts"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "inventory.stock-core",
+        "finance.pos-posting"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "pms",
+      "version": 1,
+      "productId": "pms",
+      "kind": "base",
+      "visibleCapabilities": [
+        "pms.reservations",
+        "pms.front-desk",
+        "pms.rooms",
+        "pms.housekeeping",
+        "pms.guest-accounts",
+        "pms.night-audit"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "inventory.stock-core",
+        "finance.hotel-posting"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "finance",
+      "version": 1,
+      "productId": "finance",
+      "kind": "base",
+      "visibleCapabilities": [
+        "finance.accounting",
+        "finance.receivables",
+        "finance.payables",
+        "finance.banking",
+        "finance.tax",
+        "finance.close"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "people",
+      "version": 1,
+      "productId": "people",
+      "kind": "base",
+      "visibleCapabilities": [
+        "people.directory",
+        "people.lifecycle"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "sales",
+      "version": 1,
+      "productId": "sales",
+      "kind": "base",
+      "visibleCapabilities": [
+        "sales.crm",
+        "sales.customers",
+        "sales.quotes",
+        "sales.orders"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "inventory.stock-core",
+        "finance.sales-posting"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "supply",
+      "version": 1,
+      "productId": "supply",
+      "kind": "base",
+      "visibleCapabilities": [
+        "supply.purchasing",
+        "supply.receiving",
+        "supply.stock",
+        "supply.transfers",
+        "supply.counts"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "finance.inventory-valuation"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "assets",
+      "version": 1,
+      "productId": "assets",
+      "kind": "base",
+      "visibleCapabilities": [
+        "assets.register",
+        "assets.custody",
+        "assets.maintenance",
+        "assets.downtime"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "finance.asset-recognition",
+        "finance.asset-disposal"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "projects",
+      "version": 1,
+      "productId": "projects",
+      "kind": "base",
+      "visibleCapabilities": [
+        "projects.wbs",
+        "projects.tasks",
+        "projects.board",
+        "projects.time",
+        "projects.handover"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "people.worker-reference"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "recruit",
+      "version": 1,
+      "productId": "recruit",
+      "kind": "base",
+      "visibleCapabilities": [
+        "recruit.positions",
+        "recruit.candidates",
+        "recruit.applications",
+        "recruit.offers"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "learn",
+      "version": 1,
+      "productId": "learn",
+      "kind": "base",
+      "visibleCapabilities": [
+        "learn.courses",
+        "learn.assignments",
+        "learn.results",
+        "learn.certificates"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "people.learner-reference"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "support",
+      "version": 1,
+      "productId": "support",
+      "kind": "base",
+      "visibleCapabilities": [
+        "support.tickets",
+        "support.sla",
+        "support.incidents",
+        "support.evidence"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "service",
+      "version": 1,
+      "productId": "service",
+      "kind": "base",
+      "visibleCapabilities": [
+        "service.agreements",
+        "service.orders",
+        "service.dispatch",
+        "service.visits",
+        "service.billing"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "support.source-ticket",
+        "finance.service-invoice"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "legal",
+      "version": 1,
+      "productId": "legal",
+      "kind": "base",
+      "visibleCapabilities": [
+        "legal.contracts",
+        "legal.documents",
+        "legal.matters",
+        "legal.obligations",
+        "legal.access"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "manufacturing",
+      "version": 1,
+      "productId": "manufacturing",
+      "kind": "base",
+      "visibleCapabilities": [
+        "manufacturing.bom",
+        "manufacturing.materials",
+        "manufacturing.execution",
+        "manufacturing.quality",
+        "manufacturing.costs"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "planning.basic",
+        "quality.production",
+        "inventory.stock-core",
+        "finance.production-costing"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "work-social",
+      "version": 1,
+      "productId": "apps",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "work.social"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "work"
+      ]
+    },
+    {
+      "id": "work-messages",
+      "version": 1,
+      "productId": "apps",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "work.messages"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "work"
+      ]
+    },
+    {
+      "id": "work-routines",
+      "version": 1,
+      "productId": "apps",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "work.advanced-routines"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "work"
+      ]
+    },
+    {
+      "id": "pos-restaurant",
+      "version": 1,
+      "productId": "pos",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "pos.restaurant",
+        "pos.kitchen"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "pos"
+      ]
+    },
+    {
+      "id": "pos-hotel-charge",
+      "version": 1,
+      "productId": "pos",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "pos.hotel-charge"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "pos"
+      ]
+    },
+    {
+      "id": "pms-minibar-linen",
+      "version": 1,
+      "productId": "pms",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "pms.minibar",
+        "pms.linen"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "pms"
+      ]
+    },
+    {
+      "id": "finance-advanced",
+      "version": 1,
+      "productId": "finance",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "finance.advanced"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "finance"
+      ]
+    },
+    {
+      "id": "people-workforce",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.workforce"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "people-payroll",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.payroll"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "people-expenses",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.expenses"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "people-performance",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.performance"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "people-benefits",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.benefits"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "sales-marketing",
+      "version": 1,
+      "productId": "sales",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "sales.marketing"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "sales"
+      ]
+    },
+    {
+      "id": "sales-ecommerce",
+      "version": 1,
+      "productId": "sales",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "sales.ecommerce"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "sales"
+      ]
+    },
+    {
+      "id": "sales-portal",
+      "version": 1,
+      "productId": "sales",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "sales.portal"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "sales"
+      ]
+    },
+    {
+      "id": "supply-quality",
+      "version": 1,
+      "productId": "supply",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "supply.quality"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "supply"
+      ]
+    },
+    {
+      "id": "supply-advanced",
+      "version": 1,
+      "productId": "supply",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "supply.advanced-inventory"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "supply"
+      ]
+    },
+    {
+      "id": "assets-preventive",
+      "version": 1,
+      "productId": "assets",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "assets.preventive"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "assets"
+      ]
+    },
+    {
+      "id": "assets-parts-costs",
+      "version": 1,
+      "productId": "assets",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "assets.parts-costs"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "assets"
+      ]
+    },
+    {
+      "id": "projects-costs",
+      "version": 1,
+      "productId": "projects",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "projects.costs"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "projects"
+      ]
+    },
+    {
+      "id": "support-portal",
+      "version": 1,
+      "productId": "support",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "support.portal"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "support"
+      ]
+    },
+    {
+      "id": "service-parts-assets",
+      "version": 1,
+      "productId": "service",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "service.parts-assets"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "service"
+      ]
+    },
+    {
+      "id": "manufacturing-mrp",
+      "version": 1,
+      "productId": "manufacturing",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "planning.advanced-mrp"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "manufacturing"
+      ]
+    }
+  ]
+}

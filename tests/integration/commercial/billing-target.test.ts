@@ -1,9 +1,9 @@
 import { beforeAll, expect, it } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
-import { billingCommand, type BillingActor } from "@erpx/server-billing/public/billing";
-import { readTargetBillingPeriod } from "@erpx/server-billing/public/billing-target";
-import { readTargetRolloutReadiness } from "@erpx/server-billing/public/billing-target-rollout";
-import { monthBounds } from "@erpx/feature-billing/lib/billing";
+import { billingCommand, type BillingActor } from "@erpx/billing-server/public/billing";
+import { readTargetBillingPeriod } from "@erpx/billing-server/public/billing-target";
+import { readTargetRolloutReadiness } from "@erpx/billing-server/public/billing-target-rollout";
+import { monthBounds } from "@erpx/billing-ui/lib/billing";
 
 const db = env.CONTROL_DB;
 const month = "2026-12";
@@ -211,14 +211,31 @@ it("rates 1,490 + 8 GB-month + verified AI at 10%, and freezes the approved Sand
      VALUES($1,$2,'openai','statement-oct',$3,7500,'THB',7500,'test',$4)`,
     [holdingId, month, evidence, now],
   );
-  await billingCommand(db, admin, holdingId, {
-    action: "approve-target-extra", version: 0,
-    reason: "Separate approved setup quote", targetMonth: month,
-    extraKind: "setup", amountSatang: 10_000,
-    serviceStart: bounds.start, serviceEnd: bounds.end,
-    note: "Initial setup", evidenceId: evidence,
-  }, crypto.randomUUID(), async () => { throw new Error("Unexpected Stripe request"); },
-  "https://example.test/", now);
+  // Extra approval is native-authoritative on the target Holding host: the
+  // retained command refuses it before opening a session. Seed the reviewed
+  // line with the owner SQL shape so the downstream target approval still sees
+  // it; the native command's own gates are covered by the owner PG suite.
+  await expect(
+    billingCommand(db, admin, holdingId, {
+      action: "approve-target-extra", version: 0,
+      reason: "Separate approved setup quote", targetMonth: month,
+      extraKind: "setup", amountSatang: 10_000,
+      serviceStart: bounds.start, serviceEnd: bounds.end,
+      note: "Initial setup", evidenceId: evidence,
+    }, crypto.randomUUID(), async () => { throw new Error("Unexpected Stripe request"); },
+    "https://example.test/", now),
+  ).rejects.toMatchObject({ code: "NATIVE_BILLING_REQUIRED" });
+  await db.pool.query(
+    `INSERT INTO billing_target_extras
+       (id,holding_id,month,kind,description,amount_satang,service_start,service_end,
+        evidence_id,approved_by,approval_reason,approved_at)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [
+      `extra-${crypto.randomUUID()}`, holdingId, month, "setup", "Initial setup",
+      10_000, bounds.start, bounds.end, evidence, admin.userId,
+      "Separate approved setup quote", now,
+    ],
+  );
   let report = await readTargetBillingPeriod(db, holdingId, month, now);
   expect(report.approval.eligible).toBe(true);
   expect(report.totalSatang).toBe(521_250);

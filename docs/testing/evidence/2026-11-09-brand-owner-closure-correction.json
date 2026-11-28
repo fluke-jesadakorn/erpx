@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "recordedAt": "2026-11-09T12:55:00+07:00",
+  "sourceHead": "372ef97e483ffb6d1298e344b513b4e19bbbda15",
+  "supersedesClaim": "2026-11-04-brand-owner-closure.json owner-complete/read-only claims",
+  "status": "correction; Brand owner remains false",
+  "findings": [
+    "The 2026-11-04 closure file claimed TypeScript remained read-only and no TS writer fallback remained, but server-brand/src/adapters/branding.ts still exports completeBrandUpload, completeStorefrontBrandUpload, updateStorefrontAppBrand and updateBrandProfile, and the feature-admin branding route uses them.",
+    "The same file claimed category-lock and published-identity browser journeys while contemporaneous evidence says those workflows were not browser-exercised; its private evidence-v4 artifacts are absent and its HTTP test count (2/2) differs from the current suite (4 tests).",
+    "Identity writers are now genuinely retired and the three identity workflows may keep their verified/merged flags, but Brand owner businessMigrationComplete cannot be true while live TS branding writers and the storefront dual-writer path remain.",
+    "publishedBrandIdentity/brandIdentityWorkspace are legitimate retained reads with live Work Projection, Records record-detail and branding consumers; they are not the blocker."
+  ],
+  "minimumMissing": [
+    "Native Branding command/HTTP path for holding/branch profile, storefront updates and media upload/removal; retire TS branding writer exports and migrate tests.",
+    "One authoritative writer for storefront_app_brands, with normal authority, CAS, replay, audit/outbox and rollback evidence.",
+    "Update ownership/register scope if branding is assigned to another owner; correct the stale owner report.",
+    "Re-run/reconcile the three identity browser journeys if strict source-matched evidence is required; add branding-surface browser journeys or keep the owner false."
+  ],
+  "counts": {
+    "owners": 0,
+    "verified": 65,
+    "partial": 57,
+    "unstarted": 84,
+    "total": 206
+  }
+}

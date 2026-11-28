@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMemberDirectoryApplication, type MemberDirectoryRepository } from "@erpx/server-organization/application/member-directory";
-import { createIamThrottleApplication } from "@erpx/server-identity_access/application/throttle";
-import { createAccountInvitationListApplication } from "@erpx/server-identity_access/application/account-invitation-list";
-import { createMemberProfileViewApplication, type MemberProfileViewPorts } from "@erpx/server-organization/application/member-profile-view";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { createMemberDirectoryApplication, type MemberDirectoryRepository } from "@erpx/organization-server/application/member-directory";
+import { createIamThrottleApplication } from "@erpx/identity-access-server/application/throttle";
+import { createAccountInvitationListApplication } from "@erpx/identity-access-server/application/account-invitation-list";
+import { createMemberProfileViewApplication, type MemberProfileViewPorts } from "@erpx/organization-server/application/member-profile-view";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 
 describe("Organization directory privacy and owner query contract", () => {
   const actor = { userId: "self", companyId: "company-1", branchId: "branch-1", manager: false, beta: true };

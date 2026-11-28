@@ -1,10 +1,10 @@
 /** Additive fictional roster examples. Run only against the Acme development database. */
 import { readFileSync } from "node:fs";
 import { getLocalProxy } from "../local/fixtures";
-import { rosterCommand, rosterData } from "@erpx/server-people_payroll/public/people-roster";
-import { addDays, rosterMonday } from "@erpx/feature-people_payroll/lib/people-roster";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { rosterCommand, rosterData } from "@erpx/people-payroll-server/public/people-roster";
+import { addDays, rosterMonday } from "@erpx/people-payroll-ui/lib/people-roster";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import type { PostgresDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
 
 const platform = await getLocalProxy();
 try {

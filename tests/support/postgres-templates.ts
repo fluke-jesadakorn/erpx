@@ -2,8 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile, rename, link, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { Pool, type PoolClient } from "pg";
-import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
-import { migrateDatabase } from "@erpx/server-runtime/public/runtime/migrations";
+import { PostgresDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+import { migrateDatabase } from "@erpx/platform-runtime-server/public/runtime/migrations";
 
 export const databaseTracks = {
   CONTROL_DB: "control", CONTROL_READ_DB: "control-read",
@@ -24,7 +24,7 @@ export async function postgresFixtureFingerprint(root:string){
   const files=(await readdir(join(root,directory),{recursive:true,withFileTypes:true})).filter(entry=>entry.isFile()).map(entry=>join(entry.parentPath,entry.name)).filter(file=>/\.[cm]?[jt]sx?$/.test(file)).sort();
   for(const file of files)hash.update(file.slice(root.length)).update('\0').update(await readFile(file)).update('\0');
  }
- for(const file of ['packages/server-runtime/src/adapters/runtime/migrations.ts','packages/server-runtime/src/adapters/runtime/postgres.ts','packages/server-runtime/src/adapters/runtime/resources.ts','packages/server-runtime/src/adapters/runtime/read-metrics.ts','bun.lock'])hash.update(file).update('\0').update(await readFile(join(root,file))).update('\0');
+ for(const file of ['platform/runtime/server/src/adapters/runtime/migrations.ts','platform/runtime/server/src/adapters/runtime/postgres.ts','platform/runtime/server/src/adapters/runtime/resources.ts','platform/runtime/server/src/adapters/runtime/read-metrics.ts','bun.lock'])hash.update(file).update('\0').update(await readFile(join(root,file))).update('\0');
  return hash.digest('hex');
 }
 async function atomic(path: string, value: unknown, exclusive=false) {
@@ -58,7 +58,10 @@ export async function ensureSchemaTemplate(root: string, track: string, fixtureF
   try {
     await assertTestAdministrator(admin);
     const version = (await admin.query("SELECT current_setting('server_version') version,current_setting('TimeZone') timezone,current_setting('server_encoding') encoding,current_setting('DateStyle') datestyle,current_setting('standard_conforming_strings') conforming,datcollate,datctype,datcollversion FROM pg_database WHERE datname='template0'")).rows[0];
-    if (!String(version.version).startsWith("18.6")) throw new Error("POSTGRES_18_6_REQUIRED");
+    // Shared dev runs 18.7 while the toolchain pins 18.6 (operator-accepted
+    // 2026-11-23). Templates stay isolated per exact version string via the
+    // schema fingerprint below, so any 18.x is accepted; major upgrades stay gated.
+    if (!String(version.version).startsWith("18.")) throw new Error("POSTGRES_18_REQUIRED");
     const fingerprint = await schemaFingerprint(root, track, JSON.stringify(version), fixtureFingerprint);
     const database = `erpx_test_tpl_${fingerprint.slice(0, 24)}`, descriptor = { database, track, fingerprint };
     lock = Buffer.from(fingerprint.slice(0, 8), "hex").readInt32BE();

@@ -1,21 +1,21 @@
 import {beforeEach,expect,it,vi} from 'vitest';
-import type {AccountAccessContext} from '@erpx/server-identity_access/public/authorization';
+import type {AccountAccessContext} from '@erpx/identity-access-server/public/authorization';
 vi.mock('server-only',()=>({}));
 const mocks=vi.hoisted(()=>({access:vi.fn(),modules:vi.fn(),iam:vi.fn(),admin:vi.fn(),selection:vi.fn(),select:vi.fn(),platform:vi.fn(),ready:vi.fn(),current:vi.fn(),beta:vi.fn()}));
-vi.mock("@erpx/server-identity_access/adapters/authorization",()=>({requireAccountAccess:mocks.access,requirePlatformContext:mocks.platform}));
-vi.mock("@erpx/server-identity_access/adapters/work-module-access",()=>({accountWorkModuleAccess:mocks.modules}));
-vi.mock("@erpx/server-identity_access/adapters/beta-access",()=>({betaAccess:mocks.beta}));
-vi.mock("@erpx/server-identity_access/adapters/iam-store",()=>({loadIamAuthority:mocks.iam}));
-vi.mock("@erpx/server-runtime/public/administration",()=>({administrationAccess:mocks.admin}));
-vi.mock("@erpx/server-pms/public/feature-availability",()=>({assertProductionModuleEnabled:mocks.ready}));
-vi.mock("@erpx/server-runtime/public/runtime",()=>({holdingResources:async()=>({write:{prepare:()=>({bind:()=>({first:mocks.current})})}})}));
-vi.mock("@erpx/server-work_projection/public/work-role-store",()=>({initializeWorkSelection:mocks.selection,selectWorkRole:mocks.select}));
-vi.mock("@erpx/server-organization/public/product-company",()=>({productCompany:async()=>({id:'company',name:'Current Company'})}));
-vi.mock("@erpx/feature-runtime/lib/product-hosts",()=>({productHostForHost:(host:string)=>host==='admin-dev-erpx.jesadakorn.com'?'admin':null,configuredProductOrigin:()=> 'https://admin-dev-erpx.jesadakorn.com'}));
-import {adminWorkspaceTarget,adminTargetAllowed} from '@erpx/server-identity_access/domain/admin-workspace';
-import {adminWorkspaceRequest,adminManagementAvailable,adminWorkRoleChoices,adminWorkspaceAvailabilityReader,adminWorkspaceDestinations} from '@erpx/server-identity_access/adapters/admin-workspace';
-import {ApiError} from '@erpx/server-runtime/public/http';
-import {builtInPermissions} from '@erpx/feature-identity_access/lib/permissions';
+vi.mock("@erpx/identity-access-server/adapters/authorization",()=>({requireAccountAccess:mocks.access,requirePlatformContext:mocks.platform}));
+vi.mock("@erpx/identity-access-server/adapters/work-module-access",()=>({accountWorkModuleAccess:mocks.modules}));
+vi.mock("@erpx/identity-access-server/adapters/beta-access",()=>({betaAccess:mocks.beta}));
+vi.mock("@erpx/identity-access-server/adapters/iam-store",()=>({loadIamAuthority:mocks.iam}));
+vi.mock("@erpx/platform-runtime-server/public/administration",()=>({administrationAccess:mocks.admin}));
+vi.mock("@erpx/pms-server/public/feature-availability",()=>({assertProductionModuleEnabled:mocks.ready}));
+vi.mock("@erpx/platform-runtime-server/public/runtime",()=>({holdingResources:async()=>({write:{prepare:()=>({bind:()=>({first:mocks.current})})}})}));
+vi.mock("@erpx/work-projection-server/public/work-role-store",()=>({initializeWorkSelection:mocks.selection,selectWorkRole:mocks.select}));
+vi.mock("@erpx/organization-server/public/product-company",()=>({productCompany:async()=>({id:'company',name:'Current Company'})}));
+vi.mock("@erpx/platform-runtime-ui/lib/product-hosts",()=>({productHostForHost:(host:string)=>host==='admin-dev-erpx.jesadakorn.com'?'admin':null,requestProductOrigin:()=> 'https://admin-dev-erpx.jesadakorn.com',configuredProductOrigin:()=> 'https://admin-dev-erpx.jesadakorn.com'}));
+import {adminWorkspaceTarget,adminTargetAllowed} from '@erpx/identity-access-server/domain/admin-workspace';
+import {adminWorkspaceRequest,adminManagementAvailable,adminWorkRoleChoices,adminWorkspaceAvailabilityReader,adminWorkspaceDestinations} from '@erpx/identity-access-server/adapters/admin-workspace';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import {builtInPermissions} from '@erpx/identity-access-ui/lib/permissions';
 const access=():AccountAccessContext=>({scope:{kind:'holding',holdingSlug:'acme',holdingId:'h001',holdingName:'Acme',companyId:'company'},sessionId:'session',expiresAt:Date.now()+60000,userId:'user',name:'User',email:'fixture@example.test',requestHeaders:new Headers(),assignments:[{id:'admin',role:'holding_owner',companyId:'company',branchId:null,modules:['identity_access','brand'],scopeKind:'holding',scopeNodeId:null,version:2},{id:'finance',role:'finance_preparer',companyId:'company',branchId:null,modules:['finance'],scopeKind:'holding',scopeNodeId:null,version:1}]});
 const selected=(id='admin')=>({session_id:'session',user_id:'user',company_id:'company',assignment_id:id,assignment_version:id==='admin'?2:1,revision:4,expires_at:Date.now()+60000});
 const target='/holdings/acme/administration/technology/settings/roles?q=own#draft';
@@ -30,7 +30,7 @@ it('rechecks original release, current assignment and exact Company and exposes 
 it('requires actual matching Platform plus ERPX Holding permission for management without selecting a role',async()=>{const account=access(),assignment=account.assignments[0];expect(await adminManagementAvailable(account,assignment)).toBe(false);const erpx={...account,scope:{...account.scope,holdingSlug:'erpx',holdingId:'h003' as const}};expect(await adminManagementAvailable(erpx,assignment)).toBe(true);mocks.platform.mockResolvedValue({userId:'other'});expect(await adminManagementAvailable(erpx,assignment)).toBe(false);mocks.platform.mockResolvedValue({userId:'user'});expect(await adminManagementAvailable(erpx,erpx.assignments[1])).toBe(false);expect(mocks.select).not.toHaveBeenCalled();});
 
 it('guards the native Admin role form with the shared dirty check before context switching',async()=>{
- const {submitAdminRoleChoice}=await import('@erpx/feature-identity_access/components/admin-role-choice-form'),{setContextSwitching,contextIsSwitching}=await import('@erpx/feature-work_projection/lib/context-switch'),confirm=vi.fn(()=>false),send=vi.fn(),assign=vi.fn();
+ const {submitAdminRoleChoice}=await import('@erpx/identity-access-ui/components/admin-role-choice-form'),{setContextSwitching,contextIsSwitching}=await import('@erpx/work-projection-ui/lib/context-switch'),confirm=vi.fn(()=>false),send=vi.fn(),assign=vi.fn();
  vi.stubGlobal('document',{querySelector:()=>({dirty:true}),documentElement:{dataset:{}}});
  vi.stubGlobal('window',{confirm,dispatchEvent:vi.fn(),location:{origin:'https://admin-dev-erpx.jesadakorn.com',assign}});
  vi.stubGlobal('FormData',class{*[Symbol.iterator](){yield ['assignmentId','existing-owner'];yield ['revision','4'];}});

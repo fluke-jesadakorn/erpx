@@ -1,0 +1,35 @@
+import 'server-only';
+import { ppRd33StarByTwoPredicates } from './pp-read-tail-r33-sources';
+import type{SqlDatabase,SqlStatement}from '@erpx/platform-runtime-server/public/runtime/types';
+import type{WorkContext}from '@erpx/identity-access-server/public/authorization';
+import{holdingResources}from '@erpx/platform-runtime-server/public/runtime';
+import{workforcePurchaseControls,withWorkforcePurchasedRead}from '@erpx/people-payroll-server/adapters/workforce-purchases';
+import{createOvertimeRead,type OvertimeReadPorts}from '@erpx/people-payroll-server/application/overtime';
+import type{OvertimeRow}from '@erpx/people-payroll-server/domain/overtime';
+import{participantSql}from '@erpx/workflow-server/public/approval-participant-projection';
+import{approvalView}from '@erpx/workflow-server/public/approval-planning';
+import{BusinessRuleError}from '@erpx/platform-shared-server/index';
+import{ApiError}from '@erpx/platform-runtime-server/public/http';
+export function nativeOvertimeReadRepository(database:SqlDatabase):OvertimeReadPorts<SqlStatement>['repository']{return{readGetOvertimeRow(id: string, companyId: string, userId: string, userId2: string, assignmentId: string) { return database.prepare(`SELECT o.* FROM overtime_requests o WHERE o.id=? AND o.company_id=? AND (o.created_by=? OR ${participantSql('overtime', 'o', '?', '?')})`).bind(id, companyId, userId, userId2, assignmentId).first<OvertimeRow>(); },readGetOvertimeHandoff(id: string, companyId: string) { return database.prepare(ppRd33StarByTwoPredicates('overtime_payroll_handoffs', 'request_id', 'company_id')).bind(id, companyId).first(); }};}
+function overtimeReadContext(provided?:SqlDatabase):OvertimeReadPorts<SqlStatement>{let database=provided!;return{prepare:async holding=>{if(!provided)database=(await holdingResources(holding)).write;},repository:{readGetOvertimeRow:(...args)=>nativeOvertimeReadRepository(database).readGetOvertimeRow(...args),readGetOvertimeHandoff:(...args)=>nativeOvertimeReadRepository(database).readGetOvertimeHandoff(...args)},approvalView:(...args)=>fromNative(()=>approvalView(database,...args))};}
+async function fromNative<Result>(run: () => Promise<Result>) {
+    try {
+        return await run();
+    }
+    catch (error) {
+        if (error instanceof ApiError)
+            throw new BusinessRuleError(error.status, error.code, error.message);
+        throw error;
+    }
+}
+async function invoke<Result>(run: () => Promise<Result>) {
+    try {
+        return await run();
+    }
+    catch (error) {
+        if (error instanceof BusinessRuleError)
+            throw new ApiError(error.status, error.code, error.message);
+        throw error;
+    }
+}
+export async function getOvertime(actor: WorkContext, id: string, database?: SqlDatabase) { return withWorkforcePurchasedRead(actor,async tx=>{const data=await invoke(() => createOvertimeRead(overtimeReadContext(tx)).getOvertime(actor,id)),purchase=await workforcePurchaseControls(actor,tx);return {...data,...(purchase?{purchase}:{})};},database); }

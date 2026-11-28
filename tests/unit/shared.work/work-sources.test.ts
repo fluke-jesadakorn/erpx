@@ -1,13 +1,13 @@
-import {createWorkSnapshot} from "@erpx/server-work_projection/application/work-items";
+import {createWorkSnapshot} from "@erpx/work-projection-server/application/work-items";
 import { expect, it, vi } from "vitest";
 import {
   mergeWorkItems,
   nextWorkSteps,
-} from "@erpx/server-work_projection/domain/work-items";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
-import { filterWork } from "@erpx/feature-work_projection/lib/work-item";
-import { operationFromWork } from "@erpx/feature-shared/lib/operation-presentation";
+} from "@erpx/work-projection-server/domain/work-items";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import type { WorkItem } from "@erpx/work-projection-ui/lib/work-item";
+import { filterWork } from "@erpx/work-projection-ui/lib/work-item";
+import { operationFromWork } from "@erpx/platform-shared-ui/lib/operation-presentation";
 const item = (id: string, extra: Partial<WorkItem> = {}): WorkItem => ({
   id,
   type: "staff_task",
@@ -124,4 +124,12 @@ it("bounds concurrent owner reads while retaining every result and failed source
  const app=createWorkSnapshot({source:async name=>read(name),domain:async(_actor,name)=>read(name),leave:async()=>{await read('leave');return {rows:[],counts:{todo:0,waiting:0,completed:0,all:0}};},enrich:async(_actor,rows)=>rows,enabledModules:async()=>new Set(),production:()=>false,monotonic:()=>0,performanceLog:()=>false,errorStatus:()=>undefined,info:()=>{},warn:()=>{},cached:(_actor,load)=>load()});
  const snapshot=await app.readWorkSnapshot(actor);expect(peak).toBe(2);expect(active).toBe(0);expect(new Set(seen).size).toBe(seen.length);expect(seen.length).toBeGreaterThan(35);
  expect(snapshot.unavailableSources).toEqual(['Legal']);expect(snapshot.items.map(row=>row.id).sort()).toEqual(seen.filter(name=>!['legalWork','leave'].includes(name)).sort());
+});
+
+it('reports native Field Work outage while preserving unrelated owners, and skips denied Field access',async()=>{
+ const actor={userId:'user',name:'User',email:'user@example.test',assignmentId:'grant',companyId:'company',holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',branchId:null,departmentId:null,role:'worker',modules:['field_service'],assignments:[],workspaces:[],assignmentScope:'holding',inherited:false,scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'Acme',companyId:'company'}} as WorkContext;
+ for(const status of [403,503]){
+  const app=createWorkSnapshot({source:async name=>{if(name==='fieldServiceWork')throw Object.assign(Error('Native Service unavailable'),{status});return name==='supportWork'?[item('support',{type:'support_ticket'})]:[];},domain:async()=>[],leave:async()=>({rows:[],counts:{todo:0,waiting:0,completed:0,all:0}}),enrich:async(_actor,items)=>items,enabledModules:async()=>new Set(),production:()=>false,monotonic:()=>0,performanceLog:()=>false,errorStatus:error=>(error as {status?:number}).status,info:()=>{},warn:()=>{},cached:(_actor,load)=>load()});
+  const snapshot=await app.readWorkSnapshot(actor);expect(snapshot.items.map(row=>row.id)).toEqual(['support']);expect(snapshot.unavailableSources).toEqual(status===503?['Field service']:[]);
+ }
 });

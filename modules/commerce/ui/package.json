@@ -1,0 +1,49 @@
+{
+  "name": "@erpx/commerce-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/commerce-controls": "./src/components/commerce-controls.tsx",
+    "./components/landed-cost-controls": "./src/components/landed-cost-controls.tsx",
+    "./components/commerce-draft-boundary": "./src/components/commerce-draft-boundary.tsx",
+    "./components/use-commerce-command": "./src/components/use-commerce-command.ts",
+    "./components/lazy-master-editor": "./src/components/lazy-master-editor.tsx",
+    "./components/use-landed-cost-command": "./src/components/use-landed-cost-command.ts",
+    "./components/landed-cost-draft-boundary": "./src/components/landed-cost-draft-boundary.tsx",
+    "./components/lazy-order-editor": "./src/components/lazy-order-editor.tsx",
+    "./components/posting-setup-prerequisites": "./src/components/posting-setup-prerequisites.tsx",
+    "./components/purchase-context": "./src/components/purchase-context.tsx",
+    "./components/commerce-posting-setup": "./src/components/commerce-posting-setup.tsx",
+    "./lib/commerce-command-fetch": "./src/lib/commerce-command-fetch.ts",
+    "./lib/commerce-math": "./src/lib/commerce-math.ts",
+    "./lib/posting-setup-command": "./src/lib/posting-setup-command.ts",
+    "./lib/purchase-controls": "./src/lib/purchase-controls.ts",
+    "./lib/posting-prerequisite-read-model": "./src/lib/posting-prerequisite-read-model.ts",
+    "./lib/posting-setup-prerequisite-command": "./src/lib/posting-setup-prerequisite-command.ts",
+    "./public/native-commerce-orders": "./src/public/native-commerce-orders.ts",
+    "./public/native-commerce-return-lines": "./src/public/native-commerce-return-lines.ts",
+    "./public/native-commerce-employee-request-order": "./src/public/native-commerce-employee-request-order.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/files-ui": "workspace:*",
+    "@erpx/finance-ui": "workspace:*",
+    "@erpx/identity-access-ui": "workspace:*",
+    "@erpx/inventory-ui": "workspace:*",
+    "@erpx/people-payroll-ui": "workspace:*",
+    "@erpx/records-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/commerce-server": "workspace:*",
+    "@erpx/finance-server": "workspace:*",
+    "@erpx/pos-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "@erpx/platform-workplace": "workspace:*",
+    "next": "16.4.3",
+    "react": "19.3.1"
+  }
+}

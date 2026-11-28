@@ -1,13 +1,13 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import {randomUUID} from 'node:crypto';
 import { applyMigrations, env } from "../../support/runtime-env";
-import { readPlatformUsageProjection, syncHoldingUsageProjection } from "@erpx/server-commercial/public/usage-projection";
-import type { UsageHolding, UsageItem } from "@erpx/server-commercial/public/usage";
-import { billingMonth, monthBounds } from "@erpx/feature-billing/lib/billing";
-import {readHoldingUsage} from "@erpx/server-commercial/public/usage";
+import { readPlatformUsageProjection, syncHoldingUsageProjection } from "@erpx/commercial-server/public/usage-projection";
+import type { UsageHolding, UsageItem } from "@erpx/commercial-server/public/usage";
+import { billingMonth, monthBounds } from "@erpx/billing-ui/lib/billing";
+import {readHoldingUsage} from "@erpx/commercial-server/public/usage";
 import {expenseFixture,key} from "../../support/helpers/expense-fixture";
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 const binding = { id: "h001", slug: "acme", displayName: "Acme" };
 const month = "2026-09";

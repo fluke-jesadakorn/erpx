@@ -1,12 +1,18 @@
 import {describe,expect,test} from 'vitest';
-import {createAiGatewayApplication,type AiGatewayRepository,type AiGatewayReservationRepository} from "@erpx/server-agent/application/gateway";
-import {reservationAllowed,type AiPolicyFacts,type AiGatewayFacts} from "@erpx/server-agent/domain/gateway";
-import {createAgentGovernanceApplication,createAssistantGovernanceGuards,type AgentGovernanceRepository} from "@erpx/server-agent/application/governance";
-import {createWorkspaceAssistantApplication,type WorkspaceAssistantPorts,type AssistantRepository} from "@erpx/server-agent/application/assistant";
-import type {AssistantGovernance} from "@erpx/server-agent/domain/governance";
-import {scopeKey} from "@erpx/server-agent/domain/assistant";
-import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {BusinessRuleError} from "@erpx/server-shared/index";
+import {createAiGatewayApplication,type AiGatewayRepository,type AiGatewayReservationRepository} from "@erpx/agent-server/application/gateway";
+import {reservationAllowed,type AiPolicyFacts,type AiGatewayFacts} from "@erpx/agent-server/domain/gateway";
+import {createAgentGovernanceApplication,createAssistantGovernanceGuards,type AgentGovernanceRepository} from "@erpx/agent-server/application/governance";
+import {createWorkspaceAssistantApplication,type WorkspaceAssistantPorts,type AssistantRepository} from "@erpx/agent-server/application/assistant";
+import type {AssistantGovernance} from "@erpx/agent-server/domain/governance";
+import {scopeKey} from "@erpx/agent-server/domain/assistant";
+import type {WorkContext} from "@erpx/identity-access-server/public/authorization";
+import {BusinessRuleError} from "@erpx/platform-shared-server/index";
+import {agentHomeAiNameSql,collaborationHomeSources} from '@erpx/agent-server/adapters/collaboration-home-sources';
+import {collaborationTextSources} from '@erpx/agent-server/adapters/collaboration-text-sources';
+import {collaborationAgentSources} from '@erpx/agent-server/adapters/collaboration-agent-sources';
+import {collaborationAiSources} from '@erpx/agent-server/adapters/collaboration-ai-sources';
+import {agentWorkspaceMonthlyUsageSql,recordsAiQuota} from '@erpx/agent-server/adapters/records-ai-quota';
+import {agentAssistantRateGuardSql,GuidedIntakeAgentFacts} from '@erpx/agent-server/adapters/operations-guided-intake-facts';
 const actor:WorkContext={userId:'author',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['agent','collaboration'],assignments:[],workspaces:[]};
 const policy:AiPolicyFacts={platform_enabled:true,monthly_request_limit:10,monthly_spend_cap_satang:100,reservation_satang:10,updated_by:'owner',updated_at:42,monthly_requests:1,monthly_reserved_or_verified_satang:0,pending_platform_cost_requests:0};
 const scope:AiGatewayFacts={holdingId:'holding',companyId:'company',branchId:null,connectionId:null,fundingSource:'erpx',feature:'assistant',requestId:'request'};
@@ -14,23 +20,18 @@ const governance:AssistantGovernance={sessionId:'session',assignmentId:null,assi
 /** Unexpected facts fail immediately; only typed staged effects have a recorder. */
 function repository<Repository extends object>(facts:Partial<Repository>,calls:string[]):Repository{return new Proxy(facts,{get(target,name){if(name==='then')return undefined;if(name in target)return target[name as keyof Repository];if(typeof name==='string'&&/^(prepare|guard|lock|clear)/.test(name))return ()=>{calls.push(name);return name;};return ()=>{throw new Error('Unexpected operation: '+String(name));};}})as Repository;}
 function gateway(facts:Partial<AiGatewayRepository>={}){const calls:string[]=[],tx=repository<AiGatewayReservationRepository>({async lockHolding(){calls.push('lock');},async policy(){calls.push('policy');return policy;},async reservationFacts(){calls.push('scope');return {scopeValid:true,alreadyReserved:false};},async reserve(){calls.push('reserve');return true;},...facts},calls),r=repository<AiGatewayRepository>(facts,calls);const app=createAiGatewayApplication({repository:r,reservations:{async run(action){calls.push('begin');try{const result=await action(tx);calls.push('commit');return result;}catch(error){calls.push('rollback');throw error;}}},clock:{now:()=>42},identifiers:{next:()=> 'id'}});return {calls,app};}
-function gov(facts:Partial<AgentGovernanceRepository<string>>={}){const calls:string[]=[],r=repository<AgentGovernanceRepository<string>>({async replay(){calls.push('receipt');return null;},async commit(_actor,_key,_operation,_input,_id,_version,result,effects){calls.push('commit:'+effects.join(','));return result;},async policyCandidates(){return [];},async latestPrivateSession(){return null;},async batch(effects){calls.push('batch:'+effects.join(','));},...facts},calls);return {calls,r,app:createAgentGovernanceApplication({async repository(){calls.push('repository');return r;},clock:{now:()=>42},async hash(input){return 'digest:'+input;},authorize:()=>calls.push('authority')})};}
-function assistant(facts:Partial<AssistantRepository<string>>={}){const calls:string[]=[],r=repository<AssistantRepository<string>>({async verifyAuthority(){calls.push('authority');},async conversationTurns(){return [];},async previousTurn(){return null;},async commit(_actor,_key,operation,_input,_id,_version,result,effects){calls.push(operation+':'+effects.join(','));return result;},async batch(effects){calls.push('batch:'+effects.join(','));},quotaLock:()=> 'quota-lock',snapshotGuard:()=> 'snapshot',usage:(_id,_snapshot,_feature,status)=> 'usage:'+status,governanceGuards:()=> ['governance'],...facts},calls),posts:{id:string;version:number}[]=[];const ports:WorkspaceAssistantPorts<string>={repository:r,sources:repository({async assertProductionModuleEnabled(){calls.push('rollout');},async homePosts(){return posts;}} as Partial<WorkspaceAssistantPorts<string>['sources']>,calls),clock:{now:()=>42},identifiers:{next:()=> 'authority-key'},async hash(value){return 'digest:'+value;},production:false,async provider(){calls.push('provider');return {endpoint:{baseUrl:'https://provider.test',apiKey:null,model:'model'},snapshot:{companyId:'company',connectionId:null,revision:0,model:'model',settingsVersion:0,kind:'text'}};},async providerOverview(){throw new Error('Unexpected settings projection');},bindGateway:(endpoint)=>endpoint,async generate(){calls.push('generate');return {result:{answer:'Guide only',sourceIds:['secret'],followUps:[]},inputTokens:1,outputTokens:2};},async generateTranslation(){throw new Error('Unexpected translation');},governance:{async context(){calls.push('context');return governance;},async validate(){calls.push('validate');},async record(_actor,input){calls.push('evidence:'+input.outcome);}}};return {calls,ports,posts,app:createWorkspaceAssistantApplication(ports)};}
+function gov(facts:Partial<AgentGovernanceRepository<string>>={}){const calls:string[]=[],r=repository<AgentGovernanceRepository<string>>({async policyCandidates(){return [];},async latestPrivateSession(){return null;},async batch(effects){calls.push('batch:'+effects.join(','));},...facts},calls);return {calls,r,app:createAgentGovernanceApplication({async repository(){calls.push('repository');return r;},clock:{now:()=>42},async hash(input){return 'digest:'+input;},authorize:()=>calls.push('authority')})};}
+function assistant(facts:Partial<AssistantRepository<string>>={}){const calls:string[]=[],r=repository<AssistantRepository<string>>({async verifyAuthority(){calls.push('authority');},async conversationTurns(){return [];},async previousTurn(){return null;},async commit(_actor,_key,operation,_input,_id,_version,result,effects){calls.push(operation+':'+effects.join(','));return result;},async batch(effects){calls.push('batch:'+effects.join(','));},quotaLock:()=> 'quota-lock',snapshotGuard:()=> 'snapshot',usage:async (_id,_snapshot,_feature,status)=> 'usage:'+status,governanceGuards:()=> ['governance'],...facts},calls),posts:{id:string;version:number}[]=[];const ports:WorkspaceAssistantPorts<string>={repository:r,sources:repository({async assertProductionModuleEnabled(){calls.push('rollout');},async homePosts(){return posts;}} as Partial<WorkspaceAssistantPorts<string>['sources']>,calls),clock:{now:()=>42},identifiers:{next:()=> 'authority-key'},async hash(value){return 'digest:'+value;},production:false,async provider(){calls.push('provider');return {endpoint:{baseUrl:'https://provider.test',apiKey:null,model:'model'},snapshot:{companyId:'company',connectionId:null,revision:0,model:'model',settingsVersion:0,kind:'text'}};},async providerOverview(){throw new Error('Unexpected settings projection');},bindGateway:(endpoint)=>endpoint,async generate(){calls.push('generate');return {result:{answer:'Guide only',sourceIds:['secret'],followUps:[]},inputTokens:1,outputTokens:2};},async generateTranslation(){throw new Error('Unexpected translation');},governance:{async context(){calls.push('context');return governance;},async validate(){calls.push('validate');},async record(_actor,input){calls.push('evidence:'+input.outcome);}}};return {calls,ports,posts,app:createWorkspaceAssistantApplication(ports)};}
 const ask={path:'/home',mode:'page' as const,contextPaths:[],question:'Which work should I review?'};
 describe('Agent budget policy and transaction',()=>{
  test.each([{funding:'erpx' as const,p:{...policy,platform_enabled:false},scope:true,duplicate:false,allowed:false},{funding:'byok' as const,p:{...policy,platform_enabled:false,monthly_reserved_or_verified_satang:200},scope:true,duplicate:false,allowed:true},{funding:'erpx' as const,p:{...policy,monthly_requests:10},scope:true,duplicate:false,allowed:false},{funding:'erpx' as const,p:{...policy,monthly_reserved_or_verified_satang:91},scope:true,duplicate:false,allowed:false},{funding:'byok' as const,p:policy,scope:false,duplicate:false,allowed:false},{funding:'byok' as const,p:policy,scope:true,duplicate:true,allowed:false}])('budget eligibility $funding/$allowed',row=>{expect(reservationAllowed(row.p,row.funding,row.scope,row.duplicate)).toBe(row.allowed);});
  test('reservation locks and reads the supplied transaction before accepting the provider attempt',async()=>{const f=gateway();await f.app.reserveAiGatewayRequest(scope,'provider','model');expect(f.calls).toEqual(['begin','lock','policy','scope','reserve','commit']);});
  test('concurrent fence rejection rolls back without returning a reservation',async()=>{const f=gateway({async reserve(){return false;}});await expect(f.app.reserveAiGatewayRequest(scope,'provider','model')).rejects.toMatchObject({code:'AI_GATEWAY_BLOCKED'});expect(f.calls.at(-1)).toBe('rollback');});
- test('non-THB verification requires FX evidence before a repository write',async()=>{const f=gateway();await expect(f.app.recordVerifiedAiCost({requestId:'request',providerStatementId:'statement',currency:'USD',amountMinor:100,thbSatang:3500,verifiedBy:'owner'})).rejects.toMatchObject({code:'AI_COST_EVIDENCE_INVALID'});expect(f.calls).toEqual([]);});
 });
 describe('Agent independent governance and private sessions',()=>{
- test('module revocation rejects before even loading a replay receipt',async()=>{const f=gov();await expect(f.app.createAgent({...actor,modules:[]},{name:'Guide',purpose:'Read current work'},'key')).rejects.toMatchObject({code:'MODULE_FORBIDDEN'});expect(f.calls).toEqual(['authority']);});
- test('self approval and stale versions never stage a lifecycle change',async()=>{for(const row of [{created_by:actor.userId,status:'draft',version:1},{created_by:'reviewer',status:'draft',version:2}]){const f=gov({async currentRecord(){return row;}});await expect(f.app.changeAgentRecord(actor,'agent','agent',{action:'approve',expectedVersion:1,reason:'Review purpose independently'},'key')).rejects.toMatchObject({code:'CONFLICT'});expect(f.calls.some(c=>c.startsWith('commit')||c==='prepareRecordLifecycle')).toBe(false);}});
- test('exact replay returns before loading a changed underlying record',async()=>{const f=gov({async replay<Result>(){return {id:'prior'} as Result;}});expect(await f.app.changeAgentRecord(actor,'agent','agent',{action:'approve',expectedVersion:1,reason:'Review purpose independently'},'key')).toEqual({id:'prior'});expect(f.calls).toEqual(['authority','repository']);});
  test('unapproved applicable policies block new private session creation',async()=>{const f=gov({async policyCandidates(){return [{scope_path:'/',version_status:'draft',catalog_status:'approved'}];}});await expect(f.app.assistantGovernanceContext(actor,'home','scope','/home')).rejects.toMatchObject({code:'AI_AGENT_UNAVAILABLE'});expect(f.calls.some(c=>c.startsWith('batch'))).toBe(false);});
- test('expired private sessions get a stable incremented generation and controls together',async()=>{let generation=0;const f=gov({async latestPrivateSession(){return {id:'old',generation:2,status:'active',expires_at:41};},preparePrivateSession(_id,_company,_user,_assignment,_scope,_conversation,_assigned,_now,number){generation=number;return 'session';},preparePrivateSessionControls(){return 'controls';}});const result=await f.app.assistantGovernanceContext(actor,'home','scope','/home');expect(result.sessionId).toContain('3');expect(generation).toBe(3);expect(f.calls.at(-1)).toBe('batch:session,controls');});
+ test('expired private sessions get a stable incremented generation and controls together',async()=>{let generation=0;const f=gov({async latestPrivateSession(){return {id:'old',generation:2,status:'active',expires_at:41};},async preparePrivateSession(_id,_company,_user,_assignment,_scope,_conversation,_assigned,_now,number){generation=number;return 'session';},async preparePrivateSessionControls(){return 'controls';}});const result=await f.app.assistantGovernanceContext(actor,'home','scope','/home');expect(result.sessionId).toContain('3');expect(generation).toBe(3);expect(f.calls.at(-1)).toBe('batch:session,controls');});
  test('private expiry blocks continuing even if the approved policy is unchanged',async()=>{const f=gov({async activePrivateSession(){return null;}});await expect(f.app.validateAssistantGovernance(actor,'/home',governance)).rejects.toMatchObject({code:'AI_SESSION_EXPIRED'});});
- test('native commit failure does not become a successful independent approval',async()=>{const f=gov({async currentRecord(){return {created_by:'another',status:'draft',version:1};},async commit(){throw new Error('late outbox failure');}});await expect(f.app.changeAgentRecord(actor,'agent','agent',{action:'approve',expectedVersion:1,reason:'Review purpose independently'},'key')).rejects.toThrow('late outbox failure');});
  test('governance effects lock the assigned pool before checking policy facts',()=>{const f=gov();createAssistantGovernanceGuards(f.r)(actor,'key','/home',{...governance,assignmentId:'assigned',poolId:'pool'});expect(f.calls).toEqual(['lockSession','guardPrivateSession','lockApprovedAssignment','lockAssignedPool','guardApprovedPolicy']);});
 });
 describe('Workspace assistant authorization and evidence',()=>{
@@ -54,4 +55,88 @@ describe('Workspace assistant authorization and evidence',()=>{
  test('a changed source after provider response never commits a ready answer',async()=>{const f=assistant();f.ports.generate=async()=>{f.posts.push({id:'changed',version:2});return {result:{answer:'Answer',sourceIds:[],followUps:[]},inputTokens:1,outputTokens:1};};await expect(createWorkspaceAssistantApplication(f.ports).askAssistant(actor,ask,'key')).rejects.toMatchObject({code:'AI_SOURCE_CHANGED'});expect(f.calls.some(c=>c.startsWith('assistant.message.complete'))).toBe(false);expect(f.calls).toContain('evidence:failed');expect(f.calls).toContain('batch:prepareFailedTurn,usage:failed');});
  test('completion includes governance, provider snapshot and usage in the same staged command',async()=>{const f=assistant();expect(await f.app.askAssistant(actor,ask,'key')).toEqual({id:'key'});expect(f.calls).toContain('assistant.message.complete:governance,snapshot,prepareAnswer,usage:succeeded');expect(f.calls.at(-1)).toBe('evidence:succeeded');});
  test('late completion failure records failed usage and does not return success',async()=>{const f=assistant();f.ports.repository.commit=async(_actor,_key,op,_input,_id,_version,result)=>{if(op==='assistant.message.complete')throw new Error('late outbox failure');return result;};await expect(createWorkspaceAssistantApplication(f.ports).askAssistant(actor,ask,'key')).rejects.toThrow('late outbox failure');expect(f.calls).toContain('batch:prepareFailedTurn,usage:failed');expect(f.calls.at(-1)).toBe('evidence:failed');});
+});
+describe('Agent home AI name fixed-SQL read family',()=>{
+ const sql='SELECT home_ai_name FROM ai_company_settings WHERE company_id=?';
+ function fakeDb(){const calls:{sql:string;values:unknown[]}[]=[];const db={prepare(source:string){const statement={bind(...values:unknown[]){calls.push({sql:source,values});return statement;},async first(){return {home_ai_name:'Guide'};}};return statement;}};return {db:db as never,calls};}
+ test('the canonical owner fixed SQL is the only authored home AI name literal',async()=>{
+  expect(agentHomeAiNameSql).toBe(sql);
+  const {readFile}=await import('node:fs/promises');
+  const base=new URL('../../../modules/agent/server/src/adapters/',import.meta.url);
+  for(const name of ['collaboration-home-sources.ts','collaboration-text-sources.ts','collaboration-agent-sources.ts']){
+   const source=await readFile(new URL(name,base),'utf8');
+   const literals=source.match(/SELECT home_ai_name FROM ai_company_settings/g)??[];
+   expect(literals,name).toHaveLength(name==='collaboration-home-sources.ts'?1:0);
+   if(name!=='collaboration-home-sources.ts')expect(source,name).toContain('agentHomeAiNameSql');
+  }
+ });
+ test('all home-source callers reuse the one fixed SQL with only the company bind',async()=>{
+  for(const read of [
+   (db:never)=>collaborationHomeSources(db).aiName('company'),
+   (db:never)=>collaborationTextSources(db).assistantName('company'),
+   (db:never)=>collaborationTextSources(db).currentAssistantName('company'),
+   (db:never)=>collaborationAgentSources(db).assistantName('company'),
+  ]){
+   const {db,calls}=fakeDb();
+   await expect(read(db)).resolves.toEqual({home_ai_name:'Guide'});
+   expect(calls).toEqual([{sql:agentHomeAiNameSql,values:['company']}]);
+  }
+ });
+ test('the history read keeps its own bounded statement',async()=>{
+  const {db,calls}=fakeDb();
+  await collaborationTextSources(db).previousAssistantName('company','Guide');
+  expect(calls).toEqual([{sql:'SELECT 1 FROM ai_home_name_history WHERE company_id=? AND name=?',values:['company','Guide']}]);
+ });
+});
+describe('Agent workspace-turns monthly usage fixed-SQL read family',()=>{
+ const sql="SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns";
+ function fakeDb(){const calls:{sql:string;values:unknown[]}[]=[];const db={prepare(source:string){const statement={bind(...values:unknown[]){calls.push({sql:source,values});return statement;},async first(){return {used:1,allowance:10};},async all(){return {results:[]};}};return statement;}};return {db:db as never,calls};}
+ test('the canonical owner fixed SQL is the only authored monthly usage literal',async()=>{
+  expect(agentWorkspaceMonthlyUsageSql).toBe(sql);
+  const {readFile}=await import('node:fs/promises');
+  const base=new URL('../../../modules/agent/server/src/adapters/',import.meta.url);
+  const read=async(name:string)=>(await readFile(new URL(name,base),'utf8'));
+  for(const name of ['agent-monthly-usage-source.ts','records-ai-quota.ts','collaboration-agent-sources.ts','collaboration-ai-sources.ts']){
+   const source=await read(name);
+   const literals=source.match(/SELECT company_id,to_char\(to_timestamp\(created_at\/1000\.0\) AT TIME ZONE 'UTC','YYYY-MM'\) AS month FROM ai_workspace_turns/g)??[];
+   expect(literals,name).toHaveLength(0);
+  }
+  expect(await read('agent-monthly-usage-source.ts')).toContain("SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')");
+  expect(await read('records-ai-quota.ts')).toContain("import { agentMonthlyUsageColsSql } from './agent-monthly-usage-source';");
+  expect(await read('records-ai-quota.ts')).toContain('`${agentMonthlyUsageColsSql} AS month FROM ai_workspace_turns`');
+  expect(await read('collaboration-agent-sources.ts')).toContain('recordsQuotaCountSql');
+  expect(await read('collaboration-ai-sources.ts')).toContain('agentWorkspaceMonthlyUsageSql');
+ });
+ test('quota reads compose the one fixed SQL with unchanged binds',async()=>{
+  const reads:[(db:never)=>Promise<unknown>,unknown[]][]=[
+   [db=>recordsAiQuota(db).read([],'company'),['company']],
+   [db=>collaborationAgentSources(db).quotaAllowed('company','2026-11','c2','m2','c3','m3','c4','c5',42,'user',1,2,3),['company','2026-11','c2','m2','c3','m3','c4','c5',42,2,'user',1,3]],
+  ];
+  for(const [read,values] of reads){
+   const {db,calls}=fakeDb();
+   await expect(read(db)).resolves.toBeDefined();
+   expect(calls).toHaveLength(1);
+   expect(calls[0]!.sql).toContain(agentWorkspaceMonthlyUsageSql);
+   expect(calls[0]!.values).toEqual(values);
+  }
+ });
+});
+describe('Agent assistant-rate fixed-SQL read family',()=>{
+ const sql="(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>?)<20";
+ test('the canonical owner fixed SQL is the only authored rate-guard literal',async()=>{
+  expect(agentAssistantRateGuardSql).toBe(sql);
+  const {readFile}=await import('node:fs/promises');
+  const base=new URL('../../../modules/agent/server/src/adapters/',import.meta.url);
+  const owner=await readFile(new URL('operations-guided-intake-facts.ts',base),'utf8');
+  const consumer=await readFile(new URL('workspace-assistant.ts',base),'utf8');
+  expect(owner.match(/\(SELECT count\(\*\) FROM ai_workspace_turns WHERE company_id=\? AND created_at>\?\)<20/g)??[]).toHaveLength(0);
+  expect(owner.match(/agentTurnCountGuardSql\('>'\)\}<20/g)??[]).toHaveLength(1);
+  expect(consumer.match(/\(SELECT count\(\*\) FROM ai_workspace_turns WHERE company_id=\? AND created_at>\?\)<20/g)??[]).toHaveLength(0);
+  expect(consumer).toContain('agentAssistantRateGuardSql');
+ });
+ test('guided-intake guard composes the one fixed SQL with unchanged args',()=>{
+  const descriptor=GuidedIntakeAgentFacts({} as never).guard3('id','assistant-rate','company',42) as unknown as {__nativeWrite:boolean;values:unknown[]};
+  expect(descriptor.__nativeWrite).toBe(true);
+  expect(descriptor.values).toEqual(['id','assistant-rate','company',42,agentAssistantRateGuardSql]);
+ });
 });

@@ -1,0 +1,3 @@
+{
+  "featureSearch": "SELECT {projection} FROM {table} WHERE item_id=? AND (?='' OR strpos(lower(title||' '||data::text),lower(?))>0)"
+}

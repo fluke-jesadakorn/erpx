@@ -1,0 +1,1 @@
+export {activeBenefitPerson,benefitElectionEmployeeName,benefitDependentParticipants,benefitElectionParticipants,benefitPeopleSourceLocks,benefitPeopleSourceWitness,benefitAttachmentPeopleSources,benefitAttachmentPeopleReadImage} from "@erpx/people-payroll-server/adapters/benefits-owner-facts";

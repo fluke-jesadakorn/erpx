@@ -1,0 +1,201 @@
+import { canonicalUiHref } from "@erpx/work-projection-ui/lib/destination-registry";
+import { Button, Field, Select, Table, TableFrame, TextInput } from "@erpx/platform-ui/components/foundation";
+import { FeaturePage } from "@erpx/platform-shared-ui/components/features/feature-page";
+import { FinanceWorkspace, financeStyles as styles } from "@erpx/finance-ui/components/finance-workspace";
+import { workspaceBase } from "@erpx/work-projection-ui/lib/workspace";
+import { publicScope, requireWorkContext } from "@erpx/identity-access-server/public/authorization";
+import {reportDateSchema} from '@erpx/finance-server/public/finance';
+import {nativeFinanceReport} from "@erpx/finance-ui/lib/native-finance-report";
+import { ledgerWorkspace } from "@erpx/finance-server/public/ledger";
+import { RecordLink as Link } from "@erpx/records-ui/components/record-link";
+import { StandardFinanceReportingConsole } from "@erpx/finance-ui/components/standard-finance-reporting-console";
+import { reportingWorkspace } from "@erpx/finance-server/public/finance-reporting";
+import { hasPermission } from "@erpx/identity-access-ui/lib/permissions";
+import { FormLayout } from "@erpx/platform-ui/components/foundation";
+import { financePlanningWorkspace } from "@erpx/finance-server/public/finance-planning";
+import { FinancePlanningControls } from "@erpx/finance-ui/components/finance-planning-controls";
+import { financeCompanyTools } from "@erpx/finance-server/public/finance-company-tools";
+
+export const dynamic = "force-dynamic";
+export default async function ReportsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ holdingSlug: string }>;
+  searchParams: Promise<{
+    chart?: string;
+    startDate?: string;
+    endDate?: string;
+    periodId?: string;
+  }>;
+}) {
+  const holdingSlug = (await params).holdingSlug,
+    actor = await requireWorkContext(holdingSlug),
+    base = workspaceBase(publicScope(actor)),
+    query = await searchParams,
+    data = await ledgerWorkspace(actor, query.chart, {
+      print: "1",
+      periodId: query.periodId || undefined,
+      reportDates: reportDateSchema.parse({
+        startDate: query.startDate || undefined,
+        endDate: query.endDate || undefined,
+      }),
+    });
+  const nativeActor = actor.authority && actor.iam
+    ? {
+        userId: actor.userId,
+        holdingId: actor.holdingId,
+        holdingSlug,
+        companyId: actor.companyId,
+        branchId: actor.branchId,
+        departmentId: actor.departmentId,
+        assignmentId: actor.assignmentId,
+        role: actor.role,
+        assignmentScope: actor.assignmentScope,
+        scope:
+          actor.scope.kind === "holding"
+            ? { kind: "holding" as const }
+            : actor.scope.kind === "branch"
+              ? { kind: "branch" as const, branchSlug: actor.scope.branchSlug ?? "" }
+              : {
+                  kind: "department" as const,
+                  branchSlug: actor.scope.branchSlug ?? undefined,
+                  departmentSlug: actor.scope.departmentSlug ?? "",
+                },
+        authority: { revision: actor.authority.revision, assignmentVersion: actor.authority.assignmentVersion },
+        modules: actor.modules,
+        iam: { permissions: actor.iam.permissions },
+      }
+    : undefined;
+  const nativeReport = await nativeFinanceReport(nativeActor, holdingSlug, {
+    chartId: String(data.chart.id),
+    periodId: query.periodId || undefined,
+    startDate: query.startDate || undefined,
+    endDate: query.endDate || undefined,
+  });
+  const report = nativeReport ?? data.report;
+  const reporting = !actor.branchId && !actor.departmentId ? await reportingWorkspace(actor,String(data.chart.id)) : null;
+  const planning = !actor.branchId && !actor.departmentId ? await financePlanningWorkspace(actor,String(data.chart.id)) : null;
+  const planningEnabled=(await financeCompanyTools(actor)).some(r=>r.tool==="planning"&&r.enabled===1);
+  const selectedPeriod = data.periods.find((period) => period.id === query.periodId);
+  const accountingHref = canonicalUiHref(`${base}/finance/accounting?chart=${encodeURIComponent(String(data.chart.id))}#journal-entries`);
+  const cards = [
+    ["Assets", report.balanceSheet.assets],
+    ["Liabilities", report.balanceSheet.liabilities],
+    ["Equity", report.balanceSheet.equity],
+    ["Revenue", report.profitAndLoss.revenue],
+    ["Expenses", report.profitAndLoss.expenses],
+  ];
+  return (
+    <FeaturePage className="ui-page-content" data-source="live">
+      <FinanceWorkspace actor={actor}
+        base={base}
+        context={{
+          chartId: String(data.chart.id),
+          chartName: String(data.chart.name),
+          currency: String(data.chart.base_currency),
+        }}
+        active="reports"
+        title="Reports and statements"
+        description={`${String(data.chart.name)} · ${String(data.chart.base_currency)}`}
+      >
+        <FormLayout className="ui-form-grid">
+          <Field appearance="standard">
+            Chart of accounts
+            <Select appearance="standard" name="chart" defaultValue={String(data.chart.id)}>
+              {data.charts.map((chart) => (
+                <option value={String(chart.id)} key={String(chart.id)}>
+                  {String(chart.name)} · {String(chart.base_currency)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field appearance="standard">
+            Accounting period
+            <Select appearance="standard" name="periodId" defaultValue={query.periodId ?? ""}>
+              <option value="">Custom date range</option>
+              {data.periods.map((p) => (
+                <option key={String(p.id)} value={String(p.id)}>
+                  {String(p.name)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field appearance="standard">
+            Start date
+            <TextInput appearance="standard" name="startDate" type="date" defaultValue={query.startDate} />
+          </Field>
+          <Field appearance="standard">
+            End date
+            <TextInput appearance="standard" name="endDate" type="date" defaultValue={query.endDate} />
+          </Field>
+          <Button appearance="standard" type="submit" variant="secondary">
+            Show report
+          </Button>
+        </FormLayout>
+        <p className="muted">
+          {selectedPeriod
+            ? `Accounting period: ${selectedPeriod.name} · ${selectedPeriod.start_date}–${selectedPeriod.end_date}. Date fields apply only to Custom date range.`
+            : `Posted evidence: ${query.startDate ?? "All dates"} through ${query.endDate ?? "latest posted date"}. Choose an accounting period or a custom date range.`}
+        </p>
+        <section className={styles.reportCards}>
+          {cards.map(([label, value]) => (
+            <article className={`card ${styles.reportCard}`} key={label}>
+              <span className="eyebrow">{label}</span>
+              <strong>
+                {String(data.chart.base_currency)} {String(value)}
+              </strong>
+              <Link href={canonicalUiHref(`${base}/record-details/finance_report/${String(label).toLowerCase()}`)} record={{kind:"finance_report",id:String(label).toLowerCase(),args:{chartId:String(data.chart.id),...(report.dates.startDate?{startDate:report.dates.startDate}:{}),...(report.dates.endDate?{endDate:report.dates.endDate}:{})}}}>Trace journal entries →</Link>
+            </article>
+          ))}
+        </section>
+        <section className={styles.panel} id="trial-balance">
+          <div className={styles.sectionHead}>
+            <div>
+              <h2>Trial balance</h2>
+              <p className="muted">
+                Posted entries for the selected dates. Balance sheet figures accumulate to the end
+                date; profit and loss covers the selected range.
+              </p>
+            </div>
+            <Link href={accountingHref}>Open Accounting →</Link>
+          </div>
+          <TableFrame appearance="standard"
+            label="Records"
+            className="business-table-wrap"
+            tabIndex={0}
+            role="region"
+            aria-label="Financial table — scroll for more columns"
+          >
+            <Table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Category</th>
+                  <th>Debit</th>
+                  <th>Credit</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.trialBalance.map((row) => (
+                  <tr key={String(row.id)}>
+                    <td>
+                      <Link href={canonicalUiHref(`${base}/record-details/trial_balance/${encodeURIComponent(String(row.id))}`)} record={{kind:"trial_balance",id:String(row.id),args:{chartId:String(data.chart.id),...(report.dates.startDate?{startDate:report.dates.startDate}:{}),...(report.dates.endDate?{endDate:report.dates.endDate}:{})}}}>{String(row.code)} · {String(row.name)}</Link>
+                    </td>
+                    <td>{String(row.category)}</td>
+                    <td>{String(row.debit)}</td>
+                    <td>{String(row.credit)}</td>
+                    <td>{String(row.balance)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableFrame>
+        </section>
+        {reporting && <StandardFinanceReportingConsole base={base} companyId={actor.companyId} chartId={String(data.chart.id)} currency={String(data.chart.base_currency)} data={reporting} periods={data.periods} userId={actor.userId} canPrepare={hasPermission(actor,"finance.write")} canApprove={hasPermission(actor,"finance.approve")}/>}
+        {planning&&(planningEnabled||planning.editions.length>0)&&<FinancePlanningControls base={base} chartId={String(data.chart.id)} data={planning} userId={actor.userId} canWrite={hasPermission(actor,"finance.write")&&planningEnabled} canApprove={hasPermission(actor,"finance.approve")}/>}
+      </FinanceWorkspace>
+    </FeaturePage>
+  );
+}

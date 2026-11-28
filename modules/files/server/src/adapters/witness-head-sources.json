@@ -1,0 +1,5 @@
+{
+  "uploadIntentsExists": "EXISTS(SELECT 1 FROM upload_intents WHERE ",
+  "attachmentStarId": "SELECT * FROM attachments WHERE id=?",
+  "scanAttemptsOrExists": "OR EXISTS(SELECT 1 FROM attachment_scan_attempts "
+}

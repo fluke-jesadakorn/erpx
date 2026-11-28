@@ -1,0 +1,7 @@
+{
+  "authority": "SELECT {assignment} allowed FROM ({actorScope}) legal_current_scope",
+  "configurationImage": "SELECT to_jsonb(configuration)::text image FROM {table} configuration WHERE {key}=? AND company_id=?",
+  "sourceWitness": "jsonb_build_object('item',to_jsonb(i),'data',({factData}),'members',{members},'documents',{documents},'shares',{shares},'executed',{executed},'approvals',{approvals},'route',(SELECT to_jsonb(ar) FROM legal_approval_routes ar WHERE ar.item_id=i.id),'authorities',{authorities},'retention',(SELECT to_jsonb(ra)||jsonb_build_object('policy',(SELECT to_jsonb(rp) FROM legal_retention_policies rp WHERE rp.id=ra.policy_id)) FROM legal_retention_assignments ra WHERE ra.item_id=i.id),'destructions',{destructions},'features',(SELECT jsonb_agg(feature.image ORDER BY feature.image::text) FROM ({features}) feature))::text image",
+  "featureImage": "SELECT to_jsonb(f) image FROM {table} f WHERE f.item_id=i.id",
+  "replayReceipt": "SELECT operation FROM command_receipts WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"
+}

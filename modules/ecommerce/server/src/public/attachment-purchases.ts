@@ -1,0 +1,1 @@
+export {ecommerceAttachmentPurchaseScope,authorizeEcommerceAttachmentPurchase,ecommerceAttachmentSourceReadLocks,ecommerceAttachmentCommandBoundary,ecommerceAttachmentFailure,type EcommerceAttachmentPurchase} from '@erpx/ecommerce-server/adapters/attachment-purchases';

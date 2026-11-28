@@ -1,6 +1,6 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { appDirectory } from '@erpx/contracts/apps';
+import { appDirectory } from '@erpx/platform-contracts/apps';
 
 /** App composition roots may contain reviewed host/auth exceptions. Scaffolding
  * creates only missing entries and never rewrites an existing app's policy. */

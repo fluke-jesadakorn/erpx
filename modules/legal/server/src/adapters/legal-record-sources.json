@@ -1,0 +1,5 @@
+{
+  "nativeSource": "EXISTS(SELECT 1 FROM legal_items legal_native WHERE legal_native.id={id} AND legal_native.company_id={company} AND {scope} AND {permission} AND {assignment} AND {release} {purchase})",
+  "actualSource": "EXISTS(SELECT 1 FROM legal_items actual_legal_source WHERE actual_legal_source.id={id})",
+  "workspaceGuard": "SELECT 1 FROM workspace_records WHERE module_id='legal' AND id=? AND {scope}"
+}

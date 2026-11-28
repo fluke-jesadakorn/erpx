@@ -11,12 +11,12 @@ import { promisify } from "node:util";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { Pool } from "pg";
-import { getRuntime, closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
-import { resourceSlots, registeredResources } from "@erpx/feature-runtime/lib/holding-registry";
-import { backfillLegacyAttachments, backfillSpecializedAttachments, reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
-import { billingEvidenceStore, reconcileBillingEvidenceStorage } from "@erpx/server-billing/public/billing-attachments";
-import { attachmentUploadsFrozen, attachmentsV2Enabled } from "@erpx/server-files/public/attachments/feature";
-import type { FileStore } from "@erpx/server-runtime/adapters/runtime/types";
+import { getRuntime, closeRuntime } from "@erpx/platform-runtime-server/adapters/runtime/env";
+import { resourceSlots, registeredResources } from "@erpx/platform-runtime-ui/lib/holding-registry";
+import { backfillLegacyAttachments, backfillSpecializedAttachments, reconcileAttachmentStorage } from "@erpx/files-server/public/attachments/migration";
+import { billingEvidenceStore, reconcileBillingEvidenceStorage } from "@erpx/billing-server/public/billing-attachments";
+import { attachmentUploadsFrozen, attachmentsV2Enabled } from "@erpx/files-server/public/attachments/feature";
+import type { FileStore } from "@erpx/platform-runtime-server/adapters/runtime/types";
 
 const exec = promisify(execFile);
 const apply = process.argv.includes("--apply");

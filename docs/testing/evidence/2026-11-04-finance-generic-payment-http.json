@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native generic controlled-payment create now has a dedicated HTTP ingress and is PostgreSQL-qualified; the browser confirm-page bank-row listing and full current-source readback remain open after the shared cohort database was lost",
+  "capability": "finance-generic-payment-http",
+  "integrationTarget": "codex/rust-backend-migration",
+  "scope": {
+    "http": "Dedicated POST /api/v1/holdings/{holding_slug}/finance/payments route mounted for ordinary Finance read targets; it does not require the Field receipt configuration. Exact Host/Holding, normal Account session, origin, one Idempotency-Key, body bound and private/no-store response headers are enforced by the retained Account boundary.",
+    "owner": "The shared owner command decides Field versus generic settlement source from the persisted invoice, never from the request label. The browser-found 503 on a generic settlementInvoiceId is removed.",
+    "frontend": "The native Service payment command transport now distinguishes the generic create path; the browser form no longer gets intercepted by the Field-only receipt route."
+  },
+  "tests": [
+    "finance.rust-generic-payment-http-postgres.integration: 1 passed (generic create with no Field receipt configuration)",
+    "finance.rust-generic-payment-postgres.integration: 6 passed (create/approve/release/confirm directions, persisted journal/allocation/bank match, generic bank import, workspace bank rows, invalid source guards)",
+    "cargo test -p erpx-service --test generic_payment_http_postgres --features existing-business --locked: 1 passed",
+    "cargo test -p erpx-service --test generic_payment_postgres --features existing-business --locked: 6 passed"
+  ],
+  "limits": [
+    "No authenticated browser cohort was completed for this slice; the shared disposable case database was lost when its PostgreSQL container disappeared.",
+    "The payment confirm page's bank-row listing and full browser readback remain open; the owner-level confirm/persist/bank-match behavior is covered by the generic payment PostgreSQL suite.",
+    "Refunds, supplier instructions and automated bank match groups remain outside this slice.",
+    "Hosted CI, staging and installed production were not accessed."
+  ]
+}

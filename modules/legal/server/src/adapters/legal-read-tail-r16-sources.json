@@ -1,0 +1,3 @@
+{
+  "itemSelect": "SELECT i.* FROM legal_items i WHERE "
+}

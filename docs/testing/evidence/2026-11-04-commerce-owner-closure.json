@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Commerce now has a bounded native quotation/sales-order document read and safe owner-local lifecycle slice: quote submit, independent approve, return-to-draft, draft cancel, independent confirmed-quote cancel and quote conversion to a draft sales order; sales draft submit/return/cancel; Company/branch-scoped document read with current IAM, versions/CAS, idempotency, audit/outbox, rollback and persisted readback. Sales-order approval and confirmed sales-order cancellation remain retained because their Finance credit and Inventory reversal guards are not exposed as native public ports; they fail closed in the native layer instead of bypassing those guards. Purchase, fulfillment, invoicing, returns and the remaining Commerce workflows remain retained.",
+  "capability": "commerce-quotation-order-owner-slice",
+  "integrationTarget": "codex/rust-backend-migration",
+  "base": "4c2ab63ea",
+  "scope": {
+    "workflows": [
+      "sales/quotes",
+      "sales/orders",
+      "sales/feature-cancellations"
+    ],
+    "workflowBoundary": "The qualified slice is the order detail read and the owner-local state transitions that do not move stock or post Finance: quote submit/approve/return/cancel(draft or independently confirmed)/convert, and sales submit/return/cancel(draft). Purchase orders, order create/update, sales approval, confirmed sales-order cancellation, reservation changes, fulfillment, invoicing, settlement, returns, customer notifications, posting setup and every other Commerce workflow remain retained TypeScript.",
+    "domain": "Current actor policy (selected-context expiry, sales module, commerce.read/commerce.sales/commerce.approve), exact Company and optional branch/department scope, quote/sales kind restriction, bounded date/currency/text/amount validation, unique ordered lines, document totals equal line totals, stock lines require a warehouse, exact transition matrix, independent quote approver/canceller, discount-approval reason, conversion identity, exact receipt `{id,state,version,salesId}` and persisted readback projections. Sales approval returns COMMERCE_SALES_APPROVAL_FINANCE_GUARD and confirmed sales cancellation returns ORDER_REVERSAL_REQUIRED; neither path weakens the retained cross-owner guard.",
+    "application": "order_detail re-checks the current IAM assignment before the scoped owner read. transition_order authorizes write and current IAM, validates and trims the exact command, serializes the command key with a transaction-scoped advisory lock, resolves the idempotency receipt before the scoped locked order, applies one exact expected-version CAS, writes receipt/audit/outbox in the same unit, converts a confirmed quote into one draft sales order plus copied lines, and validates persisted order/sales readback before returning.",
+    "adapters": "SQL is Commerce-owned (`commerce_orders`, `commerce_order_lines`, `commerce_products`, `commerce_fulfillments`) plus shared `command_receipts`, `audit_events` and `outbox_events`. Current IAM is re-read through existing assignments/iam_role_allows/iam_assignment_active/iam_principal_active predicates. No Inventory, Finance, Quality, Sales or Files row is read or mutated by this slice. The caller's serializable Holding transaction is required; no transaction is opened, committed or retried here.",
+    "http": "Owner-local GET /api/v1/holdings/{holding_slug}/commerce/orders/{order_id} and POST /api/v1/holdings/{holding_slug}/commerce/orders/{order_id}/transition. Exact registered Host/Holding targets and HTTPS origins, strict Idempotency-Key/Content-Type/JSON body validation, bounded bodies, unknown query rejection, private/no-store plus no-referrer/nosniff responses, and bounded BusinessError status mapping. The composition backend receives transport facts only and must supply the normal Account session, selected Company/branch/department scope, feature/package admission and serializable owner unit.",
+    "transport": "ERPX_NATIVE_COMMERCE_ORDER_CONFIG is strictly validated: loopback-only private base, reserved ports 3000/3001/3100/3101/3103/8080 plus 5432/5433/5435 and 3200-3299 excluded, exact HTTPS Holding origins, unique hosts/slugs, 250..30000 ms timeout, bounded cookie/context/workspace headers, exact document/receipt shapes, Company/scope coherence, unique ordered lines, line totals equal order totals and a 2 MiB response bound. A configured failure never falls back to the retained reader or command.",
+    "ssr": "The Commerce order detail page uses native quote/sales order and line rows when ERPX_NATIVE_COMMERCE_ORDER_CONFIG is present, merging retained cross-owner display labels (`party_name`, `warehouse_name`) from getOrder. An unset configuration retains getOrder for the document. Once configured, an invalid or failed native read is surfaced through the existing page error policy rather than silently replaced. Purchase orders and all non-order sections remain retained.",
+    "commandRoute": "The workplace POST /commerce/orders/{id}/transition route dispatches to native only after a Commerce-owned orderFacts preflight selects a quote (all supported actions) or a sales order (submit/return, and cancel only while draft). Sales approval, confirmed sales cancellation, sales conversion and purchase remain retained by design. Once an order/action is native-eligible, a native or preflight failure is surfaced and never replaced by transitionOrder.",
+    "crossOwnerGuards": "This slice introduces no Inventory, Finance or Quality effect, so no such same-transaction guard is bypassed. Sales approval still requires the retained Finance credit-limit guard and confirmed sales cancellation still requires the retained Inventory reservation/reversal guard; both are refused natively rather than reimplemented with cross-owner SQL.",
+    "notClaimed": "No browser journey, authenticated page render, shared composition mount, catalogue acceptance qualification, purchase/order create-update, sales approval, confirmed sales cancellation, fulfillment, invoicing, settlement, return, notification or job verification."
+  },
+  "changedFiles": [
+    "packages/server-commerce/Cargo.toml",
+    "packages/server-commerce/src/lib.rs",
+    "packages/server-commerce/src/domain/mod.rs",
+    "packages/server-commerce/src/domain/order.rs",
+    "packages/server-commerce/src/application/mod.rs",
+    "packages/server-commerce/src/application/order.rs",
+    "packages/server-commerce/src/adapters/mod.rs",
+    "packages/server-commerce/src/adapters/order.rs",
+    "packages/server-commerce/src/adapters/order_http.rs",
+    "packages/server-commerce/src/adapters/entrypoint-facts.ts",
+    "packages/server-commerce/src/public/mod.rs",
+    "packages/server-commerce/src/public/order.rs",
+    "packages/server-commerce/src/public/order_http.rs",
+    "packages/feature-commerce/package.json",
+    "packages/feature-commerce/src/public/native-commerce-orders.ts",
+    "packages/feature-sales/package.json",
+    "packages/feature-sales/src/public/native-commerce-orders-page.ts",
+    "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen.tsx",
+    ".env.example",
+    "tests/unit/commerce/rust-commerce-order.test.rs",
+    "tests/unit/commerce/rust-commerce-order-http.test.rs",
+    "tests/integration/commerce/rust-commerce-order-postgres.test.rs",
+    "tests/unit/commerce/native-commerce-orders-transport.test.ts",
+    "docs/testing/evidence/2026-11-04-commerce-owner-closure.json"
+  ],
+  "verification": {
+    "cargo": {
+      "command": "ERPX_TEST_ADMIN_URL=<local test admin> cargo test -p erpx-server-commerce --locked",
+      "result": "32 passed, 0 failed, 0 ignored across 6 targets plus empty doc-tests (lib 3, consumption_postgres 8, order 11, order_http 3, order_postgres 6, service_count_masters_postgres 1, doc-tests 0)",
+      "targets": {
+        "lib": "3 passed: date/currency bounds, exact converted receipt identity and document total overflow denial.",
+        "order": "11 passed: read permission/module/expiry/current-IAM denials before source; foreign Company/branch, purchase kind, invalid totals/order/duplicates/oversize rejection; exact wire columns; submit receipt/audit/outbox sequence; replay and idempotency mismatch; quote approval independence/discount reason/approver permission; sales approval and confirmed sales cancellation fail-closed; confirmed quote cancel fulfillment/independence; conversion copy and receipt; stale CAS, duplicate receipt and bad readback.",
+        "order_http": "3 passed: actual loopback router detail/transition forwarding, private/no-store/no-referrer/nosniff headers, unknown host/Holding/query/body/key mappings, owner conflict 409, duplicate/bad-origin configuration denial.",
+        "order_postgres": "6 passed: Company/branch/foreign/purchase/revoked-assignment read isolation; submit row plus one receipt/audit/outbox and same-key replay; independent discount approval and every supported cancel guard; conversion to one draft sales order with copied lines and replay; late-outbox trigger rollback with exact retry; missing transaction and read-committed serializable denial."
+      },
+      "workspaceNote": "The exact locked command ran against the real package sources, migrations and dependency graph. No root Cargo.toml, Cargo.lock or package lockfile change was authored by this subagent; erpx-server-commerce was already a workspace member."
+    },
+    "clippy": {
+      "command": "cargo clippy -p erpx-server-commerce --all-targets --locked -- -D warnings",
+      "result": "pass; no erpx-server-commerce warning"
+    },
+    "rustfmt": {
+      "command": "cargo fmt -p erpx-server-commerce -- --check",
+      "result": "pass"
+    },
+    "postgres": {
+      "suite": "order_postgres (raw migrated PostgreSQL, disposable leased erpx_dev_rust_* database)",
+      "fixture": "Real migrated PostgreSQL with synthetic company/branch/foreign organization nodes, IAM members and sales_operator/sales_manager/revoked assignments, a customer party, warehouse, service product and quote/sales/purchase orders with lines and one fulfillment. The owner writes only commerce_orders/commerce_order_lines plus shared receipt/audit/outbox rows.",
+      "cases": [
+        "quote read returns exact owner header and line columns under current IAM; other branch, foreign Company, purchase kind and revoked assignment are denied",
+        "submit persists submitted/version 2, one receipt with exact result JSON, one audit and one outbox row; same-key replay is byte-identical",
+        "discount approval requires a different manager and a reason; approval persists reviewer/discount approver; sales approval is refused with COMMERCE_SALES_APPROVAL_FINANCE_GUARD",
+        "confirmed quote cancellation is independent and refused when a fulfillment exists; confirmed sales cancellation is refused with ORDER_REVERSAL_REQUIRED; draft sales cancellation succeeds",
+        "quote conversion persists converted/version 4, one draft sales order with source_id and copied lines, one receipt/audit/outbox, and same-key replay does not duplicate",
+        "a trigger failure on outbox insertion rolls back order state, receipt and audit; the exact retry then persists once",
+        "a caller outside a transaction and a caller inside a read-committed transaction fail closed before owner SQL"
+      ]
+    },
+    "httpRouter": {
+      "tests": [
+        "actual loopback router forwards detail and exact transition action/version/reason/key",
+        "unknown query, host, Holding, missing key, unknown action, extra body key and owner conflict are bounded 4xx",
+        "responses carry private/no-store, no-referrer and nosniff headers",
+        "duplicate targets, non-HTTPS origins, origins with paths/ports and malformed slugs fail configuration"
+      ],
+      "limit": "The router test uses a recording backend; it does not prove the shared composition backend or a PostgreSQL-backed HTTP request."
+    },
+    "typescript": {
+      "unit": "vitest tests/unit/commerce/native-commerce-orders-transport.test.ts: 6 passed (closed selector and exact config; document target/session/scope/context forwarding; foreign/extra/duplicate/unordered document and changed-context denial; exact transition body/key/content type; owner conflict and no-fallback failure; changed-context/request/config failure mapping)",
+      "typechecks": [
+        "tsc --noEmit --project packages/feature-commerce/tsconfig.json: pass",
+        "tsc --noEmit --project packages/feature-sales/tsconfig.json: pass",
+        "tsc --noEmit --project packages/workplace/tsconfig.json: pass",
+        "tsc --noEmit --project tests/config/tsconfig.json: pass"
+      ],
+      "eslint": "targeted changed TypeScript files: 0 errors, 0 file warnings; the repository's existing Next pages-directory configuration warning only",
+      "runner": "Bun is not installed in this worktree; the transport test ran with a temporary Vitest config under ignored .scratch/commerce that isolates the new test file. No shared catalogue config or suite manifest was edited by this subagent."
+    },
+    "structure": {
+      "layout": "node_modules/.bin/tsx scripts/testing/layout.ts: exit 0, no output",
+      "architecture": "node_modules/.bin/tsx scripts/architecture/check.ts: exit 1 with 20 pre-existing owner/module-private findings in feature-legal, feature-pos, feature-supply, feature-quality, feature-assets, feature-platform_administration, feature-operations and feature-pms files outside this slice; no Commerce file appears in the findings",
+      "diffCheck": "git diff --check on the changed tracked Commerce paths: pass"
+    },
+    "browser": "not run; no Next dev server, authenticated page render, public URL or browser acceptance was executed. No workflow is claimed browser-verified."
+  },
+  "sharedCompositionAndSchema": {
+    "schemaDelta": "none; no migration, table, column, index, trigger or constraint was added or changed. The slice uses the existing 0001 baseline plus 0239/0247/1033 Commerce columns.",
+    "dependencyDelta": "no new external dependency; the crate uses the existing shared/runtime/sqlx/serde_json workspace set. No root Cargo.toml, Cargo.lock, bun.lock or other package lockfile change was authored by this subagent.",
+    "compositionDelta": "No src/composition change and no composition backend mount. The owner-local router and public ports are ready for a composition backend but are not mounted here.",
+    "publicPortsRequiredByComposition": [
+      "erpx_server_commerce::public::order::{CommerceOrderActor, CommerceOrderReadRepository, CommerceOrderCommandRepository, PgCommerceOrders, order_detail, transition_order, OrderAction, TransitionCommand, SalesOrderDocument, CommerceOrderReceipt}",
+      "erpx_server_commerce::public::order_http::{commerce_order_http_router, CommerceOrderHttpTarget, CommerceOrderHttpBackend, CommerceOrderHttpRequest, CommerceOrderHttpResponse, CommerceOrderHttpCommand}"
+    ],
+    "backendRequired": "Implement CommerceOrderHttpBackend in src/composition: parse the normal Account/Holding request, require commerce.read/commerce.sales/commerce.approve and the selected Company/branch/department, run feature-release and package admission inside one serializable Holding transaction, build CommerceOrderActor from current authority, call order_detail/transition_order with PgCommerceOrders, and map PgTransactionError to BusinessError. The Next orderFacts preflight is not atomic and must be repeated. Do not route sales approval or confirmed sales cancellation to this backend until Finance credit and Inventory reversal public ports exist.",
+    "privateDevelopmentApi": [
+      "Build one CommerceOrderHttpTarget per registered Holding with exact host, slug and https origin.",
+      "router = router.merge(erpx_server_commerce::public::order_http::commerce_order_http_router(targets).map_err(|_| \"PRIVATE_API_COMMERCE_ORDER_CONFIGURATION_INVALID\")?);",
+      "Mount /commerce/orders/{id} and /commerce/orders/{id}/transition before the generic 404 fallback."
+    ],
+    "nextEnvironment": "Set ERPX_NATIVE_COMMERCE_ORDER_CONFIG={\"privateBaseUrl\":\"http://127.0.0.1:<owned-loopback-port>\",\"timeoutMs\":250..30000,\"holdings\":[{\"origin\":\"https://<registered-holding>\",\"holdingSlug\":\"<slug>\",\"holdingId\":\"h00N\"}]} for each affected app.",
+    "rootWorkspace": "packages/server-commerce was already registered in the root Cargo.toml [workspace] members and Cargo.lock. This subagent did not author a root workspace or lockfile change."
+  },
+  "legacyRemovedOrRetained": {
+    "removed": [
+      "No retained TypeScript Commerce source file was deleted.",
+      "When ERPX_NATIVE_COMMERCE_ORDER_CONFIG is present, the order detail page reads native quote/sales order and lines instead of only the getOrder document header/lines.",
+      "Native quote/sales transitions replace transitionOrder for the bounded eligible actions when configured."
+    ],
+    "retained": [
+      "getOrder remains the unset-config reader and the source of cross-owner display labels (party_name, warehouse_name), fulfillment/return/reservation/attachment/notification sections, child orders and purchase-order detail.",
+      "transitionOrder remains the retained command for sales approval, confirmed sales cancellation, sales conversion, purchase orders and configured-ineligible actions.",
+      "Order create/update, reservation changes, fulfillment, invoicing, settlement, returns, customer notifications, posting setup and all other Commerce workflows remain retained TypeScript.",
+      "The GET API route still returns the complete getOrder projection; only order detail SSR and the eligible transition POST cut over."
+    ],
+    "cutover": "Only quote/sales document reads and the bounded transitions switch to the native owner when configured. An unset config retains TypeScript. A configured invalid or failed native read/command throws through the retained page/route error policy and never reads the TypeScript path as a fallback. Sales approval and confirmed sales cancellation remain on the retained path by explicit eligibility, not by failure fallback."
+  },
+  "concurrentWork": {
+    "preserved": "This shared worktree also contains concurrent platform-administration, finance, IAM, learning and other agent work. Those files were not edited, reverted or included in this slice. The .env.example change in this slice is additive and leaves concurrent blocks intact.",
+    "rootManifests": "Root Cargo.toml, Cargo.lock, package lockfiles, docs/status and src/composition were not edited by this subagent. No staging, private production or Cloudflare access was performed."
+  },
+  "blockersAndNextAction": {
+    "blockers": [
+      "No composition backend implements the public ports or mounts commerce_order_http_router",
+      "No authenticated browser or deployment verification was performed",
+      "Sales-order approval and confirmed sales-order cancellation remain retained because their Finance credit and Inventory reversal guards are not native public ports",
+      "Order create/update, fulfillment, invoicing, settlement, returns, purchase orders and customer notification workflows remain retained TypeScript",
+      "The GET API route remains on the retained full getOrder projection"
+    ],
+    "nextAction": "Have the composition owner implement the Account/scope/feature backend and mount the router, then qualify order draft create/update through Commerce-owned products/warehouses and public Finance party reads. Qualify sales approval only after a Finance credit-limit public port exists, and confirmed sales cancellation only after an Inventory reservation/reversal public port exists. Browser acceptance remains deferred."
+  },
+  "verificationHead": "f3eb38eed58ad74c64804133768b3cb941e426f8",
+  "sharedIntegrationFiles": {
+    "files": [
+      "docs/status/rust-backend-migration.json",
+      "docs/status/rust-delivery-bundles.json",
+      "tests/catalogue/suite-manifest.json"
+    ],
+    "note": "Not edited by this subagent. The integrating session must update the Commerce owner register/bundle and add the new Rust/TS suite entries if required."
+  }
+}

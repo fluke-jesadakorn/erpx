@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SqlDatabase, SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
-import { sendBetaEmail } from '@erpx/server-manage_erpx/adapters/beta-email';
+import type { SqlDatabase, SqlResult, SqlStatement } from '@erpx/platform-runtime-server/public/runtime/types';
+import { sendBetaEmail } from '@erpx/manage-erpx-server/adapters/beta-email';
 
 type EmailRow = {
   id: string;

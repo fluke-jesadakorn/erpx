@@ -1,0 +1,52 @@
+pub(crate) mod expense;
+pub(crate) mod identity_facts;
+pub(crate) mod invitation_person_link;
+pub(crate) mod leave;
+pub(crate) mod native_command_http;
+pub(crate) mod native_command_postgres;
+pub(crate) mod native_command_sql;
+pub(crate) mod native_read_sql;
+pub(crate) mod roster_position_exit_postgres;
+pub(crate) mod workforce;
+pub(crate) mod workforce_reference;
+
+pub(crate) mod finance_journal_names;
+
+pub(crate) mod field_service_worker;
+
+pub(crate) mod payroll_accounting_input;
+pub(crate) mod payroll_run;
+pub(crate) mod payroll_run_http;
+pub(crate) mod payroll_schedule;
+pub(crate) mod payroll_summary_http;
+pub(crate) mod payroll_summary_read;
+pub(crate) mod workforce_http;
+
+pub(crate) mod journal_flow_people;
+
+pub(crate) mod benefit_person;
+pub(crate) mod field_service_workspace;
+pub(crate) mod learning_person;
+pub(crate) mod operations_people;
+pub(crate) mod service_count_flow_people;
+
+pub(crate) mod staff_facts;
+
+pub(crate) mod rfq_request_people;
+pub(crate) mod workflow_projection_source;
+pub mod native_lane_6;
+pub mod native_lane_7;
+pub mod native_lane_8;
+pub mod native_lane_9;
+pub mod native_lane_10;
+pub(crate) mod holding_directory;
+pub mod native_pay_group_options;
+pub mod native_people_list;
+pub mod native_leave_calendar;
+pub mod native_r3_leave_summary;
+pub mod native_r3_worker_people_options;
+pub mod native_r3_expenses;
+pub mod native_r3_self_service;
+pub mod native_r3_people_core;
+pub mod native_r3_leave_requests;
+pub mod native_r3_people_country_packs;

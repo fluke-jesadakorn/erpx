@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Finance sales-defaults workspace, prepare and independent approval verified on desktop and mobile",
+  "capability": "finance-sales-defaults-native",
+  "base": "94fc8d2cc310c1900fd13701bf11b4f519235ea4",
+  "branch": "codex/finance-sales-defaults-native",
+  "sourceCommit": "7b9292b4a864a3ada1a0e378bd034a26bda8e1f0",
+  "implementation": {
+    "adapter": "packages/server-finance/src/adapters/sales_defaults.rs",
+    "public": "packages/server-finance/src/public/sales_defaults.rs",
+    "composition": "src/composition/src/finance_journal_detail.rs (sales_defaults_workspace/prepare/decide)",
+    "http": "src/composition/src/finance_journal_detail_http.rs",
+    "transport": "packages/feature-finance/src/adapters/server/native-sales-defaults.ts",
+    "nextRoute": "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/sales/[[...path]]/route.ts",
+    "page": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/sales/settings/screen.tsx"
+  },
+  "behavior": {
+    "workspace": "charts, accounts, customer parties, all sales-defaults editions, usable approved defaults and account issues",
+    "prepare": "validates one active chart and distinct active receivable/revenue/VAT accounts in the same currency, inserts the draft edition and the finance.sales-defaults.prepare receipt/audit/outbox",
+    "decide": "requires finance.approve, a different user from the creator, the current expected version, revalidates accounts, supersedes the previous approved edition for the currency and writes finance.sales-defaults.decide",
+    "authority": "current Account/Holding authority, rendered-context CAS, Company scope only, finance.read/finance.write/finance.approve and finance.accounting or finance.sales-posting purchase",
+    "atomicity": "serializable transaction with finance_sales_defaults share-row-exclusive and chart/account/party share locks"
+  },
+  "checks": {
+    "postgres": "finance.rust-sales-defaults-postgres.integration 3/3",
+    "cases": [
+      "workspace charts/accounts/parties and empty editions",
+      "prepare draft with two command receipts; exact replay does not duplicate",
+      "creator self-approval is 403 INDEPENDENT_APPROVER_REQUIRED",
+      "reviewer approval is approved/version 2 and the approved defaults become usable",
+      "a newer approved edition supersedes the previous approved currency edition",
+      "branch scope, duplicate accounts and stale expected version are rejected",
+      "HTTP GET workspace, POST prepare 201 and POST decide 200 with real cookie/CAS/key"
+    ],
+    "regressions": "finance.rust-sales-invoice-create-postgres 3/3; finance.rust-sales-invoice-list-postgres 3/3; finance.rust-journal-list-postgres 2/2",
+    "gates": "cargo clippy private-field-api, typecheck, structure, architecture, docs, catalogue (33 modules, 790 suites), rust-runtime-foundation 6/6, finance unit transport suites 4/4"
+  },
+  "browser": {
+    "desktop": {
+      "viewport": "1280x900",
+      "prepare": {
+        "postStatus": 201,
+        "id": "sales-defaults-55d3f8bd-7bcc-418e-a408-b3bb64cc1a8a",
+        "status": "draft",
+        "version": 1
+      },
+      "approve": {
+        "postStatus": 200,
+        "id": "sales-defaults-55d3f8bd-7bcc-418e-a408-b3bb64cc1a8a",
+        "status": "approved",
+        "version": 2
+      },
+      "pageErrors": 0,
+      "consoleErrors": 4
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "prepare": {
+        "postStatus": 201,
+        "id": "sales-defaults-0beddf04-6e42-43ad-8148-4479669718c7",
+        "status": "draft",
+        "version": 1
+      },
+      "approve": {
+        "postStatus": 200,
+        "id": "sales-defaults-0beddf04-6e42-43ad-8148-4479669718c7",
+        "status": "approved",
+        "version": 2
+      },
+      "pageErrors": 0,
+      "consoleErrors": 4
+    },
+    "persisted": "Current THB approved edition sales-defaults-0beddf04-6e42-43ad-8148-4479669718c7 (version 2, reviewed by the manager). The desktop-approved 55d3f8bd edition and the earlier browser-sales-defaults edition are superseded. Receipts: 3 prepare and 2 decide; audit/outbox counts match."
+  },
+  "limits": [
+    "The generic sales-invoice workspace remains partial: customer-receipt detail/export/issue for standalone receipts and standalone edit/void are still TS.",
+    "The native customer-receipt readback that already exists is source-qualified Field; it is not the generic standalone receipt slice.",
+    "A failed native transport validation left one extra draft (sales-defaults-858301d0) in the development fixture; it is not approved and is not used by the settings page.",
+    "The Finance app logs React hydration console warnings; pageErrors stay 0."
+  ]
+}

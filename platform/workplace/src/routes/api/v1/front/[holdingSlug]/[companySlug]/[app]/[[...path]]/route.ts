@@ -1,0 +1,320 @@
+import {canonicalDestinationLinks} from "@erpx/work-projection-ui/lib/destination-links";
+import { roomChargeReversalQueue } from "@erpx/pos-server/public/room-charge-reversal-queue";
+import { canonicalGuestAccount, guestAccountOperation } from "@erpx/identity-access-ui/lib/guest-account-compat";
+import { z } from "zod";
+import { ensureFrontRole, frontCompanyBrand, frontLocationScope, frontOperationAllowed, frontRoleState, type FrontAppKind } from "@erpx/work-projection-server/public/front-app";
+import { NATIVE_POS_COMMANDS, createNativePosCashClient, nativePosCashActor, nativePosCashAvailable, nativePosCashConfiguration, nativePosCashFailure } from "@erpx/pos-ui/public/native-pos-cash";
+import { requireWorkContext } from "@erpx/identity-access-server/public/authorization";
+import { requestPublicOrigin } from "@erpx/manage-erpx-server/public/public-origin";
+import { ApiError, errorResponse } from "@erpx/platform-runtime-server/public/http";
+import { holdingResources } from "../../../../../../../../../../runtime/server/src/public/runtime";
+import { PostgresDatabase } from "@erpx/platform-runtime-server/public/runtime/postgres";
+import { posWorkspace } from "@erpx/pos-server/public/pos";
+import {posCommand} from '@erpx/pos-server/public/pos-core';
+import {staffBookingChange} from "@erpx/pms-server/public/pms/staff-booking-changes";
+import { pmsWorkspace, pmsCommand } from "../../../../../../../../../../../modules/pms/server/src/public/pms";
+import { pmsReadSelectionFromSearch } from "@erpx/pms-server/public/rules/pms-read-selection";
+import { staffBookingSearch, bookingError } from "@erpx/pms-server/public/pms-booking";
+import { isTransactionalSqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import { selectWorkRole } from "@erpx/work-projection-server/public/work-role-store";
+import {frontCompanyQuickAccessRequest,frontLegacyQuickAccessRequest} from '@erpx/work-projection-server/public/front-quick-access-request';
+import {boundedBody} from '@erpx/legal-server/public/legal/body';
+import { pmsHomeRead, pmsHomeWrite } from "@erpx/pms-server/public/pms/home-api";
+import {nativeCreateComment,nativePostAction,nativePublishDraft,nativeSaveDraft,nativeSocialAvailable} from '@erpx/collaboration-server/public/native-social-page';
+import { nativePosCustomerSearch } from "../../../../../../../../../../../modules/pos/server/src/public/native-customer-search";
+import { posProductImage } from "@erpx/pos-server/public/pos-images";
+import {frontTaxDocumentCommand,frontTaxDocumentView} from "@erpx/finance-server/public/hospitality-tax-documents";
+import {taxDocumentRequest} from "@erpx/finance-server/public/hospitality-tax-document-request";
+import {frontPmsAttachmentPaths,frontPmsAttachmentRequest} from "@erpx/pms-server/public/pms/front-attachments";
+import {moneyContext,preferenceSchema,saveCurrencyPreference} from '@erpx/finance-server/public/company-money';
+
+export const dynamic = "force-dynamic";
+
+type Context = {
+  params: Promise<{
+    holdingSlug: string;
+    companySlug: string;
+    app: string;
+    path?: string[];
+  }>;
+};
+
+function assertOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  if (origin !== requestPublicOrigin(request))
+    throw new ApiError(403, "ORIGIN_FORBIDDEN", "Use the application origin.");
+}
+function legacySessionCookie(request: Request) {
+  return /(?:^|;\s*)(?:(?:__Secure-)?better-auth|erpx-[a-z0-9_-]+)\.session_token/.test(request.headers.get("cookie") ?? "");
+}
+
+async function frontActor(
+  request: Request,
+  holdingSlug: string,
+  companySlug: string,
+  app: FrontAppKind,
+) {
+  const brand = await frontCompanyBrand(holdingSlug, companySlug);
+  if (!brand)
+    throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
+  const requestedCompany = request.headers.get("x-erpx-front-company");
+  if (requestedCompany && requestedCompany !== companySlug)
+    throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
+  const contentLocation = app==='pms'&&/\/attachment-links\/[^/]+\/content$/.test(new URL(request.url).pathname)
+    ? new URL(request.url).searchParams.get('frontLocation') : null;
+  const location = request.headers.get("x-erpx-front-location")?.trim() || contentLocation || "holding";
+  const scope = frontLocationScope(holdingSlug, location);
+  if (!scope)
+    throw new ApiError(404, "FRONT_LOCATION_NOT_FOUND", "This Front location is unavailable.");
+  let actor;
+  try {
+    await ensureFrontRole(holdingSlug, brand.companyId, app, location);
+    actor = await requireWorkContext(scope);
+  } catch (error) {
+    if (error && typeof error === 'object' && (error as { code?: unknown }).code === 'WORKSPACE_UNAVAILABLE')
+      throw new ApiError(403, 'FRONT_ACCESS_DENIED', 'No active assignment can open this Front workspace.');
+    throw error;
+  }
+  if (actor.companyId !== brand.companyId)
+    throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
+  return actor;
+}
+
+function commandKey(request: Request) {
+  const key = request.headers.get("Idempotency-Key");
+  if (!key)
+    throw new ApiError(422, "IDEMPOTENCY_KEY_REQUIRED", "An Idempotency-Key is required.");
+  return key;
+}
+
+export async function PUT(request:Request,{params}:Context){
+ try{
+  assertOrigin(request);
+  const {holdingSlug,companySlug,app,path=[]}=await params;
+  if(app!=='pms'||path[0]!=='uploads')throw new ApiError(404,'NOT_FOUND','Hotel upload not found.');
+  return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,'pms'),path);
+ }catch(error){return errorResponse(error);}
+}
+
+export async function GET(request: Request, { params }: Context) {
+  try {
+    const { holdingSlug, companySlug, app: rawApp, path = [] } = await params;
+    if (rawApp !== "pos" && rawApp !== "pms")
+      throw new ApiError(404, "NOT_FOUND", "Not found.");
+    const app = rawApp as FrontAppKind;
+    if (path.join("/") === "room-charge-reversals") {
+      const actor=await frontActor(request,holdingSlug,companySlug,app);
+      const data=await roomChargeReversalQueue(actor,new URL(request.url).searchParams.get("property")??undefined);
+      return Response.json(canonicalDestinationLinks({data:data.filter(row=>row.stage===app)}),{headers:{"Cache-Control":"private, no-store"}});
+    }
+    if (path.length === 1 && path[0] === "money") {
+      const actor = await frontActor(request, holdingSlug, companySlug, app);
+      return Response.json(canonicalDestinationLinks({ data: { ...await moneyContext(actor), canConfirmRate: false } }), { headers: { "Cache-Control": "private, no-store" } });
+    }
+    if(app==='pms'&&frontPmsAttachmentPaths.has(path[0]))return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,app),path);
+    if(path.length===1&&path[0]==='tax-documents'){
+      const actor=await frontActor(request,holdingSlug,companySlug,app);
+      const invoiceId=z.string().uuid().parse(new URL(request.url).searchParams.get('invoiceId'));
+      return Response.json(canonicalDestinationLinks({data:await frontTaxDocumentView(actor,invoiceId,app)}),{headers:{'Cache-Control':'private, no-store'}});
+    }
+    if (app === "pms" && path[0] === "home") {
+      const actor = await frontActor(request, holdingSlug, companySlug, app);
+      return Response.json(canonicalDestinationLinks({data:await pmsHomeRead(actor,path.slice(1),new URL(request.url).searchParams)}), {headers:{"Cache-Control":"private, no-store"}});
+    }
+    if (path.length === 1 && path[0] === "roles") {
+      const brand = await frontCompanyBrand(holdingSlug, companySlug);
+      if (!brand) throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
+      const location = request.headers.get("x-erpx-front-location")?.trim() || "holding";
+      const state = await ensureFrontRole(holdingSlug, brand.companyId, app, location);
+      return Response.json(canonicalDestinationLinks({ data: {
+        valid: !!state.selected,
+        userId: state.access.userId,
+        revision: state.selection?.revision ?? 0,
+        assignmentVersion: state.selection?.assignment_version ?? null,
+        assignmentId: state.selection?.assignment_id ?? null,
+        companyId: brand.companyId,
+      } }), { headers: { "Cache-Control": "private, no-store" } });
+    }
+    if (path.length === 1 && path[0] === "quick-access") {
+      const brand = await frontCompanyBrand(holdingSlug, companySlug);
+      if (!brand) throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
+      if (legacySessionCookie(request))
+        return Response.json(canonicalDestinationLinks({ data: await frontLegacyQuickAccessRequest(request, app, brand.companyId) }), { headers: { "Cache-Control": "private, no-store" } });
+      const actor = await frontActor(request, holdingSlug, companySlug, app);
+      return Response.json(canonicalDestinationLinks({ data: await frontCompanyQuickAccessRequest(request,app,actor,()=>frontActor(request,holdingSlug,companySlug,app)) }), { headers: { "Cache-Control": "private, no-store" } });
+    }
+    if(app==='pos'&&path[0]==='images'&&path.length===2)return posProductImage(await frontActor(request,holdingSlug,companySlug,app),path[1]);
+    if(app==='pos'&&path.join('/')==='customers/search'){
+      const actor=await frontActor(request,holdingSlug,companySlug,app);
+      return Response.json(canonicalDestinationLinks({data:await nativePosCustomerSearch(actor,new URL(request.url).searchParams.get('q')??'')}),{headers:{'Cache-Control':'private, no-store'}});
+    }
+    if (path.length)
+      throw new ApiError(403, "FRONT_ROUTE_FORBIDDEN", "This work belongs in ERPX administration.");
+    const actor = await frontActor(request, holdingSlug, companySlug, app);
+
+    const search = new URL(request.url).searchParams;
+    if (app === "pos") {
+      const tab = search.get("tab") ?? "sale";
+      if (!["sale", "kitchen", "shifts", "history"].includes(tab))
+        throw new ApiError(403, "FRONT_ROUTE_FORBIDDEN", "This view belongs in ERPX administration.");
+      return Response.json(
+        canonicalDestinationLinks({ data: await posWorkspace(actor, search.get("sale") ?? undefined, search.get("q") ?? "", tab, search.get("cursor") ?? undefined, true) }),
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+    return Response.json(
+      canonicalDestinationLinks({ data: await pmsWorkspace(actor, search.get("property") ?? undefined, search.get("dayControls") === "1", true, pmsReadSelectionFromSearch(search)) }),
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function POST(request: Request, { params }: Context) {
+  try {
+    assertOrigin(request);
+    const { holdingSlug, companySlug, app: rawApp, path = [] } = await params;
+    if (rawApp !== "pos" && rawApp !== "pms")
+      throw new ApiError(404, "NOT_FOUND", "Not found.");
+    const app = rawApp as FrontAppKind;
+    if(app==='pms'&&frontPmsAttachmentPaths.has(path[0]))return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,app),path);
+    if (app === "pms" && path[0] === "home") {
+      const actor = await frontActor(request, holdingSlug, companySlug, app);
+      if (nativeSocialAvailable()) {
+        const social = path.slice(1), key = commandKey(request);
+        if (social.length === 1 && social[0] === "publish") {
+          const input = await request.json();
+          const saved = await nativeSaveDraft(request, holdingSlug, input, key) as { id: string; version: number };
+          const data = await nativePublishDraft(request, holdingSlug, saved.id, saved.version, `${key}-publish`);
+          return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
+        }
+        if (social.length === 2 && social[0] === "posts") {
+          const input = await request.json();
+          const data = input.action === "comment"
+            ? await nativeCreateComment(request, holdingSlug, social[1]!, { body: input.body, parentCommentId: input.parentCommentId, mentions: input.mentions }, key)
+            : await nativePostAction(request, holdingSlug, social[1]!, input, key);
+          return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
+        }
+      }
+      const version=path.length===4&&path[1]==='handover'&&path[3]==='acknowledgement'?request.headers.get('x-erpx-handover-version'):null;
+      if(version!==null&&(!/^[1-9][0-9]{0,15}$/.test(version)||!Number.isSafeInteger(Number(version))))throw new ApiError(422,'HANDOVER_VERSION_INVALID','Provide the handover version shown on this page.');
+      return Response.json(canonicalDestinationLinks({data:await pmsHomeWrite(actor,path.slice(1),await request.json(),commandKey(request),version===null?undefined:Number(version))}), {headers:{"Cache-Control":"private, no-store"}});
+    }
+    if (path.length === 1 && path[0] === "roles") {
+      const brand = await frontCompanyBrand(holdingSlug, companySlug);
+      if (!brand) throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
+      const input = z.object({ location: z.string().min(1).max(256), assignmentId: z.string().min(1).max(128), revision: z.number().int().nonnegative() }).parse(await request.json());
+      const state = await frontRoleState(holdingSlug, brand.companyId, app, input.location);
+      const assignment = state.options.find((item) => item.id === input.assignmentId);
+      if (!assignment) throw new ApiError(403, "ASSIGNMENT_UNAVAILABLE", "Choose an active Front role for this location.");
+      const selected = await selectWorkRole(state.write, {
+        sessionId: state.access.sessionId, userId: state.access.userId, companyId: brand.companyId,
+        assignmentId: assignment.id, assignmentVersion: assignment.version!, revision: input.revision,
+        expiresAt: state.access.expiresAt, rememberPreference: false,
+      });
+      return Response.json(canonicalDestinationLinks({ data: { assignmentId: assignment.id, revision: selected.revision } }), { headers: { "Cache-Control": "private, no-store" } });
+    }
+    if (path.length === 1 && path[0] === "quick-access" && legacySessionCookie(request)) {
+      const brand = await frontCompanyBrand(holdingSlug, companySlug);
+      if (!brand) throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
+      let raw:unknown;try{raw=JSON.parse(new TextDecoder().decode(await boundedBody(request,8192)));}catch(error){if(error instanceof SyntaxError)throw new ApiError(422,'INVALID_JSON','Use a JSON body.');throw error;}
+      const input = z.object({ pinnedIds: z.array(z.string().min(1).max(128)).max(6).nullable(), expectedVersion: z.number().int().nonnegative() }).parse(raw);
+      const preference = await frontLegacyQuickAccessRequest(request, app, brand.companyId, { ...input, requestKey: commandKey(request) });
+      return Response.json(canonicalDestinationLinks({ data: preference }), { headers: { "Cache-Control": "private, no-store" } });
+    }
+    const actor = await frontActor(request, holdingSlug, companySlug, app);
+
+    if (path[0] === "money") {
+      if (path.length !== 2 || path[1] !== "preference")
+        throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Currency administration is handled in ERPX.");
+      const input = await request.json().catch(() => { throw new ApiError(422, "INVALID_JSON", "Use a JSON body."); });
+      const parsed = preferenceSchema.safeParse(input);
+      if (!parsed.success) throw new ApiError(422, "INVALID_CURRENCY", parsed.error.issues[0]?.message ?? "Invalid currency.");
+      return Response.json(canonicalDestinationLinks({ data: await saveCurrencyPreference(actor, parsed.data, commandKey(request)) }), { headers: { "Cache-Control": "private, no-store" } });
+    }
+
+    if(path.length===1&&path[0]==='tax-documents'){
+      const {command,key}=await taxDocumentRequest(request);
+      return Response.json(canonicalDestinationLinks({data:await frontTaxDocumentCommand(actor,command,key,app)}),{headers:{'Cache-Control':'private, no-store'}});
+    }
+
+    if (path.length === 1 && path[0] === "quick-access") {
+      const preference=await frontCompanyQuickAccessRequest(request,app,actor,()=>frontActor(request,holdingSlug,companySlug,app),async()=>{
+        let raw:unknown;try{raw=JSON.parse(new TextDecoder().decode(await boundedBody(request,8192)));}catch(error){if(error instanceof SyntaxError)throw new ApiError(422,'INVALID_JSON','Use a JSON body.');throw error;}
+        const input = z.object({
+          pinnedIds: z.array(z.string().min(1).max(128)).max(6).nullable(),
+          expectedVersion: z.number().int().nonnegative(),
+        }).parse(raw);
+        return {...input,requestKey:commandKey(request)};
+      });
+      return Response.json(canonicalDestinationLinks({ data: preference }), { headers: { "Cache-Control": "private, no-store" } });
+    }
+
+    if (app === "pms" && path.length===2 && path[0]==="room_charge_reversal" && ["approve_pms","reject_pms"].includes(path[1])) {
+      const db=(await holdingResources(actor.holdingId)).write;
+      if(!isTransactionalSqlDatabase(db))throw new Error("POSTGRES_REQUIRED");
+      return Response.json(canonicalDestinationLinks({data:await posCommand(db as PostgresDatabase,actor,path.join("."),await request.json(),commandKey(request))}),{headers:{"Cache-Control":"private, no-store"}});
+    }
+    if (app === "pos") {
+      if (path.length !== 2)
+        throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Configuration and approvals are handled in ERPX.");
+      const operation = path.join(".");
+      if (!frontOperationAllowed(app, operation))
+        throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Configuration and approvals are handled in ERPX.");
+      const nativeRequired = NATIVE_POS_COMMANDS.has(operation) || operation === "cash.create";
+      if (nativeRequired) {
+        if (!nativePosCashAvailable())
+          throw new ApiError(503, "NATIVE_POS_COMMAND_REQUIRED", "This POS operation requires the native owner service.");
+        const key = commandKey(request), raw = await request.text();
+        const native = createNativePosCashClient(nativePosCashConfiguration(process.env.ERPX_NATIVE_POS_CASH_CONFIG!));
+        try {
+          const data = operation === "cash.create"
+            ? await native.cash(request.headers, nativePosCashActor(actor), key, raw)
+            : await native.command(request.headers, nativePosCashActor(actor), operation, key, raw);
+          return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
+        } catch (error) {
+          const failure = nativePosCashFailure(error);
+          if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+          throw error;
+        }
+      }
+      const body = await request.json();
+      const db = (await holdingResources(actor.holdingId)).write as PostgresDatabase;
+      return Response.json(
+        canonicalDestinationLinks({ data: await posCommand(db, actor, operation, body, commandKey(request)) }),
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
+    if(path.length===1&&path[0]==='booking-changes'){
+      const db=(await holdingResources(actor.holdingId)).write;
+      if(!isTransactionalSqlDatabase(db))throw new Error('POSTGRES_REQUIRED');
+      return Response.json(canonicalDestinationLinks({data:await staffBookingChange(db,actor,holdingSlug,await request.json(),commandKey(request))}),{headers:{'Cache-Control':'private, no-store'}});
+    }
+
+    if (path.length === 1 && (path[0] === "availability" || path[0] === "quote")) {
+      const value = z.object({ propertyId: z.string().min(1), input: z.unknown() }).parse(await request.json());
+      return Response.json(
+        canonicalDestinationLinks({ data: await staffBookingSearch(actor, value.propertyId, path[0], value.input) }),
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
+    if (path.length)
+      throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Configuration and approvals are handled in ERPX.");
+    const key = commandKey(request);
+    const body = canonicalGuestAccount(await request.json());
+    const operation = typeof body?.operation === "string" ? guestAccountOperation(body.operation) : "";
+    if (!frontOperationAllowed(app, operation))
+      throw new ApiError(403, "FRONT_COMMAND_FORBIDDEN", "Configuration and approvals are handled in ERPX.");
+    const db = (await holdingResources(actor.holdingId)).write;
+    if (!isTransactionalSqlDatabase(db)) throw new Error("POSTGRES_REQUIRED");
+    return Response.json(
+      canonicalDestinationLinks({ data: await pmsCommand(db, actor, body, key) }),
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  } catch (error) {
+    return errorResponse(error instanceof z.ZodError ? new ApiError(422, "VALIDATION_FAILED", error.issues[0]?.message ?? "Invalid input.") : bookingError(error));
+  }
+}

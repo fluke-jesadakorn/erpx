@@ -1,0 +1,35 @@
+{
+  "name": "@erpx/customer-authority-ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/customer-portal-enrollment": "./src/components/customer-portal-enrollment.tsx",
+    "./components/customer-portal-actions": "./src/components/customer-portal-actions.tsx",
+    "./components/support-ticket-portal": "./src/components/support-ticket-portal.tsx",
+    "./components/portal-support-response-editor": "./src/components/portal-support-response-editor.tsx",
+    "./components/portal-support-acknowledgement": "./src/components/portal-support-acknowledgement.tsx",
+    "./lib/access-sources": "./src/lib/access-sources.ts",
+    "./lib/portal-command-attempt": "./src/lib/portal-command-attempt.ts",
+    "./lib/portal-display": "./src/lib/portal-display.ts",
+    "./lib/support-ticket-portal-command": "./src/lib/support-ticket-portal-command.ts",
+    "./lib/sales-review-counts": "./src/lib/sales-review-counts.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/crm-ui": "workspace:*",
+    "@erpx/files-ui": "workspace:*",
+    "@erpx/identity-access-ui": "workspace:*",
+    "@erpx/people-payroll-ui": "workspace:*",
+    "@erpx/platform-shared-ui": "workspace:*",
+    "@erpx/work-projection-ui": "workspace:*",
+    "@erpx/customer-authority-server": "workspace:*",
+    "@erpx/support-server": "workspace:*",
+    "@erpx/platform-ui": "workspace:*",
+    "react": "19.3.1",
+    "@erpx/platform-contracts": "workspace:*"
+  }
+}

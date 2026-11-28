@@ -1,0 +1,5 @@
+{
+  "fieldUploadAncestor": "EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND erpx_files_field_attachment_owned(a.id))",
+  "fieldSetUpload": "OR EXISTS(SELECT 1 FROM upload_intents u WHERE u.attachment_set_id=s.id AND ",
+  "attachmentIdAnd": "FROM attachments a WHERE a.id=? AND "
+}

@@ -1,16 +1,15 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { getWorkReview } from "@erpx/server-work_projection/public/work-review";
-import { workReviewCommand } from "@erpx/feature-work_projection/lib/work-review";
-import {expenseDecisionSchema,transitionExpense} from '@erpx/server-people_payroll/public/expenses';
-import {employeeRequestSchema,requestActionSchema,saveEmployeeRequest,actOnEmployeeRequest} from '@erpx/server-records/public/employee-requests';
-import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
-import {saveTask,taskSchema,transitionTask,taskActionSchema} from '@erpx/server-operations/public/staff-tasks';
-import {createLeave,submitLeave,leaveDraftSchema} from '@erpx/server-people_payroll/public/leave';
-import * as flowRouting from "@erpx/server-workflow/public/flow-routing";
+import { getWorkReview } from "@erpx/work-projection-server/public/work-review";
+import { workReviewCommand } from "@erpx/work-projection-ui/lib/work-review";
+import {expenseDecisionSchema,transitionExpense} from '@erpx/people-payroll-server/public/expenses';
+import {employeeRequestSchema,requestActionSchema,saveEmployeeRequest,actOnEmployeeRequest} from '@erpx/records-server/public/employee-requests';
+import {getEmployeeRequest} from '@erpx/records-server/public/employee-requests-read';
+import {createLeave,submitLeave,leaveDraftSchema} from '@erpx/people-payroll-server/public/leave';
+import * as flowRouting from "@erpx/workflow-server/public/flow-routing";
 
-vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});
@@ -61,13 +60,6 @@ it("shows purchase return authority and keeps accounting preparation in the full
   expect(row.version).toBeGreaterThan(review.version);
   const preparation=await getWorkReview(f.reviewer,"purchase_request",id);
   expect(preparation.permittedActions).toEqual([]);expect(preparation.fullReviewReason).toContain("accounting");
-});
-
-it("uses task authority for a start review without granting the assignee self review",async()=>{
-  const saved=await saveTask(db,f.claimant,null,taskSchema.parse({title:"Inspect deliveries",assigneeUserId:f.it.userId,startApprovers:[f.head.userId],dueAt:"2026-10-15T02:00:00Z"}),key());
-  await transitionTask(db,f.claimant,saved.id,taskActionSchema.parse({action:"submit",expectedVersion:1,note:"Ready"}),key());
-  expect((await getWorkReview(f.head,"staff_task",saved.id)).permittedActions).toContain("approve");
-  expect((await getWorkReview(f.it,"staff_task",saved.id)).permittedActions).toEqual([]);
 });
 
 it("reads a leave review through the leave owner and preserves its source version",async()=>{

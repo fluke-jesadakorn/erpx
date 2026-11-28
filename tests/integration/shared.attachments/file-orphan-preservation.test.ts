@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { env, applyMigrations } from "../../support/runtime-env";
-import { preserveUnreferencedFiles, orphanObjectReferences, sealUnreferencedStoredObjects } from "@erpx/server-files/public/attachments/orphan-preservation";
-import { reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
-import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem";
+import { preserveUnreferencedFiles, orphanObjectReferences, sealUnreferencedStoredObjects } from "@erpx/files-server/public/attachments/orphan-preservation";
+import { reconcileAttachmentStorage } from "@erpx/files-server/public/attachments/migration";
+import { LocalFileStore } from "@erpx/platform-runtime-server/adapters/runtime/filesystem";
 
 beforeAll(async()=>{await applyMigrations(env.H001_DB,env.STAFF_TEST_MIGRATIONS);});
 const environment:NodeJS.ProcessEnv={NODE_ENV:'test',ERPX_ENVIRONMENT:"local",ERPX_ATTACHMENTS_V2:"false",ERPX_ATTACHMENT_UPLOAD_FREEZE:"true"};

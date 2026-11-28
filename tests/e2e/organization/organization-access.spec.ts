@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import type { OrganizationAccessData } from "@erpx/feature-organization/lib/organization-access";
-import type { PositionMovePreview } from "@erpx/feature-people_payroll/lib/position-moves";
-import type { LifecyclePreview } from "@erpx/feature-people_payroll/lib/people-lifecycle";
+import type { OrganizationAccessData } from "@erpx/organization-ui/lib/organization-access";
+import type { PositionMovePreview } from "@erpx/people-payroll-ui/lib/position-moves";
+import type { LifecyclePreview } from "@erpx/people-payroll-ui/lib/people-lifecycle";
 import { interceptOrganizationWrites, openHrOrganization, organizationSession, readDirectory, readOrganization, selectExplorerItem } from "../../support/helpers/organization-access-browser";
 
 function occupiedPosition(data: OrganizationAccessData) {

@@ -1,36 +1,42 @@
 import {recordField} from "../../support/helpers/required-fact";
 import { afterAll,beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { createHash } from "node:crypto";
-import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
 import { applyMigrations,env } from "../../support/runtime-env";
 
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
+vi.mock("@erpx/files-server/public/attachments/scanner",()=>({
   attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"ClamAV test",definitionUpdatedAt:Date.now(),error:null}),
   scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"ClamAV test",definitionUpdatedAt:Date.now()}),
 }));
-vi.mock("@erpx/server-files/public/attachments/preview",()=>({
+vi.mock("@erpx/files-server/public/attachments/preview",()=>({
   attachmentPreviewReadiness:async()=>({ready:true,heifConvert:"/test/heif-convert",pdftoppm:"/test/pdftoppm",error:null}),
   detectedAttachmentMediaType:(_bytes:Uint8Array,declared:string)=>declared,
   sanitizedAttachmentPreview:async(_bytes:Uint8Array,mediaType:string)=>mediaType.startsWith("image/")?{bytes:new Uint8Array([82,73,70,70,4,0,0,0,87,69,66,80]),mediaType:"image/webp" as const}:null,
 }));
 
-import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload,withdrawAttachmentLink } from "@erpx/server-files/public/attachments/service";
-import { attachmentPolicy } from "@erpx/server-files/public/attachments/policy";
-import {postView,publishPost,savePostDraft,type PostContent} from '@erpx/server-collaboration/public/social-home';
-import { listBrandProfiles } from "@erpx/server-brand/public/branding";
-import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
-import { sha256 } from "@erpx/server-runtime/adapters/crypto";
-import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem";
-import { MinioFileStore } from "@erpx/server-runtime/adapters/runtime/minio";
-import { PostgresDatabase,transactionDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
-import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
-import { sealUnreferencedStoredObjects } from "@erpx/server-files/public/attachments/orphan-preservation";
+import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload } from "@erpx/files-server/public/attachments/service";
+import {withdrawSeededAttachment} from "../../support/helpers/attachment-v2";
+import {postView,publishPost,savePostDraft,type PostContent} from '@erpx/collaboration-server/public/social-home';
+import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "@erpx/files-server/public/attachments/migration";
+import { sha256 } from "@erpx/platform-runtime-server/adapters/crypto";
+import { LocalFileStore } from "@erpx/platform-runtime-server/adapters/runtime/filesystem";
+import { MinioFileStore } from "@erpx/platform-runtime-server/adapters/runtime/minio";
+import { PostgresDatabase,transactionDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/adapters/runtime/types";
+import { sealUnreferencedStoredObjects } from "@erpx/files-server/public/attachments/orphan-preservation";
 import { DeleteObjectCommand,S3Client } from "@aws-sdk/client-s3";
 
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 let companyA:string,companyB:string,productA:string,productB:string,campaignA:string,actorA:WorkContext,peerA:WorkContext,actorB:WorkContext;
 const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=","base64");
 function actor(companyId:string,userId:string):WorkContext{return {userId,name:userId,email:`${userId}@example.test`,assignmentId:`assignment-${userId}`,role:"holding_owner",companyId,branchId:null,departmentId:null,holdingId:"h001",holdingSlug:"acme",holdingName:"Test",scope:{kind:"holding",holdingId:"h001",holdingSlug:"acme",holdingName:"Test",companyId},assignmentScope:"holding",inherited:false,modules:[],assignments:[],workspaces:[]};}
+// Native Brand holding-profile projection stub. The Brand owner serves this read
+// through its native port; this test-local oracle reads the seeded approval row
+// asserted above and checks the same sanitized public media URL.
+const holdingBrandUrl=async(a:WorkContext)=>{
+ const row=await db.prepare("SELECT primary_publication_id FROM organization_brand_profiles WHERE scope_kind='holding' AND scope_id=?").bind(a.holdingId).first<{primary_publication_id:string|null}>();
+ return row?.primary_publication_id?`/api/public/holdings/${encodeURIComponent(a.holdingSlug)}/media-publications/${encodeURIComponent(row.primary_publication_id)}/content`:null;
+};
 
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);process.env.ERPX_ATTACHMENTS_V2="true";delete process.env.ERPX_ATTACHMENT_UPLOAD_FREEZE;});
 afterAll(()=>{delete process.env.ERPX_ATTACHMENTS_V2;delete process.env.ERPX_ATTACHMENT_UPLOAD_FREEZE;});
@@ -60,7 +66,7 @@ async function cleanupFileFixture(){
   const product=`product-${key()}`;
   await db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,price_minor) VALUES(?,?,?,?,100)").bind(product,companyA,`SKU-${key()}`,"Single-pool cleanup product").run();
   const set=await createAttachmentSet(db,actorA,{targetType:"product",targetId:product,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
-  await withdrawAttachmentLink(db,actorA,file.attachmentLinkId,"Owning transaction cleanup fixture",key());
+  await withdrawSeededAttachment(db,actorA,file.attachmentLinkId,"Owning transaction cleanup fixture",key());
   await db.prepare("UPDATE attachment_links SET expires_at=? WHERE id=?").bind(Date.now()-1,file.attachmentLinkId).run();
   const keys=(await db.prepare("SELECT object_key FROM attachment_storage_ledger WHERE attachment_id=? ORDER BY object_key").bind(file.sourceId).all<{object_key:string}>()).results.map(row=>row.object_key);
   return {...file,keys};
@@ -237,7 +243,7 @@ describe("canonical attachment lifecycle",()=>{
     expect(uploaded.state).toBe("quarantined");expect(await drainAttachmentScans(db,env.H001_FILES,uploaded.sourceId)).toBe(true);
     await expect(attachmentLinkStatus(db,actorB,reserved.attachmentLinkId)).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
     await expect(attachmentContent(db,env.H001_FILES,actorB,reserved.attachmentLinkId,"original")).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
-    await expect(withdrawAttachmentLink(db,actorB,reserved.attachmentLinkId,"foreign withdrawal",key())).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
+    await expect(withdrawSeededAttachment(db,actorB,reserved.attachmentLinkId,"foreign withdrawal",key())).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
     await expect(prepareAttachmentBinding(db,actorB,{attachmentSetIds:[set.id],bindingContract:{targetType:"product",bindingType:"record_document",contexts:[{purposeKey:"product_image",componentKind:"record",componentRef:null}]},targetId:productA,expectedTargetVersion:1,commandId:key(),bindingId:productA})).rejects.toMatchObject({status:404,code:"ATTACHMENT_SET_NOT_FOUND"});
     const bindingCommand=key(),bindingTables=["commerce_products","attachment_sets","attachment_links","attachments","upload_intents","attachment_events","attachment_storage_ledger","command_assertions","command_receipts","audit_events","outbox_events"];
     const bindingSnapshot=async()=>Object.fromEntries(await Promise.all(bindingTables.map(async table=>[table,(await db.prepare(`SELECT to_jsonb(snapshot) row FROM ${table} snapshot ORDER BY to_jsonb(snapshot)::text`).all<{row:unknown}>()).results.map(result=>result.row)])));
@@ -271,11 +277,11 @@ describe("canonical attachment lifecycle",()=>{
     expect(await db.prepare("SELECT supersedes_link_id FROM attachment_links WHERE id=?").bind(correction.attachmentLinkId).first("supersedes_link_id")).toBe(reserved.attachmentLinkId);
     const withdrawKey=key();
     const withdrawn=await Promise.all([
-      withdrawAttachmentLink(db,actorA,correction.attachmentLinkId,"Replace incorrect image",withdrawKey),
-      withdrawAttachmentLink(db,actorA,correction.attachmentLinkId,"Replace incorrect image",withdrawKey),
+      withdrawSeededAttachment(db,actorA,correction.attachmentLinkId,"Replace incorrect image",withdrawKey),
+      withdrawSeededAttachment(db,actorA,correction.attachmentLinkId,"Replace incorrect image",withdrawKey),
     ]);
     expect(withdrawn[0]).toEqual(withdrawn[1]);
-    await expect(withdrawAttachmentLink(db,actorA,correction.attachmentLinkId,"Different reason",key())).rejects.toMatchObject({status:409,code:"IDEMPOTENCY_CONFLICT"});
+    await expect(withdrawSeededAttachment(db,actorA,correction.attachmentLinkId,"Different reason",key())).rejects.toMatchObject({status:409,code:"IDEMPOTENCY_CONFLICT"});
 
     const hiddenDraft=await createAttachmentSet(db,actorA,{targetType:"product",targetId:productA,componentKind:"record",purposeKey:"specification",expectedTargetVersion:2},key());
     const hiddenReserved=await reserveAttachmentFile(db,actorA,hiddenDraft.id,{filename:"hidden.png",mediaType:"image/png",bytes:png.byteLength},key());
@@ -396,7 +402,7 @@ describe("canonical attachment lifecycle",()=>{
     const preservedProduct=`product-${key()}`,legalItem=`legal-item-${key()}`,legalHold=`legal-hold-${key()}`;
     await db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,price_minor) VALUES(?,?,?,?,100)").bind(preservedProduct,companyA,`SKU-${key()}`,"Legally preserved product").run();
     const preservedSet=await createAttachmentSet(db,actorA,{targetType:"product",targetId:preservedProduct,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key()),preserved=await availableProductFile(preservedSet.id),preservedObjectKey=String(await db.prepare("SELECT object_key FROM attachments WHERE id=?").bind(preserved.sourceId).first("object_key"));
-    await withdrawAttachmentLink(db,actorA,preserved.attachmentLinkId,"Legal preservation fixture",key());
+    await withdrawSeededAttachment(db,actorA,preserved.attachmentLinkId,"Legal preservation fixture",key());
     await db.batch([
       db.prepare("UPDATE attachment_links SET expires_at=? WHERE id=?").bind(Date.now(),preserved.attachmentLinkId),
       db.prepare("INSERT INTO legal_items(id,company_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,owner_id,created_by,state,created_at,updated_at) VALUES(?,?,'matter','Attachment preservation','','restricted','TH','TH','th','THB','Asia/Bangkok','normal',?,?,'archived',?,?)").bind(legalItem,companyA,actorA.userId,actorA.userId,Date.now(),Date.now()),
@@ -424,8 +430,8 @@ describe("canonical attachment lifecycle",()=>{
     const firstSet=await createAttachmentSet(db,actorA,{targetType:"product",targetId:sharedProduct,componentKind:"record",purposeKey:"product_image",expectedTargetVersion:1},key()),shared=await availableProductFile(firstSet.id);
     const secondSet=await createAttachmentSet(db,actorA,{targetType:"product",targetId:sharedProduct,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key()),reused={attachmentLinkId:`attachment-link-${key()}`};
     await db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,?,?)").bind(reused.attachmentLinkId,secondSet.id,shared.sourceId,actorA.userId,Date.now(),Date.now()+7*24*60*60_000).run();
-    await withdrawAttachmentLink(db,actorA,shared.attachmentLinkId,"Shared retention test",key());
-    await withdrawAttachmentLink(db,actorA,reused.attachmentLinkId,"Shared retention test",key());
+    await withdrawSeededAttachment(db,actorA,shared.attachmentLinkId,"Shared retention test",key());
+    await withdrawSeededAttachment(db,actorA,reused.attachmentLinkId,"Shared retention test",key());
     const boundary=Date.now();
     await db.batch([
       db.prepare("UPDATE attachment_links SET expires_at=? WHERE id IN (?,?)").bind(boundary,shared.attachmentLinkId,reused.attachmentLinkId),
@@ -533,7 +539,7 @@ describe("canonical attachment lifecycle",()=>{
     await expect(publicAttachmentPublication(db,env.H001_FILES,publicationId)).rejects.toMatchObject({status:404});
     await approveAttachmentPublication(db,peerA,publicationId,key());
     expect(await db.prepare("SELECT primary_publication_id FROM organization_brand_profiles WHERE scope_kind='holding' AND scope_id=?").bind(actorA.holdingId).first("primary_publication_id")).toBe(publicationId);
-    expect((await listBrandProfiles(db,peerA)).holding.primaryUrl).toContain(`/media-publications/${publicationId}/content`);
+    expect(await holdingBrandUrl(peerA)).toContain(`/media-publications/${publicationId}/content`);
     await expect(publicAttachmentPublication(db,env.H001_FILES,publicationId)).resolves.toMatchObject({row:{alt_text:"Test Holding mark"}});
 
     await expect(db.prepare("UPDATE attachment_publications SET alt_text='tampered' WHERE id=?").bind(publicationId).run()).rejects.toThrow(/ATTACHMENT_PUBLICATION_IMMUTABLE/);
@@ -552,7 +558,7 @@ describe("canonical attachment lifecycle",()=>{
     await db.prepare("INSERT INTO commerce_products(id,company_id,sku,name,price_minor) VALUES(?,?,?,?,100)").bind(cleanupProduct,companyA,`SKU-${key()}`,"Cleanup race product").run();
     const set=await createAttachmentSet(db,actorA,{targetType:"product",targetId:cleanupProduct,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
     const storedKeys=await db.prepare("SELECT object_key,preview_object_key FROM attachments WHERE id=?").bind(file.sourceId).first<{object_key:string;preview_object_key:string|null}>(),objectKey=storedKeys!.object_key;
-    await withdrawAttachmentLink(db,actorA,file.attachmentLinkId,"Cleanup ordering fixture",key());
+    await withdrawSeededAttachment(db,actorA,file.attachmentLinkId,"Cleanup ordering fixture",key());
     await db.prepare("UPDATE attachment_links SET expires_at=? WHERE id=?").bind(Date.now(),file.attachmentLinkId).run();
     const failingFiles=new Proxy(env.H001_FILES,{
       get(target,property,receiver){
@@ -814,11 +820,28 @@ describe("canonical attachment lifecycle",()=>{
     for(const marker of markers)expect(restored.missingLedger).not.toContain(marker);
     await expect(db.prepare("UPDATE attachment_storage_ledger SET bytes=bytes+1 WHERE attachment_id=?").bind(source.sourceId).run()).rejects.toThrow(/ATTACHMENT_STORAGE_IMMUTABLE/);
   });
+  it("serializes a legacy upload against concurrent Field lineage birth before bytes are written",async()=>{
+    const set=await createAttachmentSet(db,actorA,{targetType:"product",targetId:productA,componentKind:"record",purposeKey:"specification",expectedTargetVersion:1},key());
+    const reserved=await reserveAttachmentFile(db,actorA,set.id,{filename:"race.png",mediaType:"image/png",bytes:png.byteLength},key());
+    const sourceId=`attachment-${reserved.uploadIntentId}`;
+    let entered!:()=>void,release!:()=>void;const putEntered=new Promise<void>(resolve=>{entered=resolve;}),continuePut=new Promise<void>(resolve=>{release=resolve;});let puts=0;
+    const files=new Proxy(env.H001_FILES,{get(target,property,receiver){if(property==='put')return async(...args:Parameters<typeof target.put>)=>{puts++;entered();await continuePut;return target.put(...args);};const value=Reflect.get(target,property,receiver);return typeof value==='function'?value.bind(target):value;}});
+    const body=png.buffer.slice(png.byteOffset,png.byteOffset+png.byteLength),upload=completeAttachmentUpload(db,files,actorA,reserved.uploadIntentId,body);
+    await putEntered;
+    const lineage=db.prepare("UPDATE upload_intents SET owner_type='field_service_visit' WHERE id=?").bind(reserved.uploadIntentId).run();
+    try {
+      let blocked=false;for(let i=0;i<100&&!blocked;i++){blocked=Boolean((await db.prepare("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%UPDATE upload_intents SET owner_type=%') AS blocked").first<{blocked:boolean}>())?.blocked);if(!blocked)await new Promise(resolve=>setTimeout(resolve,25));}
+      expect(blocked).toBe(true);
+    } finally {release();}
+    const result=await upload;await lineage;expect(result.sourceId).toBe(sourceId);expect(puts).toBe(1);
+    expect(await db.prepare("SELECT erpx_files_field_attachment_owned(?) owned").bind(sourceId).first('owned')).toBe(true);
+  });
+
 });
 
 
 it('recovers the actual File set and reservation after Marketing source advancement and draining without accepting a fresh intake key',async()=>{
- const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),grant=async(state:'active'|'draining',packageId:'sales'|'sales-marketing'='sales-marketing')=>{const prior=(await readCompanyPackageGrants(db,companyA)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'declared-file-recovery-provider'}),obligations:async()=>{throw Error('FILE_RECOVERY_FIXTURE_DOES_NOT_CERTIFY_INACTIVE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:companyA,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Isolated actual stored File recovery source',evidence:'test:actual-file-recovery'}});};
+ const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/commercial-server/public/package-grants'),grant=async(state:'active'|'draining',packageId:'sales'|'sales-marketing'='sales-marketing')=>{const prior=(await readCompanyPackageGrants(db,companyA)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'declared-file-recovery-provider'}),obligations:async()=>{throw Error('FILE_RECOVERY_FIXTURE_DOES_NOT_CERTIFY_INACTIVE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:companyA,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Isolated actual stored File recovery source',evidence:'test:actual-file-recovery'}});};
  actorA={...actorA,modules:['marketing']};await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(actorA.modules),actorA.assignmentId).run();const asset=`recovery-asset-${key()}`;await db.prepare("INSERT INTO marketing_assets(id,company_id,kind,name,configuration_json,preview_json,status,created_by,version,created_at,updated_at) VALUES(?,?,'content','Actual original File recovery source','{}','{}','draft',?,1,1,1)").bind(asset,companyA,actorA.userId).run();
  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');
  try{
@@ -867,7 +890,7 @@ it('refuses changed public derivative bytes and arbitrary borrowed publication s
 
 
 it('observes a committed normal public revocation before its first publication byte snapshot',async()=>{
- const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
+ const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/platform-runtime-server/public/runtime/read-metrics');
  const set=await createAttachmentSet(db,actorA,{targetType:'product',targetId:productA,componentKind:'record',purposeKey:'product_image',expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
  await bindRecordAttachmentSet(db,actorA,set.id,1,key());const publication=await createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:file.attachmentLinkId,targetType:'product',targetId:productA,altText:'Current approved public image',ordinal:0},key()),id=String(publication?.id);await approveAttachmentPublication(db,peerA,id,key());
  const files=Object.create(env.H001_FILES) as typeof env.H001_FILES;let reads=0;files.get=async name=>{reads++;return env.H001_FILES.get(name);};
@@ -876,7 +899,7 @@ it('observes a committed normal public revocation before its first publication b
 });
 
 // Enforced purchase checks use this suite's owned local runtime, never an installed manifest.
-vi.mock("@erpx/server-runtime/adapters/runtime",async importOriginal=>({
-  ...await importOriginal<typeof import("@erpx/server-runtime/adapters/runtime")>(),
+vi.mock("@erpx/platform-runtime-server/adapters/runtime",async importOriginal=>({
+  ...await importOriginal<typeof import("@erpx/platform-runtime-server/adapters/runtime")>(),
   runtimeEnv:async()=>env,
 }));

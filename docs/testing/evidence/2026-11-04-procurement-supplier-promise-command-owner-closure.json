@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "date": "2026-11-04",
+  "status": "Native Procurement supplier promise command owner closure: public facade, domain validation, PostgreSQL source/idempotency/CAS/insert/audit/outbox/readback/rollback/serializable/Company isolation",
+  "capability": "procurement-supplier-promise-command-owner-closure",
+  "base": "f01d3f7ca941d1782d826ed93d5722cfd56ca81a",
+  "branch": "codex/rust-backend-migration",
+  "sourceCommit": "f01d3f7ca941d1782d826ed93d5722cfd56ca81a",
+  "command": {
+    "cargo": "cargo test -p erpx-server-procurement --locked",
+    "targets": [
+      "supplier_promise_command (6 passed)",
+      "supplier_promise_command_postgres (6 passed)"
+    ],
+    "cases": [
+      "validates confirmed and withdrawn commands",
+      "rejects invalid domain inputs",
+      "prepares validated promise and enforces quantity",
+      "command identifiers and fingerprint are stable",
+      "validate readback checks persisted shape",
+      "authority serializes from actor",
+      "records supplier promise and replays idempotently",
+      "idempotency conflict for different request",
+      "CAS conflict when order version changed",
+      "company isolation blocks foreign access",
+      "serializable guard fails closed",
+      "readback and audit/outbox persisted"
+    ]
+  },
+  "limits": [
+    "No HTTP or Next cutover added.",
+    "No browser verification claim.",
+    "Staging, private production, and Cloudflare untouched."
+  ]
+}

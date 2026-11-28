@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFile
 import { dirname, extname, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import ts from "typescript";
-import { appDefinitions, appDirectory, type AppId } from "@erpx/contracts/apps";
-import { productPageAllowed } from "@erpx/feature-runtime/lib/product-route-policy";
+import { appDefinitions, appDirectory, type AppId } from "@erpx/platform-contracts/apps";
+import { productPageAllowed } from "@erpx/platform-runtime-ui/lib/product-route-policy";
 
 const root = resolve(import.meta.dirname, "../..");
 const slash = (path: string) => path.replaceAll("\\", "/");
@@ -17,7 +17,7 @@ const appFiles = files("src/app"), allSource = files("src");
 if (!appFiles.length) throw new Error("SOURCE_MIGRATION_ALREADY_APPLIED");
 const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 const words = new Set<string>(["overview", "draft", "approve", "setup", "accounts", "periods", "settings", "item"]);
-for (const file of ["packages/feature-runtime/src/lib/product-route-policy.ts", "packages/feature-runtime/src/lib/product-api-policy.ts"]) {
+for (const file of ["platform/runtime/ui/src/lib/product-route-policy.ts", "platform/runtime/ui/src/lib/product-api-policy.ts"]) {
   const source = ts.createSourceFile(file, readFileSync(resolve(root, file), "utf8"), ts.ScriptTarget.Latest, true);
   function visit(node: ts.Node) {
     if (ts.isStringLiteral(node) && /^[a-z][a-z0-9_/-]{0,90}$/.test(node.text)) words.add(node.text);
@@ -118,7 +118,7 @@ function rewrite(file: string, text: string): string {
     const helpers = ["PageProps", "LayoutProps", "RouteContext"].filter(name => new RegExp(`\\b${name}\\s*<`).test(text));
     if (helpers.length) {
       const directive = /^(?:['"]use (?:client|server)['"];?\s*)/.exec(text)?.[0] ?? "";
-      text = directive + `import type { ${helpers.join(", ")} } from "@erpx/contracts/next-routes";\n` + text.slice(directive.length);
+      text = directive + `import type { ${helpers.join(", ")} } from "@erpx/platform-contracts/next-routes";\n` + text.slice(directive.length);
     }
   }
   return text;
@@ -144,7 +144,7 @@ function entrySource(file: string): string {
     }
   }
   let source = `// App-owned entry; its payload has no dependency on another Next app.\n`;
-  if (file === "packages/workplace/src/routes/layout.tsx") source += 'import "./globals.css";\n';
+  if (file === "platform/workplace/src/routes/layout.tsx") source += 'import "./globals.css";\n';
   if (names.size) source += `export { ${[...names].join(", ")} } from ${JSON.stringify(packageSpec(move))};\n`;
   return source + config.join("\n") + "\n";
 }
@@ -186,10 +186,10 @@ for (const move of moves.values()) {
   if (existsSync(path)) { const { unlinkSync } = await import("node:fs"); unlinkSync(path); }
 }
 // Root styles are shared; each app adds only its reachable component sources.
-const rootLayout = resolve(root, moves.get("packages/workplace/src/routes/layout.tsx")!.to);
+const rootLayout = resolve(root, moves.get("platform/workplace/src/routes/layout.tsx")!.to);
 writeFileSync(rootLayout, readFileSync(rootLayout, "utf8").replace(/^import\s+["'](?:@erpx\/[^"']+|\.\/globals\.css)["'];?\s*$/m, ""));
 const globalStyles = resolve(root, moves.get("src/app/globals.css")!.to);
-writeFileSync(globalStyles, readFileSync(globalStyles, "utf8").replace(/@import\s+["']\.\.\/components\/ui\/([^"']+)["'];/g, '@import "@erpx/ui/components/$1";').replace(/^@source.*;\s*$/gm, ""));
+writeFileSync(globalStyles, readFileSync(globalStyles, "utf8").replace(/@import\s+["']\.\.\/components\/ui\/([^"']+)["'];/g, '@import "@erpx/platform-ui/components/$1";').replace(/^@source.*;\s*$/gm, ""));
 mkdirSync(resolve(root, "scripts/architecture"), { recursive: true });
 writeFileSync(resolve(root, "scripts/architecture/workspace-relocations.json"), JSON.stringify({ version: 1, moves: [...moves.values()] }, null, 2) + "\n");
 writeFileSync(resolve(root, "scripts/architecture/workspace-app-routes.json"), JSON.stringify({ version: 1, apps: plan.apps }, null, 2) + "\n");

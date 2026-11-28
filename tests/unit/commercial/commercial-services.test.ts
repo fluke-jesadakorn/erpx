@@ -1,11 +1,11 @@
 import {describe,expect,test} from 'vitest';
-import {createSeatMeterApplication,type SeatMeterRepository} from "@erpx/server-commercial/application/seats";
-import {summarizeControlSeats} from "@erpx/server-commercial/domain/seats";
-import {createHoldingUsageApplication,type HoldingUsageRepository} from "@erpx/server-commercial/application/holding-usage";
-import {createUsageProjectionApplication,principalSeatIntervals,type PrincipalSeatRepository,type UsageProjectionRepository,type UsageProjectionTransaction} from "@erpx/server-commercial/application/projection";
-import type {UsageHolding} from "@erpx/server-commercial/domain/holding-usage";
-import type {MeterRow,Snapshot,ProjectionPlan} from "@erpx/server-commercial/domain/projection";
-import {monthBounds} from "@erpx/feature-billing/lib/billing";
+import {createSeatMeterApplication,type SeatMeterRepository} from "@erpx/commercial-server/application/seats";
+import {summarizeControlSeats} from "@erpx/commercial-server/domain/seats";
+import {createHoldingUsageApplication,type HoldingUsageRepository} from "@erpx/commercial-server/application/holding-usage";
+import {createUsageProjectionApplication,principalSeatIntervals,type PrincipalSeatRepository,type UsageProjectionRepository,type UsageProjectionTransaction} from "@erpx/commercial-server/application/projection";
+import type {UsageHolding} from "@erpx/commercial-server/domain/holding-usage";
+import type {MeterRow,Snapshot,ProjectionPlan} from "@erpx/commercial-server/domain/projection";
+import {monthBounds} from "@erpx/billing-ui/lib/billing";
 
 const month='2026-09',{start,end}=monthBounds(month),binding={id:'holding',slug:'holding',displayName:'Holding'},empty=()=>({ai:{requests:0,inputTokens:0,outputTokens:0},storage:{bytes:0,fileCount:0,averageDailyBytes:0}});
 const holding=():UsageHolding=>({holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companies:[],totals:empty(),sandboxStoragePreview:{status:'unpriced',amountSatang:null},meterCoverage:{ai:'partial',storage:'partial',seat:'unavailable',unreconciledOriginals:0},seatUsage:{monthly:{status:'unavailable',distinctUsers:null,activeSeatMilliseconds:null},activeNow:{status:'unavailable',count:null,asOf:null}}});

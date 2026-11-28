@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "date": "2026-11-03",
+  "status": "local scoped Rust candidate qualified; PR integration pending",
+  "capability": "field-required-full-workflow-case",
+  "integrationTarget": "codex/rust-backend-migration",
+  "sourceCommit": "1dbfbc8b2",
+  "registeredCase": {
+    "runner": "vitest",
+    "file": "tests/integration/field_service/field-service.test.ts",
+    "title": "runs agreement, dispatch, parts, exception, customer sign-off and independent billing release",
+    "result": "passed"
+  },
+  "suite": {
+    "id": "field_service.field-service.integration",
+    "result": "8 passed / 0 failed",
+    "durationMs": 258080,
+    "requiredCaseInventory": "passed"
+  },
+  "coverage": [
+    "agreement draft create through the native owner route",
+    "independent Service agreement activation",
+    "request/order create with Support ticket",
+    "dispatch and start",
+    "exception and resume",
+    "customer sign-off completion",
+    "independent billing release persisted as released"
+  ],
+  "fixture": {
+    "profile": "service-finance",
+    "seeded": [
+      "mixed-company customer party",
+      "confirmed THB manual FX rate",
+      "receivable control account 1100",
+      "revenue account 4100"
+    ],
+    "parts": "Reserve/issue coverage remains in field_service.rust-parts-command-postgres.integration (35/35), not duplicated in this lifecycle case."
+  },
+  "regressionDiagnosis": {
+    "manufacturing": "48/48 after exporting the actual ClamAV socket/definitions and ERPX_ATTACHMENTS_V2; the prior 5 failures were scanner-readiness environment failures.",
+    "fieldParts": "35/35 after the notification-tamper fixtures set the forged native-runtime GUC so the owner guard, not the DB trigger, observes the tamper.",
+    "fieldHttpParity": "40/41 in the suite run; the remaining case passed alone (PostgreSQL connection slots).",
+    "files": "24/25 in the suite run; the deadlock-retry case passed alone (parallel-suite flake).",
+    "typecheck": "passed"
+  },
+  "limits": [
+    "Local scoped evidence, not owner/workflow acceptance.",
+    "Host libvips 8.18.7 and erpx-render-preview are required to build the native fixture.",
+    "Checklist 12, 13, 16, 17 and 18 plus the scoped PR remain open."
+  ],
+  "privateEvidence": ".scratch/dev/field-regression-required-case.log"
+}

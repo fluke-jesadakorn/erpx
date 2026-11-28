@@ -1,0 +1,7 @@
+import {existsGuardPrefix} from "./projection-lookup";
+/** Canonical owner-local fixed SQL for Maintenance attachment owner version
+ * guards. The service and operational attachment fact sources share this one
+ * admitted guard predicate, so no duplicate TS SQL literal remains. Callers
+ * supply only owner-owned table/extra fragments, never caller-authored SQL. */
+export const attachmentOwnerVersionGuardSql = (table: string, extra = ""): string =>
+  `${existsGuardPrefix(table)}id=? AND company_id=? AND version=?${extra ? ` AND ${extra}` : ""})`;

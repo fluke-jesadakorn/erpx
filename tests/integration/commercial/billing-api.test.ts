@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, it, expect, vi } from "vitest";
 import { readFile, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { expandNativeApiPaths, loadNativeApiPaths } from "../../../scripts/local/native-api-paths";
+import { nativeApiPath } from "../../../scripts/local/native-api-proxy";
 import { env, applyMigrations } from "../../support/runtime-env";
 const session = vi.hoisted(() => ({
   role: "holding_owner",
@@ -16,7 +20,7 @@ const minioEnvironment={
   attachmentsV2:process.env.ERPX_ATTACHMENTS_V2,
 };
 const validPngFixture=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=","base64");
-vi.mock("@erpx/server-identity_access/public/authorization", () => ({
+vi.mock("@erpx/identity-access-server/public/authorization", () => ({
   requireWorkContext: async (slug: string) => {
     if (slug !== "billing-api") throw new Error("FORBIDDEN");
     return {
@@ -39,17 +43,17 @@ vi.mock("@erpx/server-identity_access/public/authorization", () => ({
     },
   }),
 }));
-vi.mock("@erpx/server-operations/public/staff-policy", () => ({
+vi.mock("@erpx/operations-server/public/staff-policy", () => ({
   requireCompanyAuthority: async () => {},
 }));
-vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
+vi.mock("@erpx/files-server/public/attachments/scanner",()=>({
   attachmentScannerReadiness:async(environment:NodeJS.ProcessEnv=process.env)=>{session.scannerGate=environment.ERPX_ATTACHMENTS_V2??null;return {enabled:true,ready:session.scannerReady,engine:"ClamAV billing test",definitionUpdatedAt:Date.now(),error:session.scannerReady?null:"CLAMD_UNAVAILABLE"};},
   scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"ClamAV billing test",definitionUpdatedAt:Date.now()}),
 }));
-vi.mock("@erpx/server-files/public/attachments/preview",()=>({
+vi.mock("@erpx/files-server/public/attachments/preview",()=>({
   detectedAttachmentMediaType:(_bytes:Uint8Array,declared:string)=>declared,
 }));
-vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
+vi.mock("@erpx/platform-runtime-server/adapters/runtime", () => ({
   runtimeEnv: async () => ({
     ...env,
     ERPX_DATA_DIR: session.dataDir,
@@ -57,14 +61,14 @@ vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   }),
   holdingResources: async () => ({ write: env.H001_DB }),
 }));
-import { billingHandler } from "@erpx/server-billing/public/billing-api";
+import { billingHandler } from "@erpx/billing-server/public/billing-api";
 import {
   billingEvidenceReadiness,
   billingEvidenceStore,
   drainBillingEvidenceScans,
   reconcileBillingEvidenceStorage,
   recordBillingEvidenceReconciliation,
-} from "@erpx/server-billing/public/billing-attachments";
+} from "@erpx/billing-server/public/billing-attachments";
 const customer = billingHandler(false),
   platform = billingHandler(true);
 const ctx = (path: string[] = []) => ({
@@ -380,10 +384,19 @@ it("returns the native measured target quote through the Console route with curr
   expect(response.status).toBe(200);expect(response.headers.get("cache-control")).toBe("private, no-store");
   const target=(await response.json()).data;expect(target).toMatchObject({holdingId:session.holdingId,month:"2026-10",state:"unassigned",assignment:null,invoice:null,totalSatang:null});expect(target.measuredEvidence.snapshot).toBeNull();expect(target.completeness.ready).toBe(false);
   session.platformRole="platform_auditor";
-  const audit=await platform(new Request(`http://localhost:3100/api/v1/platform/billing/target?holdingId=${session.holdingId}&month=2026-10`),ctx(["target"]));expect(audit.status).toBe(200);expect((await audit.json()).data).toEqual(target);
-  expect((await platform(new Request(`http://localhost:3100/api/v1/platform/billing/target?holdingId=${session.holdingId}&month=2026-99`),ctx(["target"]))).status).toBe(422);
-  expect((await platform(new Request("http://localhost:3100/api/v1/platform/billing/target?holdingId=h003&month=2026-10"),ctx(["target"]))).status).toBe(403);
-  expect((await platform(new Request("http://localhost:3100/api/v1/platform/billing/target?holdingId=unknown&month=2026-10"),ctx(["target"]))).status).toBe(404);
+  for (const file of [
+    "products/admin/ui/src/routes/api/v1/platform/billing/target/route.ts",
+    "apps/admin/src/app/api/v1/platform/billing/target/route.ts",
+    "apps/compat/src/app/api/v1/platform/billing/target/route.ts",
+  ]) expect(existsSync(new URL(`../../../${file}`, import.meta.url)),file).toBe(false);
+  const config=loadNativeApiPaths(fileURLToPath(new URL("../../../scripts/local/native-api-paths.json",import.meta.url)));
+  const {paths}=expandNativeApiPaths(config,[]);
+  const environment={NODE_ENV:"test" as const,ERPX_DEV_NATIVE_PATHS:paths};
+  const targetPath=`/api/v1/platform/billing/target?holdingId=${session.holdingId}&month=2026-10`;
+  expect(nativeApiPath(environment,targetPath,"admin.jesadakorn.com","GET")).toBe(true);
+  expect(nativeApiPath(environment,targetPath,"erpx-internal.jesadakorn.com","GET")).toBe(true);
+  expect(nativeApiPath(environment,targetPath,"unregistered.example.test","GET")).toBe(false);
+  expect(nativeApiPath(environment,"/api/v1/platform/billing/forecast?holdingId=h001","admin.jesadakorn.com","GET")).toBe(false);
   session.role="employee";expect((await customer(new Request("http://localhost:3100/api/v1/holdings/billing-api/billing/target?month=2026-10"),ctx(["target"]))).status).toBe(403);session.role="holding_owner";session.platformRole="platform_admin";
   expect(await env.CONTROL_DB.prepare("SELECT count(*) n FROM billing_target_rating_runs WHERE holding_id=?").bind(session.holdingId).first("n")).toBe(0);
 });

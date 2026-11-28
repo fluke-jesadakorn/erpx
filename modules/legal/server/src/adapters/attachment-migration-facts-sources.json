@@ -1,0 +1,4 @@
+{
+  "holdExists": "EXISTS(SELECT 1 FROM legal_holds h WHERE h.item_id=i.id AND h.state<>'released') legal_hold",
+  "documents": "SELECT d.id,i.company_id,i.branch_id,i.department_id,i.id target_id,i.version target_version,d.id component_ref, d.name original_name,d.media_type,d.bytes,d.checksum,d.object_key,d.created_by,d.created_at,d.version revision, {holdExists} FROM legal_documents d JOIN legal_items i ON i.id=d.item_id WHERE d.object_key IS NOT NULL AND d.attachment_source_id IS NULL ORDER BY d.created_at,d.id"
+}

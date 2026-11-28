@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculatePayrollAmounts } from "@erpx/feature-people_payroll/lib/payroll-math";
+import { calculatePayrollAmounts } from "@erpx/people-payroll-ui/lib/payroll-math";
 
 describe("payroll calculation boundaries", () => {
   it("includes contractual earnings before subtracting employee deductions", () => {

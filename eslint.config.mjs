@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "**/.build/**",
     "**/.cache/**",
     "**/node_modules/**",
+    // Cargo's workspace output changes while Rust checks run in parallel.
+    "target/**",
     "apps/*/next-env.d.ts",
     ".open-next/**",
     ".wrangler/**",

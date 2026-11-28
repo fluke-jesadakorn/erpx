@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, readlink, realpath, rm, symlink, writeFile } 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { it, expect } from 'vitest';
-import { workspaceCopyInput, copyWorkspaceSnapshot, browserWorkspaceInputs, copyBrowserWorkspaceSnapshot } from '../../../scripts/local/workspace-copy-input';
+import { workspaceCopyInput, copyWorkspaceSnapshot } from '../../../scripts/local/workspace-copy-input';
 import { verifyAppArtifact } from '../../../scripts/local/app-artifact-cache';
 import { artifactSymbolicLinks, relocateCompilerDependencyAliases } from '../../../scripts/local/standalone-links';
 
@@ -68,6 +68,10 @@ it('copies source while excluding private environment and generated state in nes
     await writeFile(join(source, 'apps/finance/page.tsx'), 'export default 1;');
     await writeFile(join(source, 'apps/finance/.env.local'), 'FICTIONAL_PRIVATE_CONFIGURATION=omit');
     await writeFile(join(source, 'apps/finance/.cache/state'), 'generated');
+    await mkdir(join(source, 'target/debug'), { recursive: true });
+    await mkdir(join(source, 'packages/server-example/target/release'), { recursive: true });
+    await writeFile(join(source, 'target/debug/runtime'), 'native generated output');
+    await writeFile(join(source, 'packages/server-example/target/release/worker'), 'nested native output');
     await symlink('page.tsx',join(source,'apps/finance/entry.tsx'));
     await copyWorkspaceSnapshot(source, output,path => workspaceCopyInput(source, path));
     expect(await readlink(join(output,'apps/finance/entry.tsx'))).toBe('page.tsx');
@@ -75,6 +79,8 @@ it('copies source while excluding private environment and generated state in nes
     expect(await readFile(join(output, 'apps/finance/page.tsx'), 'utf8')).toBe('export default 1;');
     await expect(readFile(join(output, 'apps/finance/.env.local'))).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(readFile(join(output, 'apps/finance/.cache/state'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(readFile(join(output, 'target/debug/runtime'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(readFile(join(output, 'packages/server-example/target/release/worker'))).rejects.toMatchObject({ code: 'ENOENT' });
     expect(workspaceCopyInput(source, join(root, 'outside.ts'))).toBe(false);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -82,7 +88,7 @@ it('copies source while excluding private environment and generated state in nes
 
 async function combinedReleaseFixture() {
   const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-combined-release-'))), fingerprint='a'.repeat(64);
-  const {appDefinitions}=await import('@erpx/contracts/apps');
+  const {appDefinitions}=await import('@erpx/platform-contracts/apps');
   const {releaseArtifactReference}=await import('../../../scripts/local/workspace-release-manifest');
   const apps:Record<string,Awaited<ReturnType<typeof releaseArtifactReference>>>={};
   for(const role of [...appDefinitions.map(app=>app.id),'gateway','jobs']){
@@ -97,7 +103,7 @@ async function combinedReleaseFixture() {
 it('verifies all 22 relocated apps plus gateway/jobs and refuses development evidence as a frozen candidate',async()=>{
  const f=await combinedReleaseFixture();try{
   const {verifyWorkspaceRelease}=await import('../../../scripts/local/workspace-release-manifest');
-  expect(Object.keys((await verifyWorkspaceRelease(f.root)).apps)).toHaveLength(22);
+  expect(Object.keys((await verifyWorkspaceRelease(f.root)).apps)).toHaveLength(21);
   await expect(verifyWorkspaceRelease(f.root,{frozen:true})).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
   await expect(verifyWorkspaceRelease(f.root,{candidate:'c'.repeat(40)})).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
   await writeFile(join(f.root,'apps/finance/entry.mjs'),'tampered');
@@ -120,6 +126,39 @@ it('rejects stale receipts, missing/extra apps, escaping entries and unexpected 
  }finally{await rm(f.root,{recursive:true,force:true});}
 });
 
+it('verifies the exact OASIS app set and a content-addressed executable only in the demo lane', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-oasis-release-')));
+  const fingerprint = 'a'.repeat(64);
+  const {oasisDemoApps, oasisNativeReference, releaseArtifactReference, verifyWorkspaceRelease} = await import('../../../scripts/local/workspace-release-manifest');
+  try {
+    async function artifact(id: string, role?: 'gateway' | 'stage') {
+      const path = role ?? `apps/${id}`, directory = join(root, path);
+      await mkdir(directory, {recursive:true});
+      const contents = 'export const ready=true;';
+      await writeFile(join(directory, 'entry.mjs'), contents);
+      await writeFile(join(directory, 'artifact.json'), JSON.stringify({
+        schema:role ? 'erpx-tool-artifact/v1' : 'erpx-app-artifact/v2', ...(role ? {role} : {app:id}),
+        runtimeFingerprint:fingerprint, node:'26.11.1', bun:'1.4.3', acceptance:false, entry:'entry.mjs',
+        files:{'entry.mjs':createHash('sha256').update(contents).digest('hex')}, links:{},
+      }));
+      return releaseArtifactReference(root, path, role ? {role} : {app:id});
+    }
+    await mkdir(join(root, 'native'));
+    const executable = join(root, 'native/erpx-server');
+    await writeFile(executable, 'demo binary bytes', {mode:0o700});
+    const native = await oasisNativeReference(root);
+    const apps = Object.fromEntries(await Promise.all(oasisDemoApps.map(async id => [id,await artifact(id)])));
+    const manifest = {schema:'erpx-oasis-demo-release/v1', candidate:'b'.repeat(40), sourceFingerprint:fingerprint,
+      productionCandidateFrozen:true, acceptance:false, acceptanceAdapter:null, node:'26.11.1', bun:'1.4.3', postgres:'18.6',
+      createdAt:new Date().toISOString(), apps, gateway:await artifact('gateway','gateway'), stage:await artifact('stage','stage'), native};
+    await writeFile(join(root, 'release.json'), JSON.stringify(manifest));
+    await expect(verifyWorkspaceRelease(root, {oasisDemo:true, frozen:true})).resolves.toMatchObject({native});
+    await expect(verifyWorkspaceRelease(root)).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
+    await writeFile(executable, 'different bytes');
+    await expect(verifyWorkspaceRelease(root, {oasisDemo:true, frozen:true})).rejects.toThrow('RELEASE_NATIVE_ARTIFACT_MISMATCH');
+  } finally { await rm(root, {recursive:true, force:true}); }
+});
+
 
 it('workspace scaffolding preserves an existing app host policy byte-for-byte across regeneration',async()=>{
  const root=await mkdtemp(join(tmpdir(),'erpx-proxy-source-'));
@@ -134,18 +173,5 @@ it('workspace scaffolding preserves an existing app host policy byte-for-byte ac
   const scaffold=await readFile(join(root,'apps/launcher/src/proxy.ts'),'utf8');expect(scaffold).toContain('appProxy("apps")');
   expect(ensureWorkspaceProxySource(root,'apps')).toBe(false);
   expect(await readFile(join(root,'apps/launcher/src/proxy.ts'),'utf8')).toBe(scaffold);
- }finally{await rm(root,{recursive:true,force:true});}
-});
-
-it('copies the required browser workspace from a fresh source without a generated root Next declaration',async()=>{
- const root=await mkdtemp(join(tmpdir(),'erpx-browser-source-')),source=join(root,'source'),target=join(root,'snapshot');
- try{
-  const files=new Set(['package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','postcss.config.mjs','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py']);
-  for(const name of browserWorkspaceInputs){const path=join(source,name);if(files.has(name)){await mkdir(join(path,'..'),{recursive:true});await writeFile(path,`required:${name}`);}else await mkdir(path,{recursive:true});}
-  await writeFile(join(source,'apps','app-source.ts'),'actual app source');await writeFile(join(source,'apps','.env.local'),'private');
-  await copyBrowserWorkspaceSnapshot(source,target);
-  expect(await readFile(join(target,'apps','app-source.ts'),'utf8')).toBe('actual app source');expect(await readFile(join(target,'tsconfig.base.json'),'utf8')).toBe('required:tsconfig.base.json');
-  await expect(readFile(join(target,'next-env.d.ts'),'utf8')).rejects.toMatchObject({code:'ENOENT'});await expect(readFile(join(target,'apps','.env.local'),'utf8')).rejects.toMatchObject({code:'ENOENT'});
-  await rm(join(source,'tsconfig.base.json'));await expect(copyBrowserWorkspaceSnapshot(source,join(root,'missing'))).rejects.toMatchObject({code:'ENOENT'});
  }finally{await rm(root,{recursive:true,force:true});}
 });

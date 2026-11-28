@@ -1,0 +1,80 @@
+[package]
+name = "erpx-maintenance-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[package.metadata.erpx]
+verification-roots = ["../../../fixtures/maintenance/rust-work", "../../../fixtures/maintenance/rust-schedule", "../../../scripts/testing/fixtures/generate-maintenance-wire-oracle.mjs"]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+erpx-platform-shared-server.workspace = true
+erpx-assets-server.workspace = true
+erpx-identity-access-server.workspace = true
+erpx-platform-runtime-server.workspace = true
+erpx-workflow-server.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+uuid.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+
+[[test]]
+name = "work_policy"
+path = "../../../tests/unit/maintenance/rust-work-policy.test.rs"
+
+[[test]]
+name = "work_wire"
+path = "../../../tests/unit/maintenance/rust-work-wire.test.rs"
+
+[[test]]
+name = "work_commands"
+path = "../../../tests/unit/maintenance/rust-work-commands.test.rs"
+
+[[test]]
+name = "schedule_commands"
+path = "../../../tests/unit/maintenance/rust-schedule-commands.test.rs"
+
+[[test]]
+name = "preventive_action_wire"
+path = "../../../tests/unit/maintenance/rust-preventive-action-wire.test.rs"
+
+[[test]]
+name = "maintenance_read_postgres"
+path = "../../../tests/integration/maintenance/rust-maintenance-read-postgres.test.rs"
+
+[[test]]
+name = "preventive_recurrence"
+path = "../../../tests/unit/maintenance/rust-preventive-recurrence.test.rs"
+
+[[test]]
+name = "preventive_plan_policy"
+path = "../../../tests/unit/maintenance/rust-preventive-plan-policy.test.rs"
+
+[[test]]
+name = "preventive_plan_wire"
+path = "../../../tests/unit/maintenance/rust-preventive-plan-wire.test.rs"
+
+[[test]]
+name = "preventive_plan_command_postgres"
+path = "../../../tests/integration/maintenance/rust-preventive-plan-command-postgres.test.rs"
+
+[[test]]
+name = "record_source"
+path = "../../../tests/unit/maintenance/rust-record-source.test.rs"
+
+[[test]]
+name = "record_source_postgres"
+path = "../../../tests/integration/maintenance/rust-record-source-postgres.test.rs"
+
+[lints]
+workspace = true

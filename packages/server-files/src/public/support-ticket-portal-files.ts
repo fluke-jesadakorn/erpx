@@ -1,1 +1,0 @@
-export {supportTicketPortalSharedFiles,supportTicketPortalPreviewSource,supportTicketPortalFileAccess,supportTicketPortalFileAccessImage} from '@erpx/server-files/adapters/support-ticket-portal-files';

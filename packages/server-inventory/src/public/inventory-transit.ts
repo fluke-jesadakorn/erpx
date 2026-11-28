@@ -1,2 +1,0 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { transitDispatchSchema, transitReceiveSchema, transitLossSchema, transitLossDecisionSchema, transitCancelSchema, getTransit, listTransit, transitDetail, prepareTransit, dispatchTransit, receiveTransit, requestTransitLoss, decideTransitLoss, cancelTransit, transitWork, transitWorkItem } from "@erpx/server-inventory/adapters/inventory-transit";

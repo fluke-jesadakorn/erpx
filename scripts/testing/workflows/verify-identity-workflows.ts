@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { getLocalProxy } from "../../local/fixtures";
-import { drainPeopleLifecycle } from "@erpx/server-people_payroll/public/people-lifecycle-jobs";
-import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { drainPeopleLifecycle } from "@erpx/people-payroll-server/public/people-lifecycle-jobs";
+import type { PostgresDatabase } from "@erpx/platform-runtime-server/adapters/runtime/postgres";
 const origin=process.env.ERPX_TEST_BASE_URL??"http://localhost:3100";
 if(!["localhost","127.0.0.1"].includes(new URL(origin).hostname))throw new Error("Local verification only.");
 const jars=new Map<string,Map<string,string>>();

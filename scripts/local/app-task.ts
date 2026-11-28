@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { appDefinition } from "@erpx/contracts/apps";
+import { appDefinition } from "@erpx/platform-contracts/apps";
 
 const root = resolve(import.meta.dirname, "../..");
 export function pinnedNode() {

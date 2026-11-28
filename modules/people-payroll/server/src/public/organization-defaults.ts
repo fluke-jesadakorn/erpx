@@ -1,0 +1,1 @@
+export {stageOrganizationLevelLeavePolicy,stageOrganizationPayRecommendation,stageOrganizationLeaveRecommendation} from "@erpx/people-payroll-server/adapters/organization-defaults";

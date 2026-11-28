@@ -1,0 +1,19 @@
+{
+  "package": "pyHanko",
+  "version": "0.37.0",
+  "wheel": "pyhanko-0.37.0-py3-none-any.whl",
+  "wheelSha256": "79046d8057edec5fcc61aa66dc1041262f5248eec473c33a89905a0a661eed05",
+  "wheelUrl": "https://files.pythonhosted.org/packages/1c/6e/e6dfe44b6669574cf37f37efbe67cc969cb69e27620ac5e5ff7b45bab607/pyhanko-0.37.0-py3-none-any.whl",
+  "metadataUrl": "https://pypi.org/pypi/pyHanko/0.37.0/json",
+  "sources": [
+    {
+      "wheelPath": "pyhanko/sign/validation/settings.py",
+      "sha256": "cd18586bce329f604fce902ea1dd051b40d26088f1b97766f5d0594febe403cb"
+    },
+    {
+      "wheelPath": "pyhanko/sign/fields.py",
+      "sha256": "2c4946e60537aa7c6361ea4934ff8350e960e9fd97b1ab8584e71cb9d44bb044"
+    }
+  ],
+  "schema": "erpx-pdf-oracle-source/v1"
+}

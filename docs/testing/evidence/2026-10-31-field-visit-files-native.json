@@ -1,0 +1,694 @@
+{
+  "version": 1,
+  "date": "2026-10-31",
+  "status": "local scoped Rust candidate qualified; PR integration pending",
+  "capability": "field-visit-files-intake",
+  "integrationTarget": "codex/rust-backend-migration",
+  "source": {
+    "baseCommit": "97dc43337f3500086305832edcc7f7bd3d73adaf",
+    "branch": "codex/field-files-delivery",
+    "manifest": {
+      ".gitignore": {
+        "sha256": "7bdfe0dd302eafb529ba11a54b019028383e5f159e107584bc6c4cca25b8d5e0"
+      },
+      "Cargo.lock": {
+        "sha256": "0cba3102becc859d7a555af8a49e460ae540a85f9a14f67eee66fe8caadfbf3f"
+      },
+      "apps/account/src/app/globals.css": {
+        "sha256": "f7ef16b0efd5e9a773284b7c5ab664f1caf5626997de34484b7da69d58311922"
+      },
+      "apps/account/turbo.json": {
+        "sha256": "049223029e7b909c9a35ba42fd2851526cbcdb0237e1c953f94448a7d4bb1b68"
+      },
+      "apps/admin/src/app/globals.css": {
+        "sha256": "e5f49247d7651a43c850db9496b2606354a01e65793ee4f4790f61e06f36d8e6"
+      },
+      "apps/admin/turbo.json": {
+        "sha256": "2d99a92f334334ab53df84178b8e94034ef60567252e002e0adaf82a604bb900"
+      },
+      "apps/assets/src/app/globals.css": {
+        "sha256": "3e4b8752791a7f9c7dc40cdf24e81d7259cd344383f23077c9c340903d84f351"
+      },
+      "apps/assets/turbo.json": {
+        "sha256": "f99dbb0ba11595b7806e506fb75e7e9df2e6c401de0998ef6137011638fe4f76"
+      },
+      "apps/booking/src/app/globals.css": {
+        "sha256": "179b8ff809988e120bb37cd8544d9e228b3d9cabcf113764ca725d9a5df1c3f7"
+      },
+      "apps/booking/turbo.json": {
+        "sha256": "f62e4b042c85eb0a31bcb637657e394bd77a4558968fcd78673f4b3ea258a285"
+      },
+      "apps/compat/src/app/globals.css": {
+        "sha256": "148e506e627b2129f4b50e2098e77343b96b1c8ab75f94189cc10562c4295b2a"
+      },
+      "apps/finance/src/app/globals.css": {
+        "sha256": "9adcd0af9ce859ffe621ecb318d17dd2d7a053c9a90e95f222e589c3a4db2c81"
+      },
+      "apps/finance/turbo.json": {
+        "sha256": "4f3b22f3f1a038e2e23dc0f7de88d39415427b145aaddc233557af42d93bf1f5"
+      },
+      "apps/forms/src/app/globals.css": {
+        "sha256": "cf5a28f4ffc2070e67a21b6ce620aa62a14f918ba67265df8368c5aebbfab582"
+      },
+      "apps/forms/turbo.json": {
+        "sha256": "bd876ef638a57be9bbb02fc0def266383e2204be5739f83ad58d5cb1cde8513f"
+      },
+      "apps/launcher/src/app/globals.css": {
+        "sha256": "be3fc81aeeeb9e90d56c7ef767ad4a1cb2585423f963293f7c0e5a3d170d0e84"
+      },
+      "apps/launcher/turbo.json": {
+        "sha256": "e091433f5b3ff072eea53b78cf88549566fdf33c8bb167ade5deb0ea25adf928"
+      },
+      "apps/learn/src/app/globals.css": {
+        "sha256": "aa6c2c428db15a6ade626ad72fa8637cf9baf9b85fc93ecdbc4d53b2df0aac13"
+      },
+      "apps/learn/turbo.json": {
+        "sha256": "9fb6763983819b9260d9b9458f85623a8918ba7a3e4c30f88b7602463cb35e89"
+      },
+      "apps/legal-portal/src/app/globals.css": {
+        "sha256": "a0b5fccb7dcf935937f80b10477706de823aed77d190aeb141ffec7516d0e55b"
+      },
+      "apps/legal-portal/turbo.json": {
+        "sha256": "84a3a95f09aa01b8c5c038fd26ca11c92207e9a5f24af31fed6f7a8a35bd2726"
+      },
+      "apps/legal/src/app/globals.css": {
+        "sha256": "d9090c68270aa5176c97e50076dc0883456794aa85e16d522c2ea8effce67050"
+      },
+      "apps/legal/turbo.json": {
+        "sha256": "a2753a157be0e0bbfbd6a12e9fcdf5cd15ee5adea16a963938eb8354b891df2d"
+      },
+      "apps/manufacturing/src/app/globals.css": {
+        "sha256": "462118dfa5cb6123a5ea8682c1b890b6dbd253e02dc5879c0580eb3f7371aaf9"
+      },
+      "apps/manufacturing/turbo.json": {
+        "sha256": "ac5327f9cd2ccfa5ca0fe5209094ef56753362d43c6c18ff311a87ad7eb40a32"
+      },
+      "apps/people/src/app/globals.css": {
+        "sha256": "9521e2e426299116e238420ed41708b99024c893c5a23237c0530e3769121c2e"
+      },
+      "apps/people/turbo.json": {
+        "sha256": "d764342006b752122d47ef6b454eea1296b44d46d9afeb8719970d15772e7ab7"
+      },
+      "apps/pms/src/app/globals.css": {
+        "sha256": "6c9a0cf100c2b472678bc2d992dba5caa29e52979b0bb08d0acd23aae51ca1dd"
+      },
+      "apps/pms/turbo.json": {
+        "sha256": "476c59077f9527386d628314e048595e99ec3abf92ba572b321958e81695610d"
+      },
+      "apps/portal/src/app/globals.css": {
+        "sha256": "9d8cfba2d0419e34bb24cf6dc4bf1fe66f51a02c20232814acdd18341adb41b4"
+      },
+      "apps/portal/turbo.json": {
+        "sha256": "f4e56e39ed7282a45276337f2dbcc708b992b2a1a0a9520f793bf530baea8eb5"
+      },
+      "apps/pos/src/app/globals.css": {
+        "sha256": "783af9d27dce12d1ea4f1f9f5b1d3506204ac2820af362fc617c71eccd555eb2"
+      },
+      "apps/pos/turbo.json": {
+        "sha256": "042166cdac5ecc07fc6016e412605556b4031ccb3c8211bac9642e16100f467f"
+      },
+      "apps/projects/src/app/globals.css": {
+        "sha256": "bf0584f31721fd838dcdafef30cd5a893eb48be4e6ac2a0d7c13f1e6bb1d7b51"
+      },
+      "apps/projects/turbo.json": {
+        "sha256": "7b133fd7ca20b05f6b8ce2f34578fa899fc6c3460a8de5114e5d192a8b979e95"
+      },
+      "apps/recruit/src/app/globals.css": {
+        "sha256": "a73815f15088ba3b1b9f304a2bc7e878fd27f7fea9008b3a48cd405cc4200fb2"
+      },
+      "apps/recruit/turbo.json": {
+        "sha256": "2a781be7b6f3d5ab32ca098d1d90abeaa40fcd90eac83c059cb2dc2ec530f66d"
+      },
+      "apps/sales/src/app/globals.css": {
+        "sha256": "81f626a3c345f1b409e3cf1aea6266ab01a8c8fc2743b13014a00ef32ec6fd5a"
+      },
+      "apps/sales/turbo.json": {
+        "sha256": "1863ce9ffa6bdc74afaa4f6b3bf6014e86dab23252c7307fdfaf2625a53827ab"
+      },
+      "apps/service/src/app/globals.css": {
+        "sha256": "8f4e6ba780f1aead37a6819600c8caf8888a2d862aa9f09efdd410c2e9e0ee06"
+      },
+      "apps/service/turbo.json": {
+        "sha256": "d418207c77f140bc406bd4620e82c19d808253b6b9ebc9ffb400a4388fbd0e59"
+      },
+      "apps/supply/src/app/globals.css": {
+        "sha256": "448dee5e0c18396ff459b2077c7d4431b2f885788a7cb519c39b1d023e64a107"
+      },
+      "apps/supply/turbo.json": {
+        "sha256": "4b1dcfb926d7502ff89166160750a870ffb7a2467ece4eef1401856e41a01509"
+      },
+      "apps/support/src/app/globals.css": {
+        "sha256": "50244c7abb08ff13917227ff5d442d6ad0975a00ce79e6301ce12666dbb6e853"
+      },
+      "apps/support/turbo.json": {
+        "sha256": "8ba0cb0b7dd5f61f7b9f009fecba46aabd1351fe9963a27413f76a9ead73a4f9"
+      },
+      "bun.lock": {
+        "sha256": "3af89e82ce00d44b1eb828e852f40c957ccc859e03d4de759f5959442ff1f045"
+      },
+      "docs/TOC.md": {
+        "sha256": "0ee7ebfc86eed359f36d0902f9d6350dda4c5162e6b9e3ae7d2fca81ee35cc60"
+      },
+      "docs/contracts/next/field-service-attachment-intake.openapi.generated.json": {
+        "sha256": "620aa3e032ec2da081ae9a93a7cfca0ebb4615e50e5bcb4cf1d8f3a91af86569"
+      },
+      "docs/contracts/next/field-visit-files-native.md": {
+        "sha256": "2459f45dc86177bb3f9df61e01b7babb919545bb91e0805f009de08110c44e1a"
+      },
+      "docs/contracts/next/rust-files-migration.md": {
+        "sha256": "41e75562604f5f7ac3a456debfcd52c660f45a25c48defe3c8a025c99710a21e"
+      },
+      "docs/production-plan.md": {
+        "sha256": "ff052661b32af7561132d736741fd159ba252eaa826aed2228fa319657758b8e"
+      },
+      "docs/status/rust-delivery-bundles.json": {
+        "sha256": "6540f38ede6b0473f0ff27bc309e116fb3c51e98309c98104ddca7317c589127"
+      },
+      "migrations/postgres/holding-write/1078_field_files_runtime_ownership.sql": {
+        "sha256": "1b9c52de7d72c33c70d782143e6fd90cca7302f58669134ee2a87deae996d00f"
+      },
+      "migrations/postgres/holding-write/1079_field_upload_publication_pins.sql": {
+        "sha256": "f025e90ce8f382c76423835dae42c1e536203a690f97b5d9b55193a6104cac52"
+      },
+      "packages/contracts/package.json": {
+        "sha256": "0a6221ae7cf0f484d14ae6da2dd21c72c27000bd127621363c0b746e5711f92c"
+      },
+      "packages/contracts/src/field-service-attachment-intake.generated.ts": {
+        "sha256": "e6cf6e4c268da783c3c3e7b8e2e32e7656b73162da1e7615081ea94920ac5840"
+      },
+      "packages/feature-files/src/application/field-content-lifetime.ts": {
+        "sha256": "a79b72007d41301e84af57c99f686a1296478cc3adce08be885fa74ff085910d"
+      },
+      "packages/feature-files/src/application/field-upload-attempt.ts": {
+        "sha256": "53a17778fbad248e3e2a1c4512ec954d8f33f26504613d7c14cc31c5338c4e30"
+      },
+      "packages/feature-files/src/components/attachment-panel.tsx": {
+        "sha256": "73bca7b63bfe248e0295c437e30d7da42d39a3b1ee2318347aeeee25c0e566f8"
+      },
+      "packages/feature-files/src/components/record-document-panel.tsx": {
+        "sha256": "1c08d572217998ae79fabae0837152a15150ef38e79ea73e203c627d5f5552dc"
+      },
+      "packages/feature-files/src/lib/attachment-client.ts": {
+        "sha256": "b83f45f5224914f3698e1938e9b8411b9c0c5712c86ed95fae80769e5363a5d2"
+      },
+      "packages/native-sdk/package.json": {
+        "sha256": "e8c75717fe0c5fece0a760a42a712409e1962800f35cdc8ec9ad939293796208"
+      },
+      "packages/native-sdk/src/field-service-attachment-intake.ts": {
+        "sha256": "2fa0461653de7a9fe37a73581a6b2fc174a3b0cf1d453f5b2af32e331c8e12da"
+      },
+      "packages/native-sdk/src/field-service-files-routes.ts": {
+        "sha256": "d79784049406a4b41ef30fb825e7b5cbf43efa44a6bcc0c6b153dd79c44d4187"
+      },
+      "packages/server-field_service/package.json": {
+        "sha256": "5dd2f2e95cab6e52918568a926658bf0f88897b675eb48bce7c06a417e1be1ff"
+      },
+      "packages/server-field_service/src/adapters/attachment-purchases.ts": {
+        "deleted": true
+      },
+      "packages/server-field_service/src/adapters/attachment-read.ts": {
+        "deleted": true
+      },
+      "packages/server-field_service/src/adapters/attachments-policy-facts.ts": {
+        "deleted": true
+      },
+      "packages/server-field_service/src/adapters/attachments-service-facts.ts": {
+        "deleted": true
+      },
+      "packages/server-field_service/src/public/attachment-purchases.ts": {
+        "deleted": true
+      },
+      "packages/server-field_service/src/public/attachment-read.ts": {
+        "deleted": true
+      },
+      "packages/server-field_service/src/public/attachments-policy-facts.ts": {
+        "deleted": true
+      },
+      "packages/server-field_service/src/public/attachments-service-facts.ts": {
+        "deleted": true
+      },
+      "packages/server-files/Cargo.toml": {
+        "sha256": "e59da347859cbea2fc09fc16391f4c265e19a9750e680045e044abd3506aceed"
+      },
+      "packages/server-files/package.json": {
+        "sha256": "578bf10ffc56d6e3e851d5dd6079aa381f8fd7936567a901f240424932ccc348"
+      },
+      "packages/server-files/src/adapters/attachments/hospitality-purchases.ts": {
+        "sha256": "25cdc58a8ed3060aa01dcffc4c1dff3bed47e5e101b3c5d9f578cfeb0b6e5d36"
+      },
+      "packages/server-files/src/adapters/attachments/native-field-attachment.ts": {
+        "sha256": "67d797eac0d65c079e5962d175fd9be67ab590309b6b182692a43ffad45c8dcb"
+      },
+      "packages/server-files/src/adapters/attachments/native-field-bind.ts": {
+        "sha256": "60c3bfe6324ded95af23bedc55eff4ab6f449ed21fd13d966e506efd96fb3dba"
+      },
+      "packages/server-files/src/adapters/attachments/policy.ts": {
+        "sha256": "7344d2726d848f2b1b26d4ad7aa027347390c0a28d30fb9376403ebf6894ed04"
+      },
+      "packages/server-files/src/adapters/attachments/service-repository.ts": {
+        "sha256": "d85f512d5c398aa49361307a38f37b258a5b5b34a0f780bc537d297e6de11a8c"
+      },
+      "packages/server-files/src/adapters/attachments/service.ts": {
+        "sha256": "c575edeb946d4f9b6dd63c7663ae7f5a9394e2596e07368ec476a2905886d4ed"
+      },
+      "packages/server-files/src/adapters/field-file-writer-owner.ts": {
+        "sha256": "0b1846d1f9c727f008fbcb50f698c62adfb5593b3f365e6af4cb648962cdf4df"
+      },
+      "packages/server-files/src/adapters/field_visit_intake.rs": {
+        "sha256": "f0931ccde00a277e57a7618945faf99fed36fac24e255f20e1dc83f21317be81"
+      },
+      "packages/server-files/src/adapters/field_visit_upload_cleanup.rs": {
+        "sha256": "b6d7f81181d8341d41ef6ecbf887d5574fddee9a82dd900608ea5e29ab55abbc"
+      },
+      "packages/server-files/src/adapters/field_visit_upload_completion.rs": {
+        "sha256": "fb71bd8cb2943477d4149d2de5e5d58645506172f7ba5df0840d5d3b25abdd10"
+      },
+      "packages/server-files/src/adapters/field_visit_upload_content.rs": {
+        "sha256": "3bc259c7684b9cdf7145b7205ce15e72d8cf5cddb05b139356c6d8b31376ba8f"
+      },
+      "packages/server-files/src/adapters/field_visit_upload_denial.rs": {
+        "sha256": "99851354975e3d1d88efe3b894f72c0158309cd1dbe981c6a249077b73f8fa57"
+      },
+      "packages/server-files/src/adapters/field_visit_upload_reservation.rs": {
+        "sha256": "4cf1b63791b092e4192b10f6fc28d0d540c4532a0c35e72d9069ccf8541547bb"
+      },
+      "packages/server-files/src/adapters/field_visit_upload_status.rs": {
+        "sha256": "1c6d2196f43566fe7bb2e4fd3b3b3800666362db3f693db7abfc6caa5412c986"
+      },
+      "packages/server-files/src/adapters/local_field_quarantine_writer.rs": {
+        "sha256": "2a76ba86754bef9d702ebf72f778c8c69c08a26ef1a72ae81a256327bacf42b0"
+      },
+      "packages/server-files/src/adapters/local_sanitization_io.rs": {
+        "sha256": "4528bdf5824f22aa7eedf2952a913ecb3386ebf40758bac590b24a273591b31c"
+      },
+      "packages/server-files/src/adapters/mod.rs": {
+        "sha256": "04a1ece08490df4bf878a537c52dadf9d326086589feb32e8c2d7215b6465a9d"
+      },
+      "packages/server-files/src/adapters/postgres_attachment_scan.rs": {
+        "sha256": "270461cea3fbf830c8006ab5c436cb7792a8bedba0872dbf9cf7525b89efd138"
+      },
+      "packages/server-files/src/application/attachments/service.ts": {
+        "sha256": "ca79c48b4c2935cfcced07098bbeaca40102e5a843d1a99eaa343a68b0fcc45e"
+      },
+      "packages/server-files/src/domain/field_visit_upload.rs": {
+        "sha256": "cf280ff3f247e0be3ac3133a9285290cbebde2fb049e846c775c4ee313b578b3"
+      },
+      "packages/server-files/src/domain/mod.rs": {
+        "sha256": "3eacb731c987a6251bc8d851a7d55b5839dc51e94fe97705b1fd2cae8e8b1027"
+      },
+      "packages/server-files/src/public/attachment_scan.rs": {
+        "sha256": "d24cd3b22c2a51c4b3fd33cae50bb34dfbbd7fa6c6285caa4736c4a732df2db1"
+      },
+      "packages/server-files/src/public/attachments/native-field-attachment.ts": {
+        "sha256": "15811ee0d5ff69d64cae7c0794a3c3ee5b586848c1ebec1f031fcc7cca1ee670"
+      },
+      "packages/server-files/src/public/attachments/native-field-bind.ts": {
+        "sha256": "fac1212b473d3028e3391ef28b3a7c30330b1faab6ae51a68f3058c0e0508dd4"
+      },
+      "packages/server-files/src/public/field-file-writer-owner.ts": {
+        "sha256": "76840101a21041196c03e678bb0855c2279fe65e6a04a25740b37d7272dfd8ae"
+      },
+      "packages/server-files/src/public/field_visit_intake.rs": {
+        "sha256": "b0de9b3f3522a41b0fc9cad2774fa211f02cfa2e513249d682276b2532bb95a6"
+      },
+      "packages/server-files/src/public/field_visit_upload.rs": {
+        "sha256": "43125139384dc42c3036d8785a6ec11ffb0cc27c4be4882697bb62471f947a9f"
+      },
+      "packages/server-files/src/public/mod.rs": {
+        "sha256": "865c1b27100e83496357e85e9a9f49ebe497df39c2ea0e9cd590f8c0a8e63105"
+      },
+      "packages/server-identity_access/src/adapters/field_service_workspace.rs": {
+        "sha256": "c2b83e765c083506bd96f7f31500548df950eb2a95600e7c4e1a80bbf1f17091"
+      },
+      "packages/server-identity_access/src/adapters/selected_command_authority.rs": {
+        "sha256": "fb87b77f92fd6f8c8e67392b78d837fee00faa15816c23062890b448978ab981"
+      },
+      "packages/server-identity_access/src/public/selected_command_authority.rs": {
+        "sha256": "5e5046054e11ebf79bfec4587ce0aba82db749fcfe384097bd5eb20718030ff3"
+      },
+      "packages/server-manage_erpx/src/adapters/mod.rs": {
+        "sha256": "8cdfffcbf0dea275654ba82800b0003959fcf5b73fe684fa0bae506599390bb1"
+      },
+      "packages/server-manage_erpx/src/adapters/storage_quota.rs": {
+        "sha256": "2454bc403f84af33d48495e9afe385c9e91d26f814fa6deec4df7eaec20b6dbd"
+      },
+      "packages/server-manage_erpx/src/public/mod.rs": {
+        "sha256": "bfc71a46235bed4b8fc0f01dc286c4f020e5e7bf518cfd63f78b1ed5686a4b40"
+      },
+      "packages/server-runtime/src/adapters/runtime/postgres.ts": {
+        "sha256": "9a29153523db9754a8f2c5f3d1baada15ee319e4074cd60f5020da12c91ce8e4"
+      },
+      "packages/workplace/src/lib/bounded-json-body.ts": {
+        "sha256": "c9b67a6669c6a4a688362c86d70de6573954a2f3daded7419b8565f7cc6e3a4c"
+      },
+      "packages/workplace/src/lib/native-field-family.ts": {
+        "sha256": "bbde1aae87c345c9c7187cb0fbe9100446c0ae3c2a6f788474e2e2968a07cab0"
+      },
+      "packages/workplace/src/lib/service-count-native-read.ts": {
+        "sha256": "68296c9e9786ceafa89faa811d4bd37bd8e914f90dc3aa388d9c5bde91da6ced"
+      },
+      "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/content/route.ts": {
+        "sha256": "dd930cd1245839f1bc566646f6494eaaf3e57ebdd5f50cc8a2fe228c99466c95"
+      },
+      "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/status/route.ts": {
+        "sha256": "0e9509342d9f1878b3bdb0569eaae6f57b3e01481063c8b2a5262ae806a07ee1"
+      },
+      "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route.ts": {
+        "sha256": "339bdfda5b41cdc20bf6bdbfe32244a36b3dd75a1e2bbac01374419bad32f3fc"
+      },
+      "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/bind/route.ts": {
+        "sha256": "62cf4e5e306ce9bb5d0a59b02723c2915450e4c12a07b5d336219882401579d7"
+      },
+      "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/[setId]/files/route.ts": {
+        "sha256": "f7c20f50694eccc57b89b5307166ff5f297e36a62caeb40f1902869f24cd4f38"
+      },
+      "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/attachment-sets/route.ts": {
+        "sha256": "e09c9c5bf40a9784d8241e2e6aa6db76e5d384223c98a4dfe61226f67dcfbac4"
+      },
+      "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts": {
+        "sha256": "9063ac9dafa06ab82e1115a2d7d1a0d6f95926b127c87855b0bf5f2fcecec960"
+      },
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/field-service/[id]/screen.tsx": {
+        "sha256": "c17e1dc82192e9e0ff079f9d74cc0a66604d6a1b685b45a5a614db0f3ba99e7f"
+      },
+      "scripts/docs/export-field-service-attachment-intake-contracts.rs": {
+        "sha256": "431126b76c8f762911e00514c4b4b1e0d68799c57f6b20dae38a5810e2e2e6e5"
+      },
+      "scripts/docs/export-field-service-initial-count-contracts.rs": {
+        "sha256": "b812f68805a1ba9a847d194dcc42d0d4eeb43ede1c9dff596092c662bc3a804b"
+      },
+      "scripts/docs/generate-field-service-attachment-intake-contracts.ts": {
+        "sha256": "393fa452ba6d82e9ec06c425ba6fb686ec5363e2d4ae441efb65391bc891e13f"
+      },
+      "scripts/testing/fixtures/field-cleanup-legacy.ts": {
+        "sha256": "a4d8b03f834f095e5cb8b1e06ef3849c249ac4e65a2fa6d04084190890098ac1"
+      },
+      "scripts/testing/fixtures/field-files-browser.mjs": {
+        "sha256": "223c7f54806413e5877d7784281382416ac83e33e68c93cd0bff316969fd5040"
+      },
+      "scripts/testing/fixtures/field-scan-legacy-claim.ts": {
+        "sha256": "be95460a640390ecbf0db9b085b33ca0a1bc2ea66325035920085527bf07e57d"
+      },
+      "scripts/testing/workspace-graph.ts": {
+        "sha256": "9e9ebb87bbc13eb7e680cd1d82c8ca0f0c9a8f19c96a44461643b9fbdfb8830f"
+      },
+      "src/composition/Cargo.toml": {
+        "sha256": "a7e6ecdd016d977328548d8e4b0d3c2e619bd80fed64de2dddc236a2b7c0306c"
+      },
+      "src/composition/src/field_attachment.rs": {
+        "sha256": "0322cd7dbb381e63509ac60d15dc7fbd0bd8c4fa55e884a5ffa028f971284e03"
+      },
+      "src/composition/src/field_attachment_intake_command.rs": {
+        "sha256": "7297592cc152c1a93de851a9c46dfaabfd8080c7530a69b4d055b014a86e4bd6"
+      },
+      "src/composition/src/field_attachment_intake_contracts.rs": {
+        "sha256": "cb6a1eff192a6aa6755b76ab9e4466c90794594a096ebcf6559834d993d35b58"
+      },
+      "src/composition/src/field_attachment_intake_http.rs": {
+        "sha256": "df032fe64d00ca84a8aff996852868ced6c7ef55430eed71c14f7a149f72acc2"
+      },
+      "src/composition/src/field_files_cleanup_worker.rs": {
+        "sha256": "0aebcf797a6b86dd6a7e60514b3bb4fb8fde6b7b03a96c045fe887a79461bc7c"
+      },
+      "src/composition/src/field_files_runtime_configuration.rs": {
+        "sha256": "16ba3a97dc508626cba9bd11b19100b0b001a9cb1b3cd5dc894dc6f2629a3259"
+      },
+      "src/composition/src/field_service_reservation_read.rs": {
+        "sha256": "d95c662a85d8124b5dc33f5452f454f2d7a2eff5e9a3ee20e05d8f19fa6bac89"
+      },
+      "src/composition/src/field_service_reservation_read_http.rs": {
+        "sha256": "dedbef8f4f64d1dc8bb12eae068c22a65a7b18dd9eaab03c03c159571c5c42b8"
+      },
+      "src/composition/src/field_upload_http.rs": {
+        "sha256": "bde83ae703ea79c87e31c98546829612057f4f3bb6f474d17848b432b55884c2"
+      },
+      "src/composition/src/files_scan_native.rs": {
+        "sha256": "442fb2a5686df20804566ee84096378ee0b01d6527d9482c4ac4ed6cd590dfee"
+      },
+      "src/composition/src/files_scan_worker.rs": {
+        "sha256": "b2b263cb60b88ef7d2e1905fca4e3d0967eba44903fd1ad540371c5ca4f8a627"
+      },
+      "src/composition/src/files_system_scan.rs": {
+        "sha256": "34d75aa33babfe50b4d68a589feed18ce7c7f81ce03a9962bf0c93194accea77"
+      },
+      "src/composition/src/lib.rs": {
+        "sha256": "34fb7a524d07213217c3b53a732f39b9d8635c72dad6c941f9e8be567d07d642"
+      },
+      "src/composition/src/main.rs": {
+        "sha256": "e7c8202319256fc21d0da652f2d5980e51793c1328b2d32233107f7c8e3b5e3b"
+      },
+      "src/composition/src/private_development_api.rs": {
+        "sha256": "eec54d5f713a00a348d4d0d003bef661cd7f185b3c972b61d4c21489c5152e87"
+      },
+      "src/composition/src/private_development_api/field_files.rs": {
+        "sha256": "30d18583feaded37ba697d61144636e775be328cd6e702f631fbe9773ea68441"
+      },
+      "src/composition/src/service_initial_physical_stock_record.rs": {
+        "sha256": "65b329c8ab670cae56cfef32a1043e57437f34e89bcc2bab86d7e28e8fb87d70"
+      },
+      "src/composition/src/service_initial_physical_stock_update.rs": {
+        "sha256": "e5ee9bd5a31b419fc02401fd8f939e59bdd22f7630dedfe8eec7816a3bf5d31b"
+      },
+      "tests/catalogue/required-cases.json": {
+        "sha256": "dd32337624cddf5183bab2511a85d5cdc1fbbf04e339ea975799c9d684c635b1"
+      },
+      "tests/catalogue/suite-manifest.json": {
+        "sha256": "dcc03de9f679a0610898039307eff7106432ea345d1422e3d98e74d407556904"
+      },
+      "tests/integration/field_service/field-service.test.ts": {
+        "sha256": "6f3c058c1bc3ea58639fade80c7d77ac8188938925fc2153936df8c5c47aa751"
+      },
+      "tests/integration/field_service/rust-files-intake-command-postgres.test.rs": {
+        "sha256": "f2589f213c20057d6fe3935e057ef69301ca1bc3b3829b68e56a90a30e6b4f31"
+      },
+      "tests/integration/field_service/rust-files-intake-http-postgres.test.rs": {
+        "sha256": "984445c2ade0cdb1532d38c1fb526b462a1990c4966ed168087f524ada678b06"
+      },
+      "tests/integration/field_service/rust-files-reservation-postgres.test.rs": {
+        "sha256": "9b1190fa73b94eeee9e313e973bba0e9a3b3efdddd80d1949ba8fb7861fd4b21"
+      },
+      "tests/integration/field_service/rust-service-count-worker-cli-postgres.test.rs": {
+        "sha256": "1a1a122aceb854247c63b13bfa5f1b7e1a73533c5519f81d39eca8f96507c3bf"
+      },
+      "tests/integration/field_service/rust-service-initial-physical-stock-postgres.test.rs": {
+        "sha256": "63f5c5b6b24e057f1d9e0a4030d73ac3068d5b8bbb3e9ba37f3322d6b5d604fc"
+      },
+      "tests/integration/files/rust-attachment-scan-postgres.test.rs": {
+        "sha256": "44b998220784feb7f6cb507a5a2434ae09dbd1f3b976ab8a381b5d9f33b1e43b"
+      },
+      "tests/integration/files/rust-system-scan-postgres.test.rs": {
+        "sha256": "8f7e38a25e211bc2dc1a3504a9ec2d64cbc908d002160f7176f712f0a098da5a"
+      },
+      "tests/integration/people_payroll/expense-v2.test.ts": {
+        "sha256": "ab798262ce252dce061bca8fd7899264926e5b0722838d932fe4a6de2644a297"
+      },
+      "tests/integration/people_payroll/leave-attachment-lock.test.ts": {
+        "sha256": "606755c70041bf7bd4645146749645440732114df60d9f2a013bc7e6320826bd"
+      },
+      "tests/integration/shared.attachments/attachments-v2.test.ts": {
+        "sha256": "50cc6e028668685701f287b13e8046e87283e0f68edc9d6ac875500e207f3a3a"
+      },
+      "tests/integration/shared.attachments/field-file-writer-owner.test.ts": {
+        "sha256": "0eac46b855ea2e8c295abe762464a4220e5720aed563bf0ab6d85110c61716c9"
+      },
+      "tests/integration/shared.business-attachments/engineering-business-attachments.test.ts": {
+        "sha256": "224ef537c133df014c2efda617e645f79b9e671b301e17c014d3eee4408a2b50"
+      },
+      "tests/provider/files/rust-field-files-private-api-provider.test.rs": {
+        "sha256": "71276c32cd65607b9c8909a4b617f18f46a1b84ea26bf7c249dbcf5c58e5b1a7"
+      },
+      "tests/provider/files/rust-system-scan-provider.test.rs": {
+        "sha256": "d6b77c5de0d5f0d9d915e1d40af023ab577536f1f98a853add1afdf52f07c9de"
+      },
+      "tests/support/files/field-cleanup-composition-tests.rs": {
+        "sha256": "f5a9939f5434a7edc673a6169b288c5b11b287380fa96400d30fc2da76c9917c"
+      },
+      "tests/support/files/field-files-native-parity.ts": {
+        "sha256": "d4ba73d8e9a1d0a0f52c853fa54630a986f5fd04a1f6a405521469a542fdc332"
+      },
+      "tests/support/files/rust-field-files-vitest-held-provider.rs": {
+        "sha256": "b5efd07cab605727522727e11560dc8176335601b14ef9e0bc39bfab395a2d3a"
+      },
+      "tests/support/files/scan-facts.rs": {
+        "sha256": "f4f7a84813ce181e556d38bb1183dfe8b2d83e3a47fdcb4b8e167e4353252dad"
+      },
+      "tests/support/finance/review-composition.rs": {
+        "sha256": "49f0af2abbccaad71480694095ae7cfcdaef851fdb49fd45c97d4659580f9057"
+      },
+      "tests/unit/field_service/field-service-attachment-intake-sdk.test.ts": {
+        "sha256": "246ed74c6f4c42bda0f643d4c14494f61a9b154c9826fafe7388561cd14cd298"
+      },
+      "tests/unit/files/rust-field-visit-upload-policy.test.rs": {
+        "sha256": "256e51439e615749e14456cf167123a00c096d78683692fca1892a4877ed356b"
+      },
+      "tests/unit/shared.attachments/attachment-withdraw-route.test.ts": {
+        "sha256": "5b0bb94ada83fb41fe6c9fdf13f60f4c80ec3146ad28ba0210878830542efd9a"
+      },
+      "tests/unit/shared.attachments/bounded-json-body.test.ts": {
+        "sha256": "3fa9f456d6eb3e255f8073260b04e5bfc76ba6b45f35326def595ccbc069e4f2"
+      },
+      "tests/unit/shared.attachments/field-family-bridge.test.ts": {
+        "sha256": "4e09259dbd3ba370136b955514720403c87f45cd33c4ea8a1b85eb66c1c45923"
+      },
+      "tests/unit/shared.attachments/field-files-routes.test.ts": {
+        "sha256": "993ff4a109f9a6b719de776fa977888f438b22a48d5a240a6e570b9e020fd0fc"
+      },
+      "tests/unit/shared.attachments/field-upload-attempt.test.ts": {
+        "sha256": "11670464122104b0dfdc81d694698ddf812e709f5408053fc0ef4cc61daa90ad"
+      }
+    },
+    "manifestScope": "Changed/deleted source and active documentation, excluding this self-referential receipt. Immutable candidate commit contains the complete tree."
+  },
+  "runtimeScope": "Actual Rust API/worker and Next integration in an isolated leased development profile. Operator Tunnel/gateway runtime is unchanged. No production or staging qualification.",
+  "legacyRetirement": {
+    "deletedPairs": [
+      "attachment-purchases",
+      "attachment-read",
+      "attachments-policy-facts",
+      "attachments-service-facts"
+    ],
+    "otherRemoved": [
+      "Files↔Field TypeScript workspace dependencies",
+      "Presenter/client per-ID selector props and public selector APIs",
+      "Optional runtime transport-selector wrappers and obsolete external bind selector configuration"
+    ],
+    "retained": [
+      "Non-Field shared Files implementation with explicit Field exclusion",
+      "Static Field policy metadata consumed by engineering inventory",
+      "Context-bearing bridge factories used after persisted owner selection",
+      "All stored data, migrations, audit/receipts and previous evidence"
+    ]
+  },
+  "verification": {
+    "nativeEngineeringCases": 4,
+    "selectedSharedDatabaseFieldCases": 8,
+    "sharedFilesPostGuardCases": 34,
+    "persistedOwnershipAndAlternatePortalCases": 6,
+    "frontendFocusedCases": 30,
+    "nativeIoProof": "Real local-store and source-preparation counters; real committed-writer wait, one actual40001 finalization retry with one physical read, zero reads on denied initial authority/source.",
+    "deferredFaults": "Customer/IAM allowed-content changes and denied-audit alteration/deletion/IAM changes rolled back; no bytes returned on rejected read.",
+    "checks": [
+      "TypeScript application and tests",
+      "Clippy all targets for private-field-api/files-scan-worker/contracts",
+      "Changed-source ESLint",
+      "Catalogue/architecture/terminology/structure",
+      "Documentation and generated style/task/catalogue inputs"
+    ],
+    "independentReview": "Sol delta reviews resolved deferred denial finalization, long physical IDs and in-unit mixed-marker/Portal read ownership; no remaining actionable P1/P2 in reviewed retirement scope.",
+    "hostedCI": "Not run/claimed; local verification authorized due hosted quota."
+  },
+  "browser": {
+    "actualJourney": ".scratch/dev/field-files-browser-final/result.json",
+    "sql": ".scratch/dev/field-files-browser-final/sql-reconciliation.json",
+    "coldVisit": ".scratch/dev/field-files-browser-final/diagnostic-role-result.json",
+    "explicitWarmChooser": ".scratch/dev/field-files-browser-final/diagnostic-explicit-result.json",
+    "scope": "Normal Account sign-in/SSO, selected Company/role, real upload/scan/bind, checksum-matching original download; later isolated cold visit and explicit warm chooser/readback had no observed errors.",
+    "limits": [
+      "Original fresh journey had one unclassified chooser React warning and two resource404 messages without stack/URL capture; do not call that original console clean.",
+      "Cold visit retained selected role and did not itself render chooser.",
+      "Original fresh screenshot was overwritten by a diagnostic attempt; original receipts and later read-only screenshots remain.",
+      "These are source-bound isolated profile journeys, not public Tunnel traffic cutover or full Field hydration acceptance."
+    ]
+  },
+  "cleanupLimits": [
+    "Staged-publication faults, current binding/Company/reference/claim races and cancellation guards tested; no real SIGKILL recovery claim.",
+    "Retained/bound/legal-hold destruction is a separate unsupported native operation; no legacy deletion fallback."
+  ],
+  "counts": {
+    "fullFieldChecklist": {
+      "closed": 7,
+      "total": 18
+    },
+    "workflows": {
+      "partial": 13,
+      "verified": 0,
+      "merged": 0,
+      "total": 206
+    },
+    "ownersComplete": 0,
+    "ownersTotal": 41,
+    "meaning": "Capability evidence is not a workflow or owner completion percentage."
+  },
+  "delivery": {
+    "docker": "Not qualified for new Field Files capability; follows Rust integration. Existing Count image is separate.",
+    "devContainer": "Existing Count scope only; Field Files extension follows verified Docker runtime.",
+    "development": "No merge authorized.",
+    "release": "No production release, deploy, image publication or visibility change."
+  },
+  "privateEvidence": {
+    ".scratch/dev/field-native-parity-final.log": {
+      "sha256": "191153ee9656ab830f96f590e845cb2393cd26b83ef5c60b64874f9ed6455f40",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-mixed-three-test.log": {
+      "sha256": "f9a8d128378866b06e711a08b86e3cef9aea1d6c929a69bbc4bc16fd5ca52849",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-mixed-projection-test.log": {
+      "sha256": "c168c5352212c072f7ee71773fa34a9e94917de2b41ea106b051ce85040ae33b",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-read-owner-parity-test.log": {
+      "sha256": "533a5a28dce382fb3a69c3e8ea02e392dad1682f8ea604d99a423122f79b2443",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-counting-store-test.log": {
+      "sha256": "b0ebf833b70c3831220745ed45e6febb3a8935dd9eae7f828c0b8d93a6066b04",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-retirement-integration.log": {
+      "sha256": "84c5331d85846147cfc2639b9c2eb2257a8091e811d7cca2e0009e7acdea63a6",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/shared-attachments-v2-final-guard.log": {
+      "sha256": "0414ebd362ab6e2eed6d79aded1ce97bad15b55aa44d3a0d8876cf889a6e8a2d",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-long-id-owner-route.log": {
+      "sha256": "11247eb22d73033ce55cec7559deed9288a93abadd1ce52d7a7509cac43922ad",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-selector-retirement-unit.log": {
+      "sha256": "2290db0a25ad194f003975e9de9bfcdf59a1b96e1527515db3f53def131719bc",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-post-retirement-typecheck.log": {
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-post-retirement-clippy.log": {
+      "sha256": "43f829f2e80712bbd144437047832d38bb7f0336652c0ba051ce4399ec4690d9",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-post-retirement-lint.log": {
+      "sha256": "6296bd66520b7ba45451002d17d91696b261946291499b79ef7f5b007b2e764f",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-post-retirement-architecture.log": {
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-post-retirement-docs.log": {
+      "sha256": "b9b2f0c25d5612732ac5e472e42163c60a0fb6ea4206bd2e3753eb27443c80c3",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-post-retirement-catalogue.log": {
+      "sha256": "04870adf5199252a1302b03a46f9238ae92c56962af3241e6ec1e36371ec98ba",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-post-retirement-style-check.log": {
+      "sha256": "b600e4e006a4e17614e33f157007635720cf5807ba0a13ba1751acee07839929",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-post-retirement-task-check.log": {
+      "sha256": "073e720dbf8271c229c89f582cbc60c18c5b8d2fcb9e44e5e90ac7d4fc75dae7",
+      "role": "private local evidence; not a hosted CI status"
+    },
+    ".scratch/dev/field-post-retirement-catalogue-derived.log": {
+      "sha256": "0ecc424246230d783a64fc1b3997360816308a4aee76319222a3292379baaa1a",
+      "role": "private local evidence; not a hosted CI status"
+    }
+  },
+  "scopeStartedAt": "2026-10-30T18:43:26+07:00",
+  "elapsedClosedBundle": null
+}

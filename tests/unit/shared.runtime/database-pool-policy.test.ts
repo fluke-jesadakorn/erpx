@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {databasePoolAcquireTimeout,databasePoolLimits,databasePoolSize} from "@erpx/feature-runtime/lib/database-pool-policy";
+import {databasePoolAcquireTimeout,databasePoolLimits,databasePoolSize} from "@erpx/platform-runtime-ui/lib/database-pool-policy";
 it('allows cold web development acquisition without changing compiled, test or jobs deadlines',()=>{
  expect(databasePoolAcquireTimeout('app','development')).toBe(20_000);
  for(const environment of ['production','test',undefined])expect(databasePoolAcquireTimeout('app',environment)).toBe(5_000);

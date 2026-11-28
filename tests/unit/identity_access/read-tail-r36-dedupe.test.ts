@@ -1,0 +1,452 @@
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, test, vi, afterEach } from 'vitest';
+import { revokedSessionHeadSql } from '../../../modules/identity-access/server/src/adapters/read-tail-family-r36';
+import {
+  identityControlReadConfigured,
+  parseIdentityControlReadConfig,
+  planIdentityControlRead,
+  setIdentityControlReadForTest,
+  PC_CONTEXT_RECEIPT,
+  PC_REVOKED_SESSION,
+  PC_FRESH_MFA,
+} from '../../../modules/identity-access/server/src/adapters/native-control-read-plan';
+
+const srcRoot = resolve(__dirname, '../../../modules/identity-access/server/src');
+const read = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
+const hash = (rel: string) => createHash('sha256').update(read(rel)).digest('hex');
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+const calls = (rel: string, name: string) => (read(rel).match(new RegExp(`\\b${name}\\b`, 'g')) ?? []).length;
+
+// Verbatim pre-r36 revocation-probe heads captured from HEAD (454 SELECT tokens).
+// SHA-256 values are byte-identity oracles only, never live query sources. An
+// escaped `${` is the literal interpolation text carried into the helper call.
+const HEADS = [
+  {
+    name: 'store-cast',
+    file: 'iam-store.ts',
+    sql: 'SELECT 1 FROM iam_revoked_sessions WHERE session_id=?::text AND company_id=?::text AND user_id=?::text',
+    sha256: 'b2ef0d71f3174b1cbeb46ff4932e45c05620411a2e5fb8f40d426012d5a5369e',
+    call: "revokedSessionHeadSql('?::text','?::text','?::text','unaliased-session-first')",
+    args: ['?::text', '?::text', '?::text', 'unaliased-session-first'] as const,
+    bind: '.bind(companyId, id)',
+  },
+  {
+    name: 'grant-alias',
+    file: 'executive-authority-source.ts',
+    sql: 'SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=grant_row.company_id AND user_id=grant_row.user_id',
+    sha256: '3cbc0e72512a900fdca8f7753b6421398fcbc1221d8794fb4e84aeaf803e1e40',
+    call: "revokedSessionHeadSql('?','grant_row.company_id','grant_row.user_id','unaliased-session-first')",
+    args: ['?', 'grant_row.company_id', 'grant_row.user_id', 'unaliased-session-first'] as const,
+    bind: '.bind(a.assignmentId,a.companyId,a.userId,a.role,a.branchId,a.departmentId,now,now,',
+  },
+  {
+    name: 'directory-company-first',
+    file: 'iam-directory-refresh.ts',
+    sql: 'SELECT 1 FROM iam_revoked_sessions WHERE company_id=? AND user_id=? AND session_id=?',
+    sha256: '4b7f1c2012581526b44585d5b60c1638dd3b0ce7ae283b556e8f34944a5bd784',
+    call: "revokedSessionHeadSql('?','?','?','unaliased-company-first')",
+    args: ['?', '?', '?', 'unaliased-company-first'] as const,
+    bind: '.bind(companyId,userId,sessionId,companyId,userId,Date.now()-300000)',
+  },
+  {
+    name: 'job-a-alias',
+    file: 'project-worker-startup-subject.ts',
+    sql: 'SELECT 1 FROM iam_revoked_sessions r WHERE r.company_id=a.company_id AND r.user_id=a.user_id AND r.session_id=?',
+    sha256: '37d50e36714c5a1a48beecf6f618ff7132409bd1c4f0c3cf5fbdb1fd4d5bcb8a',
+    call: "revokedSessionHeadSql('?','a.company_id','a.user_id','aliased-company-first')",
+    args: ['?', 'a.company_id', 'a.user_id', 'aliased-company-first'] as const,
+    bind: '.bind(saved.assignmentId,actorId,companyId,saved.role,iam.queuedAssignmentVersion??saved.assignmentVersion??null,saved.sessionId??null)',
+  },
+  {
+    name: 'queued-alias',
+    file: 'queued-command-authority.ts',
+    sql: 'SELECT 1 FROM iam_revoked_sessions r WHERE r.company_id=${alias}.company_id AND r.user_id=? AND r.session_id=?',
+    sha256: '1e9a2196d9a5be225960c3edf60866fe59039ff8a3fafc8d25da521beeca89b3',
+    call: "revokedSessionHeadSql('?', `${alias}.company_id`, '?', 'aliased-company-first')",
+    args: ['?', '${alias}.company_id', '?', 'aliased-company-first'] as const,
+    bind: '.bind(...scope.args,actor.userId,actor.authority?.sessionId??null,actor.iam?.queuedAssignmentVersion??null,',
+  },
+  {
+    name: 'queued-interp',
+    file: 'queued-social-source-authority.ts',
+    sql: 'SELECT 1 FROM iam_revoked_sessions r WHERE r.session_id=${session} AND r.company_id=${company} AND r.user_id=${user}',
+    sha256: '4780fe68fb7e5b74ddc2a35ca8c7171ef49638dbc1066e228aa8c38633afd152',
+    call: "revokedSessionHeadSql(`${session}`, `${company}`, `${user}`, 'aliased-session-first')",
+    args: ['${session}', '${company}', '${user}', 'aliased-session-first'] as const,
+    bind: "iamMemberVersionProbeSql('interp',company,user)",
+  },
+  {
+    name: 'push-multiline',
+    file: 'collaboration-push-session.ts',
+    sql: 'SELECT 1 FROM iam_revoked_sessions r WHERE r.session_id=c.session_id\n      AND r.company_id=c.company_id AND r.user_id=c.user_id',
+    sha256: 'dad7cfb0764b81f485eba9fc358d35556855cf0f208e35cd1283815601786665',
+    call: "revokedSessionHeadSql('c.session_id','c.company_id','c.user_id','aliased-session-first-multiline')",
+    args: ['c.session_id', 'c.company_id', 'c.user_id', 'aliased-session-first-multiline'] as const,
+    bind: '.bind(s.session_id,s.company_id,s.user_id,now,now,now)',
+  },
+] as const;
+
+describe('Identity access read-tail r36 byte oracles', () => {
+  test('all seven pinned heads carry the recorded SHA-256 and render byte-identically', () => {
+    for (const h of HEADS) {
+      expect(sha256(h.sql), h.name).toBe(h.sha256);
+      const rendered = revokedSessionHeadSql(h.args[0], h.args[1], h.args[2], h.args[3]);
+      expect(rendered, h.name).toBe(h.sql);
+      expect(sha256(rendered), h.name).toBe(h.sha256);
+      expect(rendered).toContain('SELECT ');
+      expect(rendered).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+    }
+  });
+
+  test('closed-union shapes select alias qualification, predicate order and original whitespace', () => {
+    expect(revokedSessionHeadSql('?', 'a.company_id', 'a.user_id', 'aliased-company-first')).toBe(
+      'SELECT 1 FROM iam_revoked_sessions r WHERE r.company_id=a.company_id AND r.user_id=a.user_id AND r.session_id=?',
+    );
+    expect(revokedSessionHeadSql('?', '?', '?', 'unaliased-company-first')).toBe(
+      'SELECT 1 FROM iam_revoked_sessions WHERE company_id=? AND user_id=? AND session_id=?',
+    );
+    expect(revokedSessionHeadSql('c.session_id', 'c.company_id', 'c.user_id', 'aliased-session-first-multiline')).toContain('\n      AND ');
+    expect(revokedSessionHeadSql('?', '?', '?', 'unaliased-session-first')).not.toBe(
+      revokedSessionHeadSql('?', '?', '?', 'unaliased-company-first'),
+    );
+    const helper = read('adapters/read-tail-family-r36.ts');
+    expect(helper).toContain("| 'aliased-session-first-multiline'");
+    expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+  });
+});
+
+describe('Identity access read-tail r36 wiring', () => {
+  test('one helper with one SELECT token; all seven sites route through it and keep their binds', () => {
+    const helper = read('adapters/read-tail-family-r36.ts');
+    expect((helper.match(/export const revokedSessionHeadSql =/g) ?? []).length).toBe(1);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+
+    for (const h of HEADS) {
+      const src = read(`adapters/${h.file}`);
+      expect(src.includes(`import {revokedSessionHeadSql}`) || src.includes(`import { revokedSessionHeadSql }`), `${h.file} imports the helper`).toBe(true);
+      expect(src.includes(h.call), `${h.file} routes through ${h.call}`).toBe(true);
+      expect(src.includes(h.bind), `${h.file} keeps its bind`).toBe(true);
+      expect(src.includes(h.sql), `${h.file} no longer inlines ${h.name}`).toBe(false);
+      expect(calls(`adapters/${h.file}`, 'revokedSessionHeadSql'), h.file).toBe(2); // import + use
+    }
+  });
+
+  test('locks, existing helpers and native kinds stay untouched', () => {
+    expect(hash('adapters/iam-probe-sql.ts')).toBe('e0984c3774b38a3229fe848061482e46efd984f26e86152ce9973c3c49104101');
+    expect(hash('adapters/read-tail-family-r34.ts')).toBe('95e25ead2dac0a1832535f73794691036025e14748f1c17ac342c9620b3750be');
+    expect(hash('adapters/read-tail-family-r35.ts')).toBe('8067ca1ffbb2a9076808a97275b1659b592eafbc2b80915e1260ffd5e2f8d442');
+    expect(hash('adapters/payroll-cancellation-grant.ts')).toBe('eae4d8d3f2eacc4839676d3fcf7cd2da7edc3bb5a6a875e71b2787cf9e26e5ee');
+    // The remaining aliased 'platform' probe is a different shape and stays inline.
+    expect(read('adapters/platform-commercial-authority.ts')).toContain("EXISTS(SELECT 1 FROM iam_revoked_sessions r WHERE r.company_id='platform'");
+    expect(read('adapters/iam-probe-sql.ts')).toContain('SELECT 1 FROM iam_revoked_sessions WHERE session_id=${sessionParam}');
+    expect(read('adapters/workflow-command-authority.ts')).toContain('SELECT id FROM assignments WHERE id=? FOR SHARE');
+    expect(read('adapters/account-preference-session.ts')).toContain('PC_PREF_SESSION_SHARE');
+    expect(readdirSync(srcRoot, { recursive: true }).filter((f) => String(f).endsWith('.rs')).length).toBeGreaterThan(0);
+  });
+
+  test('post-dedupe files match their pinned byte oracles', () => {
+    const pins: [string, string][] = [
+      ['adapters/read-tail-family-r36.ts', 'c2d4f046bff69a0fc400d1bc07e5361f69d2fbe9a45c98c6ec8aa8b70485d9aa'],
+      ['adapters/iam-store.ts', '827ec154f6723367e4974fa0e58fbf86843b779fd68166a6c8897b8a48c3c1fd'],
+      ['adapters/executive-authority-source.ts', 'd6526a6b37bdcaa1b17eb55e319bf936b5431d46e8ebaa8b142adcc57baa6170'],
+      ['adapters/iam-directory-refresh.ts', '9c73eb793a2bc879a6638ade55b8bd844b7f96f498545e096a8b3a693cb2f7d9'],
+      ['adapters/project-worker-startup-subject.ts', 'c83fd8ea6b1a360d859695448d95bba90ffefcecc6f221615d9b45361c559c75'],
+      ['adapters/queued-command-authority.ts', 'ce6d759e80eaaf885f61204031868d722ce35b815a0b6c30e09240666c2a9def'],
+      ['adapters/queued-social-source-authority.ts', 'a5379950fb6735056405839f43758dd14235fc8da7402097cb120e780a77663e'],
+      ['adapters/collaboration-push-session.ts', '49b8d99615997a27bc8999eecd699c7666d99b01fc35b922ce464f4e21e1ace8'],
+    ];
+    for (const [rel, sha] of pins) expect(hash(rel), rel).toBe(sha);
+  });
+});
+
+/**
+ * Cutover oracles for the Control-side provider-context reads. The native owner
+ * now plans each statement and the caller binds/executes the reply on its own
+ * Control unit, so the EXCLUSIVE session lease and three source leases still
+ * cover the reads. These SHA-256 values are byte oracles only, never live query
+ * sources: the TypeScript statements are deleted and the owner constants must
+ * remain byte-identical to these pins.
+ */
+const PROVIDER_CONTEXT_SELECTS = [
+  "SELECT 1 FROM iam_revoked_sessions revocation WHERE revocation.company_id='platform' AND revocation.user_id=? AND revocation.session_id IN(?,(SELECT parent_session_id FROM sso_session_bindings WHERE session_id=?))",
+  'SELECT assignment.id,assignment.role,assignment.version FROM platform_assignments assignment WHERE assignment.user_id=? AND iam_assignment_active(assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(assignment.user_id,\'platform\',floor(extract(epoch FROM clock_timestamp())*1000)::bigint) ORDER BY assignment.valid_until,assignment.id',
+  'SELECT user_id,assignment_id,revision,updated_at FROM admin_provider_contexts WHERE session_id=?',
+  'SELECT platform_assignment_id FROM account_workspace_preferences WHERE user_id=?',
+  'SELECT company_id,actor_id,request_hash,result FROM iam_receipts WHERE id=?',
+] as const;
+const PROVIDER_CONTEXT_SHAS = [
+  'c8272d0c84cece485749ed6740f81e378d3bca686ff75f3cdc63f71d55e2c628',
+  '0ac70d35203729f01794acb9d25fb03fa72c36056cfdfce0d965b09301ee38d9',
+  '187ae3a29228e8f2216facd5ee409aca9f7f1035d5ee554c17e412929ea0ff1d',
+  'f14064c0ee3a3034aa871d0594e0e63ca6f889601efef5b37b65ac9009ac5469',
+  'def58961eb1edadfd240c2b97b615f7421df74e86d1da5bc2bc5f49742298949',
+] as const;
+
+describe('Identity access native Control read-plan client', () => {
+  const ENV = 'ERPX_NATIVE_IDENTITY_CONTROL_READ_CONFIG';
+  const config = JSON.stringify({
+    privateBaseUrl: 'http://127.0.0.1:44993',
+    timeoutMs: 1000,
+    origin: 'https://acme.example.test',
+    holdings: [{ origin: 'https://acme.example.test', host: 'acme.example.test', holdingSlug: 'acme', holdingId: 'h001' }],
+  });
+
+  afterEach(() => {
+    setIdentityControlReadForTest(undefined);
+    vi.unstubAllEnvs();
+  });
+
+  const codeOf = (run: () => unknown): string | undefined => {
+    try { run(); } catch (error) { return (error as { code?: string }).code; }
+    return undefined;
+  };
+
+  test('configuration is exact and fails closed', async () => {
+    expect(parseIdentityControlReadConfig(config).holding.holdingSlug).toBe('acme');
+    expect(codeOf(() => parseIdentityControlReadConfig(undefined))).toBe('IDENTITY_CONTROL_READ_CONFIG_REQUIRED');
+    expect(codeOf(() => parseIdentityControlReadConfig('nope'))).toBe('IDENTITY_CONTROL_READ_CONFIG_INVALID');
+    expect(codeOf(() => parseIdentityControlReadConfig(JSON.stringify({
+      ...JSON.parse(config), origin: 'http://acme.example.test',
+    })))).toBe('IDENTITY_CONTROL_READ_CONFIG_INVALID');
+    vi.stubEnv(ENV, undefined);
+    expect(identityControlReadConfigured()).toBe(false);
+    await expect(planIdentityControlRead(PC_CONTEXT_RECEIPT, ['key-1'])).rejects.toMatchObject({
+      code: 'IDENTITY_CONTROL_READ_CONFIG_REQUIRED',
+    });
+  });
+
+  test('kinds, arity and values are closed before any transport call', async () => {
+    vi.stubEnv(ENV, config);
+    for (const [kind, values] of [
+      ['arbitrary_sql', ['DROP TABLE x']],
+      [PC_REVOKED_SESSION, ['a', 'b']],
+      [PC_CONTEXT_RECEIPT, ['']],
+      [PC_CONTEXT_RECEIPT, [7]],
+    ] as const)
+      await expect(planIdentityControlRead(kind, values)).rejects.toMatchObject({
+        code: 'IDENTITY_CONTROL_READ_INVALID',
+      });
+  });
+
+  test('a verified plan is byte-identical to the pinned Control statement', async () => {
+    setIdentityControlReadForTest(async (kind, values) => ({
+      sql: PROVIDER_CONTEXT_SELECTS[4],
+      values: [...values],
+    }));
+    const planned = await planIdentityControlRead(PC_CONTEXT_RECEIPT, ['key-1']);
+    expect(planned.sql).toBe(PROVIDER_CONTEXT_SELECTS[4]);
+    expect(planned.values).toEqual(['key-1']);
+  });
+
+  test('an unexpected statement reply fails closed', async () => {
+    setIdentityControlReadForTest(async () => ({ sql: 'SELECT 1', values: ['key-1'] }));
+    await expect(planIdentityControlRead(PC_CONTEXT_RECEIPT, ['key-1'])).rejects.toMatchObject({
+      code: 'IDENTITY_CONTROL_READ_RESPONSE_INVALID',
+    });
+  });
+});
+
+describe('Identity access provider-context native plan cutover', () => {
+  test('the five Control statements are deleted from TS and pinned by the native owner', () => {
+    const source = read('adapters/provider-context-store.ts');
+    PROVIDER_CONTEXT_SELECTS.forEach((sql, index) => {
+      expect(sha256(sql), PROVIDER_CONTEXT_SHAS[index]).toBe(PROVIDER_CONTEXT_SHAS[index]);
+      expect(source, sql).not.toContain(sql);
+    });
+    expect(source).not.toMatch(/SELECT /);
+    for (const symbol of [
+      'PC_REVOKED_SESSION',
+      'PC_PLATFORM_ASSIGNMENTS',
+      'PC_PROVIDER_CONTEXT',
+      'PC_WORKSPACE_PREFERENCE',
+      'PC_CONTEXT_RECEIPT',
+    ])
+      expect(source, symbol).toContain(symbol);
+    expect(source).toContain('planIdentityControlRead');
+    expect(source).toContain('database.prepare(plan.sql).bind(...plan.values)');
+    expect((source.match(/LOCK TABLE /g) ?? []).length).toBe(3);
+    expect(source).toContain('LOCK TABLE session IN EXCLUSIVE MODE');
+  });
+
+  test('the owner constants carry the same byte oracles', () => {
+    const port = read('adapters/control_read_plan.rs');
+    PROVIDER_CONTEXT_SELECTS.forEach((sql, index) => {
+      // The Rust literal escapes its double quotes; the rendered bytes are unescaped.
+      expect(port, PROVIDER_CONTEXT_SHAS[index]).toContain(sql.replace(/"/g, '\\"'));
+    });
+    const client = read('adapters/native-control-read-plan.ts');
+    PROVIDER_CONTEXT_SHAS.forEach((sha) => expect(client).toContain(sha));
+  });
+});
+
+describe('Identity access Control-side read-plan family', () => {
+  const SQLS = [
+    'SELECT * FROM iam_connection_routes WHERE connection_id=?',
+    'SELECT enabled FROM iam_mfa WHERE user_id=?',
+    "SELECT id,invitation_id FROM account_invitation_delivery_jobs WHERE holding_id=? AND state='awaiting_approval' ORDER BY created_at LIMIT 100",
+    'SELECT email,name,status,expires_at FROM account_invitations WHERE id=?',
+  ] as const;
+  const SHAS = [
+    'e5b27b09f6631e02ba985c0f48972ac6e38a345bc71f6796d3dc19a93be61001',
+    'ed5645df6420b56f0f1338173e9ae53e3fcc203a3d7fbe165619f396255c5dea',
+    'c5c89be91182d5cf9ee647729eb1cd2a03c9f4f72bceb7e6ce2a9b5ffadfd0e0',
+    '5ee384b180a89fa15fe0f47f624cac2d15d84bdc76802e8b48d0df897ece6686',
+  ] as const;
+
+  test('the four Control statements are deleted from TS and pinned by the owner', () => {
+    const port = read('adapters/control_read_plan.rs');
+    const client = read('adapters/native-control-read-plan.ts');
+    for (let index = 0; index < SQLS.length; index++) {
+      expect(sha256(SQLS[index]), SHAS[index]).toBe(SHAS[index]);
+      expect(port, SHAS[index]).toContain(SQLS[index].replace(/"/g, '\\"').replace(/\n/g, '\\n'));
+      expect(client, SHAS[index]).toContain(SHAS[index]);
+    }
+    const files = [
+      'adapters/directory-lookup.ts',
+      'adapters/iam-service-reads.ts',
+      'adapters/invitation-delivery.ts',
+    ];
+    files.forEach((file) => {
+      const source = read(file);
+      expect(source, file).toContain('planIdentityControlRead');
+      SQLS.forEach((sql) => expect(source, sql).not.toContain(sql));
+    });
+    expect(read('adapters/directory-lookup.ts')).toContain('PC_CONNECTION_ROUTE');
+    expect(read('adapters/iam-service-reads.ts')).toContain('PC_MFA_ENABLED');
+    expect(read('adapters/invitation-delivery.ts')).toContain('PC_INVITATION_WAITING');
+    expect(read('adapters/invitation-delivery.ts')).toContain('PC_DELIVERABLE_INVITATION');
+  });
+});
+
+describe('Identity access fresh-MFA native plan cut', () => {
+  afterEach(() => setIdentityControlReadForTest(undefined));
+  const SQL = 'SELECT 1 FROM iam_mfa_sessions f JOIN iam_mfa m ON m.user_id=f.user_id AND m.enabled=true JOIN session s ON s.id=f.session_id AND s."userId"=f.user_id WHERE f.user_id=? AND f.session_id=? AND f.verified_at>? AND s."expiresAt"::timestamptz>?::timestamptz';
+  const SHA = '65e69ea7d903ef4a7f3d8e622254c9b874cfb825cfd8ca1c29e0ba7577125132';
+
+  test('the statement is deleted from TS and pinned by the native owner and client', () => {
+    expect(sha256(SQL)).toBe(SHA);
+    const source = read('adapters/iam-mfa.ts');
+    expect(source).not.toContain(SQL);
+    expect(source).not.toMatch(/SELECT /);
+    expect(source).toContain('PC_FRESH_MFA');
+    expect(source).toContain('planIdentityControlRead');
+    expect(source).toContain('prepare(plan.sql).bind(...plan.values)');
+    const port = read('adapters/control_read_plan.rs');
+    expect(port).toContain(SQL.replace(/"/g, '\\"'));
+    expect(read('adapters/native-control-read-plan.ts')).toContain(SHA);
+  });
+
+  test('the numeric cutoff rule is closed on both sides of the client', async () => {
+    const cutoff = 1_700_000_000_000;
+    const isoNow = '2026-11-26T00:00:00.000Z';
+    setIdentityControlReadForTest(async (_kind, values) => ({ sql: SQL, values }));
+    expect(await planIdentityControlRead(PC_FRESH_MFA, ['user-1', 'session-1', cutoff, isoNow]))
+      .toEqual({ sql: SQL, values: ['user-1', 'session-1', cutoff, isoNow] });
+    for (const values of [
+      ['user-1', 'session-1', 'not-a-number', isoNow],
+      ['user-1', 'session-1', -1, isoNow],
+      ['user-1', 'session-1', cutoff],
+    ])
+      await expect(planIdentityControlRead(PC_FRESH_MFA, values)).rejects.toMatchObject({
+        code: 'IDENTITY_CONTROL_READ_INVALID',
+      });
+  });
+});
+
+describe('Identity access lock-aware preference plan cut', () => {
+  const SQLS = [
+    'SELECT * FROM sso_session_bindings WHERE session_id=?',
+    'SELECT id FROM session WHERE id=? FOR SHARE',
+    'SELECT "userId" user_id,"expiresAt" expires_at FROM session WHERE id=?',
+    'SELECT * FROM sso_session_bindings WHERE session_id=? FOR SHARE',
+    'SELECT b.*,s."userId" user_id,s."expiresAt" expires_at\n    FROM sso_session_bindings b JOIN session s ON s.id=b.session_id WHERE b.session_id=? FOR SHARE OF b',
+  ] as const;
+  const SHAS = [
+    '5893b16f5a1267558051991fecbbd67645fbbee1b6c3e779fcb2ba4141130504',
+    'be9e3354fe8e8adb7357c1d18e264b4c8d8983ca45951716731a6c42be770be0',
+    '8ee55872698acd8f8db05e131432e221353aa71e8665b94c8205e012a52bf8af',
+    'd9ee53a4666438071f1e233fbcb7754912d6f08251b3f69652b2792d9e8a3789',
+    '242a5de65756ffa03457eca0a59a03466d074e34c95877f57022dce9b717cce9',
+  ] as const;
+
+  test('five preference statements are deleted from TS and pinned by the owner', () => {
+    const source = read('adapters/account-preference-session.ts');
+    const port = read('adapters/control_read_plan.rs');
+    const client = read('adapters/native-control-read-plan.ts');
+    for (let index = 0; index < SQLS.length; index++) {
+      expect(sha256(SQLS[index]), SHAS[index]).toBe(SHAS[index]);
+      expect(source, SHAS[index]).not.toContain(SQLS[index]);
+      expect(port, SHAS[index]).toContain(SQLS[index].replace(/"/g, '\\"').replace(/\n/g, '\\n'));
+      expect(client, SHAS[index]).toContain(SHAS[index]);
+    }
+    expect(source).not.toMatch(/SELECT /);
+    for (const kind of [
+      'PC_PREF_BINDING_PROBE',
+      'PC_PREF_SESSION_SHARE',
+      'PC_PREF_SESSION_IMAGE',
+      'PC_PREF_BINDING_SHARE',
+      'PC_PREF_PARENT_BINDING_SHARE',
+    ])
+      expect(source, kind).toContain(kind);
+    expect(source).toContain('planIdentityControlRead');
+    expect(source).toContain('transaction.prepare(plan.sql).bind(...plan.values)');
+  });
+
+  test('lock suffixes stay pinned on the caller unit', () => {
+    for (const suffix of ['FOR SHARE', 'FOR SHARE', 'FOR SHARE OF b'])
+      expect(SQLS.filter((sql) => sql.endsWith(suffix)).length).toBeGreaterThan(0);
+    const source = read('adapters/account-preference-session.ts');
+    expect(source).toContain('parentId');
+    expect(source).toContain('actor.sessionId');
+  });
+});
+
+describe('Identity access workflow and queued authorization plan cut', () => {
+  const SQLS = [
+    'SELECT revision,assignment_id,assignment_version FROM active_work_contexts WHERE session_id=? AND company_id=?',
+    'SELECT version FROM assignments WHERE id=? AND company_id=? AND user_id=? AND role=?',
+  ] as const;
+  const SHAS = [
+    '98fb96e432fdd1d620164254660524abf2a902e5327498963620cea9d88b94b7',
+    '3a336e6778cfae07ea33cc8d5d45430ab26fceb78271cd87a68e5fb885f78fc9',
+  ] as const;
+
+  test('the two cross-owner authorization reads are deleted from TS and pinned by the owner', () => {
+    const sources = [
+      read('adapters/workflow-command-authority.ts'),
+      read('adapters/queued-command-authority.ts'),
+    ];
+    const port = read('adapters/control_read_plan.rs');
+    const client = read('adapters/native-control-read-plan.ts');
+    for (let index = 0; index < SQLS.length; index++) {
+      expect(sha256(SQLS[index]), SHAS[index]).toBe(SHAS[index]);
+      expect(sources[index], SHAS[index]).not.toContain(SQLS[index]);
+      expect(port, SHAS[index]).toContain(SQLS[index].replace(/"/g, '\\"'));
+      expect(client, SHAS[index]).toContain(SHAS[index]);
+    }
+    expect(sources[0]).toContain('PC_WORKFLOW_ACTIVE_CONTEXT');
+    expect(sources[1]).toContain('PC_QUEUED_ASSIGNMENT_VERSION');
+    for (const source of sources) {
+      expect(source).toContain('planIdentityControlRead');
+      expect(source).toMatch(/prepare\((?:versionPlan|plan)\.sql\)\.bind\(\.\.\.(?:versionPlan|plan)\.values\)/);
+    }
+  });
+});
+
+describe('Identity access read-tail r36 retirement check', () => {
+  test('retirement:ts-statements is 368 after access-diagnosis plan cut', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(p);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(srcRoot);
+    expect(total).toBeLessThan(454);
+    expect(total).toBe(368);
+  });
+});

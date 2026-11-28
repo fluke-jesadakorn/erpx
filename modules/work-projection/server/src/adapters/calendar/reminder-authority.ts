@@ -1,0 +1,44 @@
+import 'server-only';
+import {createHash} from 'node:crypto';
+import type {WorkContext} from '@erpx/identity-access-server/public/authorization';
+import {requireQueuedAccountAuthority} from '@erpx/identity-access-server/public/queued-command-authority';
+import {calendarCommandsIdentityAccessFacts} from '@erpx/identity-access-server/public/calendar-commands-facts';
+import type {SqlDatabase} from '@erpx/platform-runtime-server/public/runtime/types';
+import {ApiError} from '@erpx/platform-runtime-server/public/http';
+import type {CalendarCommand} from '@erpx/work-projection-server/public/rules/calendar-domain';
+import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/commercial-server/public/purchased-capability-sql';
+import { scheduledFeaturePredicate } from "@erpx/pms-server/public/feature-availability";
+import { nativeOwnerWrite } from "../native-owner-write";
+import { appointmentChildImageSql, commandReceiptSql, versionById, noopSql, reminderAttendeePointSql, reminderAttendeesSql } from '../read-tail-sql';
+/** Closed native aliases a/t. Responses and mutable row versions do not change
+ * the captured reminder configuration; their current policy is checked live. */
+const configuration=`jsonb_build_object('record',to_jsonb(a)-ARRAY['version','updated_at'],'attendee',to_jsonb(t)-ARRAY['response','response_at'],'series',${appointmentChildImageSql("to_jsonb(s)-'version'",'calendar_series','s','a')},'exceptions',${appointmentChildImageSql("jsonb_agg(to_jsonb(e)-'version' ORDER BY e.occurrence_key)",'calendar_occurrence_exceptions','e','a')})::text`;
+const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
+export const appointmentVersionSql=versionById('calendar_appointments');
+export type CalendarReminderAuthorization={command_id:string;appointment_id:string;recipient_id:string;company_id:string;actor_id:string;assignment_id:string;authority_json:string;source_hash:string;source_version:number;action:'appointment.save'|'appointment.reschedule'|'appointment.reminder.set'};
+export async function calendarReminderConfiguration(database:SqlDatabase,companyId:string,id:string,userId:string){return database.prepare(reminderAttendeePointSql(`${configuration} image`)).bind(id,companyId,userId).first<string>('image');}
+function snapshot(actor:WorkContext){const {holdingId,holdingSlug,holdingName,companyId,branchId,departmentId,userId,assignmentId,role,authority,iam,name,email,scope,assignmentScope,inherited,modules}=actor;return {holdingId,holdingSlug,holdingName,companyId,branchId,departmentId,userId,assignmentId,role,authority,iam,name,email,scope,assignmentScope,inherited,modules,assignments:[],workspaces:[]};}
+/** Only a normal successful owner command captures its actual acting context.
+ * Legacy schedules and exact receipt replay receive no inferred principal. */
+export async function captureCalendarReminderAuthority(database:SqlDatabase,actor:WorkContext,input:CalendarCommand,key:string,ids:string[]){
+ if(input.action!=='appointment.save'&&input.action!=='appointment.reschedule'&&!(input.action==='appointment.reminder.set'&&input.minutes!==null))return;
+ const bound=await requireQueuedAccountAuthority(database,actor);
+ for(const id of ids){const recipients=(await database.prepare(reminderAttendeesSql('t.user_id,a.version',` AND a.status='scheduled' AND t.reminder_minutes IS NOT NULL${input.action==='appointment.reminder.set'?' AND t.user_id=?':''}`)).bind(id,actor.companyId,...(input.action==='appointment.reminder.set'?[actor.userId]:[])).all<{user_id:string;version:number}>()).results;
+  for(const recipient of recipients){const image=await calendarReminderConfiguration(database,actor.companyId,id,recipient.user_id);if(!image)throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The exact reminder configuration is unavailable.');await nativeOwnerWrite('wp_reminder_authorization_insert',[
+    key,id,recipient.user_id,actor.companyId,actor.userId,actor.assignmentId,input.action,
+    JSON.stringify(snapshot(bound)),hash(image),recipient.version,Date.now(),
+  ],`wp-reminder-auth:${key}:${id}:${recipient.user_id}`,{companyId:actor.companyId},()=>database.prepare(noopSql));}
+ }
+ return bound;
+}
+export async function requireCalendarReminderBinding(database:SqlDatabase,row:CalendarReminderAuthorization,image:string){
+ const actor:WorkContext=JSON.parse(row.authority_json);
+ if(actor.userId!==row.actor_id||actor.assignmentId!==row.assignment_id||actor.companyId!==row.company_id||row.source_hash!==hash(image)||!await database.prepare(commandReceiptSql('', " AND (r.result_json::jsonb->>'id'=? OR r.record_id=? OR ?='calendar-'||r.command_id AND r.operation='calendar.appointment.reschedule') AND (r.result_json::jsonb->>'version')::bigint>=?", 'r')).bind(row.command_id,row.actor_id,`calendar.${row.action}`,row.company_id,row.appointment_id,row.appointment_id,row.appointment_id,row.source_version).first())throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The original reminder command and configuration no longer match.');
+ const sourceVersion=await database.prepare(appointmentVersionSql).bind(row.appointment_id,row.company_id).first<number>('version');
+ if(!sourceVersion||sourceVersion<row.source_version||await database.prepare(`SELECT count(DISTINCT h.version) versions FROM calendar_history h JOIN command_receipts r ON r.record_id=h.record_id AND r.actor_id=h.actor_id AND r.authority_json::jsonb->>'companyId'=h.company_id AND (r.result_json::jsonb->>'version')::bigint=h.version AND r.operation='calendar.'||CASE WHEN h.action LIKE 'appointment.status.%' THEN 'appointment.status' ELSE h.action END WHERE h.company_id=? AND h.source='appointment' AND h.record_id=? AND h.version>? AND h.version<=?`).bind(row.company_id,row.appointment_id,row.source_version,sourceVersion).first<number>('versions')!==sourceVersion-row.source_version)throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The current Calendar version has no contiguous original command history.');
+ const recipient=await calendarCommandsIdentityAccessFacts(database).read28({value1:row.company_id,value2:[row.recipient_id],value3:Date.now()});if(recipient.results.length!==1)throw new ApiError(403,'CALENDAR_REMINDER_RECIPIENT_CHANGED','The original reminder recipient is no longer active.');
+ return requireQueuedAccountAuthority(database,actor);
+}
+/** Source binding and purchased settlement precede the original candidate LIMIT.
+ * The complete queued actor/recipient policy is repeated in its owned unit. */
+export function calendarReminderCandidateScope(){return `EXISTS(SELECT 1 FROM calendar_reminder_execution_authorizations reminder_authority JOIN command_receipts receipt ON receipt.command_id=reminder_authority.command_id AND receipt.actor_id=reminder_authority.actor_id AND receipt.operation='calendar.'||reminder_authority.action AND receipt.authority_json::jsonb->>'companyId'=a.company_id WHERE reminder_authority.appointment_id=a.id AND reminder_authority.company_id=a.company_id AND reminder_authority.recipient_id=t.user_id AND reminder_authority.source_hash=encode(sha256(convert_to(${configuration},'UTF8')),'hex') AND (receipt.result_json::jsonb->>'id'=a.id OR receipt.record_id=a.id OR a.id='calendar-'||receipt.command_id AND receipt.operation='calendar.appointment.reschedule') AND (receipt.result_json::jsonb->>'version')::bigint>=reminder_authority.source_version) AND EXISTS(WITH reminder_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM reminder_clock WHERE ${purchasedCapabilityPredicate('a.company_id','work.calendar','settle-existing','reminder_clock.now_ms')} AND ${scheduledFeaturePredicate('a.company_id','operations')})`;}

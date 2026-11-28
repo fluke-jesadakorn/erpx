@@ -2,11 +2,11 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
-import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
+import type { RuntimeEnv } from "@erpx/platform-runtime-server/adapters/runtime/env";
 import { seedExpenseCompany } from "../../expenses/company";
-import { loadPms, pmsCommand } from "../../../packages/server-pms/src/public/pms";
-import { pmsAccountKeys, type Config } from "@erpx/server-pms/public/rules/pms";
-import { isTransactionalSqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import { loadPms, pmsCommand } from "../../../modules/pms/server/src/public/pms";
+import { pmsAccountKeys, type Config } from "@erpx/pms-server/public/rules/pms";
+import { isTransactionalSqlDatabase } from "@erpx/platform-runtime-server/adapters/runtime/types";
 
 /** Normal PMS commands establish prerequisites; the browser creates the stay. */
 export async function createBookingBrowserFixture(env: RuntimeEnv) {

@@ -13,14 +13,14 @@ in session storage and reuse an idempotency key for an unchanged failed command.
 
 Read alongside these implementation sources:
 
-- [Work page](../../packages/feature-work/src/routes/holdings/[holdingSlug]/work/page.tsx),
-  [dashboard](../../packages/workplace/src/components/work-dashboard.tsx),
-  [results](../../packages/workplace/src/components/work-list.tsx), and
-  [new-work dialog](../../packages/workplace/src/components/new-work.tsx).
-- [Request editor and actions](../../packages/workplace/src/components/request-controls.tsx),
-  [request service](../../packages/server-records/src/public/employee-requests.ts),
-  [browser draft recovery](../../packages/ui/src/components/use-recoverable-draft.tsx), and
-  [command retry](../../packages/feature-work_projection/src/components/staff-work-controls.tsx).
+- [Work page](../../products/apps/ui/src/routes/holdings/[holdingSlug]/work/page.tsx),
+  [dashboard](../../platform/workplace/src/components/work-dashboard.tsx),
+  [results](../../platform/workplace/src/components/work-list.tsx), and
+  [new-work dialog](../../platform/workplace/src/components/new-work.tsx).
+- [Request editor and actions](../../platform/workplace/src/components/request-controls.tsx),
+  [request service](../../modules/records/server/src/public/employee-requests.ts),
+  [browser draft recovery](../../platform/shared/ui/src/components/use-recoverable-draft.tsx), and
+  [command retry](../../modules/work-projection/ui/src/components/staff-work-controls.tsx).
 - [Named workflow handoffs](../production-plan.md),
   [local personas and connected examples](../local-seed.md), and
   [module inventory](../production-plan.md).
@@ -60,7 +60,8 @@ from a lost response after commit. That stronger replay case remains FLOW-003.
 
 Use test IDs in Playwright titles to select cases. A case passes only when its
 assertions pass; a fixture skip is not passing acceptance. Failure screenshots and
-traces are in ignored `test-results/`; the HTML report is in `playwright-report/`.
+traces are in `.scratch/dev/playwright/test-results/`. Open the HTML report with
+`bun run test:e2e:report`.
 Document each run's command, date, project, pass/fail/skip count, and blocker.
 
 ## New executable Work cases

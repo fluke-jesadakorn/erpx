@@ -1,0 +1,131 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
+import {ppRd57PeopleIdGuard} from './pp-read-tail-r57-sources';
+import {ppRd62PeopleEmailGuard} from './pp-read-tail-r62-sources';
+import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
+import { nativePpStatement } from '@erpx/people-payroll-server/adapters/native-people-payroll-command';
+import { PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL } from './pp-read-tail-r19-sources';
+import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/people-payroll-server/adapters/project-worker-startup-binding';
+import {withPeoplePurchasedCommand} from "@erpx/people-payroll-server/adapters/people-purchases";
+import { requirePermission } from "@erpx/identity-access-server/public/iam-permissions";
+import type { SqlDatabase } from "@erpx/platform-runtime-server/public/runtime/types";
+import { z } from "zod";
+import type { WorkContext } from "@erpx/identity-access-server/public/authorization";
+import { holdingResources } from "../../../../../platform/runtime/server/src/public/runtime";
+import { ApiError } from "@erpx/platform-runtime-server/public/http";
+import { levelChangeStatements } from "@erpx/operations-server/public/staff-settings";
+import {assertion} from "@erpx/workflow-server/public/command-assertions";
+import { requireCompanyAuthority, authorityGuard } from "@erpx/operations-server/public/staff-policy";
+import {organizationGuard} from '@erpx/organization-server/public/organization-graph-guard';
+import {validateStaffOrganization} from '@erpx/organization-server/public/organization';
+import { recommendationStatements } from "@erpx/organization-server/public/staff-defaults";
+import type { SqlStatement } from '@erpx/platform-runtime-server/public/runtime/types';
+import { BusinessRuleError } from '@erpx/platform-shared-server/index';
+import { directoryUpdateSchema, directoryStatusSchema } from '@erpx/people-payroll-server/domain/people-directory';
+import { createPeopleDirectoryApplication, type PeopleDirectoryRepository } from '@erpx/people-payroll-server/application/people-directory';
+import { peopleDirectoryOrganizationFacts } from '@erpx/organization-server/public/people-directory-facts';
+import { peopleDirectoryIdentityFacts } from '@erpx/identity-access-server/public/people-directory-facts';
+import { peopleDirectoryEmployeeFacts } from '@erpx/operations-server/public/people-directory-facts';
+export { directorySchema, directoryStatusSchema, directoryUpdateSchema, canManagePeople, canReadCompensation } from '@erpx/people-payroll-server/domain/people-directory';
+function application(provided?: SqlDatabase) {
+    let database = provided!;
+    const repository: PeopleDirectoryRepository<SqlStatement> = { readDirectoryOptionsNodes(...args) { return peopleDirectoryOrganizationFacts(database).readDirectoryOptionsNodes(...args); },
+        readDirectoryPersonPerson(...args) { return peopleDirectoryOrganizationFacts(database).readDirectoryPersonPerson(...args); },
+        guard3(...args) { return peopleDirectoryOrganizationFacts(database).guard3(...args); },
+        guard4(...args) { return peopleDirectoryOrganizationFacts(database).guard4(...args); },
+        guard5(id: string, value: "manager", managerPersonId: string | null, managerPersonId2: string | null, companyId: string) {
+            return assertion(database, id, value, "?::text IS NULL OR EXISTS(SELECT 1 FROM hr_people WHERE id=? AND company_id=? AND status='active' AND merged_into_id IS NULL)", [managerPersonId, managerPersonId2, companyId]);
+        },
+        readSaveDirectoryPersonAccount(...args) { return peopleDirectoryIdentityFacts(database).readSaveDirectoryPersonAccount(...args); },
+        guard7(...args) { return peopleDirectoryIdentityFacts(database).guard7(...args); },
+        guard8(commandId: string, value: "engagement-version", engagement: string, value2: number) {
+            return assertion(database, commandId, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [engagement, value2]);
+        },
+        guard9(commandId: string, value: "email", companyId: string, email: string, id: string) {
+            return assertion(database, commandId, value, ppRd62PeopleEmailGuard(" AND lower(email)=? AND id!=? AND merged_into_id IS NULL"), [companyId, email, id]);
+        },
+        guard10(commandId: string, value: "version", id: string, expectedVersion: number) {
+            return assertion(database, commandId, value, ppRd57PeopleIdGuard(" AND version=? AND status!='archived'"), [id, expectedVersion]);
+        },
+        stageSaveDirectoryPersonEffect(legalName: string, value: string | null, email: string, value2: string | null, value3: string | number | null, value4: string | number | null, countryCode: string, now: number, id: string) {
+            return nativePpStatement('pp_people_directory_stmt_1')
+                .bind(legalName, value, email, value2, value3, value4, countryCode, now, id);
+        },
+        stageSaveDirectoryPersonEffect2(branchId: string, departmentId: string | null, jobTitle: string, workerType: "employee" | "contractor", employmentType: "shift" | "contractor" | "salaried" | "daily" | "hourly", startDate: string, currency: "USD" | "EUR" | "GBP" | "THB" | "SGD" | "CAD", managerPersonId: string | null, now: number, engagement: string) {
+            return nativePpStatement('pp_people_directory_stmt_2')
+                .bind(branchId, departmentId, jobTitle, workerType, employmentType, startDate, currency, managerPersonId, now, engagement);
+        },
+        stageSaveDirectoryPersonEffect3(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect3(...args); },
+        stageSaveDirectoryPersonEffect4(id: string, companyId: string, legalName: string, value: string | null, email: string, value2: string | null, value3: string | null, value4: string | null, countryCode: string, userId: string, now: number, now2: number) {
+            return nativePpStatement('pp_people_directory_stmt_3')
+                .bind(id, companyId, legalName, value, email, value2, value3, value4, countryCode, userId, now, now2);
+        },
+        stageSaveDirectoryPersonEffect5(engagement: string, id: string, companyId: string, branchId: string, departmentId: string | null, workerType: "employee" | "contractor", employmentType: "shift" | "contractor" | "salaried" | "daily" | "hourly", startDate: string, jobTitle: string, currency: "USD" | "EUR" | "GBP" | "THB" | "SGD" | "CAD", managerPersonId: string | null, userId: string, now: number, now2: number) {
+            return nativePpStatement('pp_people_directory_stmt_4')
+                .bind(engagement, id, companyId, branchId, departmentId, workerType, employmentType, startDate, jobTitle, currency, managerPersonId, userId, now, now2);
+        },
+        stageSaveDirectoryPersonEffect6(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect6(...args); },
+        stageSaveDirectoryPersonEffect7(levelId: string, engagement: string) {
+            return nativePpStatement('pp_people_directory_stmt_5')
+                .bind(levelId, engagement);
+        },
+        stageSaveDirectoryPersonEffect8(linkedMemberUserId: string, id: string) {
+            return nativePpStatement('pp_people_directory_stmt_6')
+                .bind(linkedMemberUserId, id);
+        },
+        stageSaveDirectoryPersonEffect9(...args) { return peopleDirectoryEmployeeFacts(database).stageSaveDirectoryPersonEffect9(...args); },
+        stageSaveDirectoryPersonEffect10(positionId: string | null, engagement: string) { return nativePpStatement('pp_people_directory_stmt_7').bind(positionId, engagement); },
+        stageSaveDirectoryPersonEffect11(value: string, companyId: string, engagement: string, value2: string, value3: string, userId: string, reason: string, commandId: string, now: number) { return nativePpStatement('pp_people_directory_stmt_8').bind(value, companyId, engagement, value2, value3, userId, reason, commandId, now); },
+        readSaveDirectoryPersonPrevious(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonPrevious(...args); },
+        readSaveDirectoryPersonNext(...args) { return peopleDirectoryOrganizationFacts(database).readSaveDirectoryPersonNext(...args); },
+        readSetDirectoryStatusEffect(companyId: string, personId: string) { return database.prepare(ppRd36TwoPredTail("1","people_access_cutoffs","company_id","person_id"," AND cancelled_at IS NULL AND restored_at IS NULL")).bind(companyId, personId).first(); },
+        guard25(commandId: string, value: "ended-engagements", companyId: string, personId: string) { return assertion(database, commandId, value, PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS, [companyId, personId]); },
+        guard26(commandId: string, value: "version", personId: string, expectedVersion: number) {
+            return assertion(database, commandId, value, ppRd57PeopleIdGuard(" AND version=?"), [personId, expectedVersion]);
+        },
+        guard27(...args) { return peopleDirectoryOrganizationFacts(database).guard27(...args); },
+        stageSetDirectoryStatusEffect(status: "active" | "inactive" | "archived", now: number, personId: string) {
+            return nativePpStatement('pp_people_directory_stmt_9')
+                .bind(status, now, personId);
+        },
+        stageSetDirectoryStatusEffect2(value: "active" | "suspended", now: number, personId: string) {
+            return nativePpStatement('pp_people_directory_stmt_10')
+                .bind(value, now, personId);
+        },
+        stageSetDirectoryStatusEffect3(...args) { return peopleDirectoryEmployeeFacts(database).stageSetDirectoryStatusEffect3(...args); },
+        stageSetDirectoryStatusEffect4(...args) { return peopleDirectoryIdentityFacts(database).stageSetDirectoryStatusEffect4(...args); },
+        readPersonAccessAccount(...args) { return peopleDirectoryIdentityFacts(database).readPersonAccessAccount(...args); },
+        readPersonAccessAssignments(...args) { return peopleDirectoryIdentityFacts(database).readPersonAccessAssignments(...args); } };
+    return createPeopleDirectoryApplication({ repository, clock: { now: Date.now }, authorize: requirePermission, prepare: async (holding) => {
+            if (!provided)
+                database = (await holdingResources(holding)).write;
+        }, commands: projectWorkerNativeCommands(database), levelChangeStatements: (...args) => levelChangeStatements(database, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), authorityGuard: (...args) => authorityGuard(database, ...args), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), recommendationStatements: (...args) => fromNative(() => recommendationStatements(database, ...args)) });
+}
+async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
+    try {
+        return await run();
+    }
+    catch (error) {
+        if (error instanceof ApiError)
+            throw new BusinessRuleError(error.status, error.code, error.message);
+        throw error;
+    }
+}
+async function invoke<Result>(run: () => Promise<Result>) {
+    try {
+        return await run();
+    }
+    catch (error) {
+        if (error instanceof BusinessRuleError)
+            throw new ApiError(error.status, error.code, error.message);
+        throw error;
+    }
+}
+export async function directoryOptions(actor: WorkContext) { return invoke(() => application().directoryOptions(actor)); }
+export async function directoryPerson(actor: WorkContext, personId: string, engagementId?: string, provided?: SqlDatabase) { return invoke(() => application(provided).directoryPerson(actor, personId, engagementId)); }
+export async function saveDirectoryPerson(actor: WorkContext, personId: string | null, input: z.infer<typeof directoryUpdateSchema>, commandId: string) { return withPeoplePurchasedCommand(actor,{key:commandId,operation:personId?"people.directory.update":"people.directory.create",capability:"people.directory",purpose:"new-work",permission:"people.manage",...(personId?{target:{kind:"person" as const,id:personId}}:{resultKind:"person" as const})},tx=>invoke(()=>application(tx).saveDirectoryPerson(actor,personId,input,commandId))); }
+export async function setDirectoryStatus(actor: WorkContext, personId: string, input: z.infer<typeof directoryStatusSchema>, commandId: string) { return withPeoplePurchasedCommand(actor,{key:commandId,operation:"people.directory.status",capability:"people.directory",purpose:input.status==="active"?"new-work":"settle-existing",permission:"people.manage",target:{kind:"person",id:personId}},tx=>invoke(()=>application(tx).setDirectoryStatus(actor,personId,input,commandId))); }
+export async function personAccess(actor: WorkContext, personId: string) { return invoke(() => application().personAccess(actor, personId)); }
+
+/** Same-owner fixed Directory composition; no public arbitrary transaction port. */
+export async function saveProjectWorkerDirectoryOwned(database:SqlDatabase,actor:WorkContext,personId:string|null,input:z.infer<typeof directoryUpdateSchema>,key:string){requireProjectWorkerNativeCommand(database,actor,key,personId?'people.directory.update':'people.directory.create');return invoke(()=>application(database).saveDirectoryPerson(actor,personId,input,key));}
+export async function readProjectWorkerDirectoryOwned(database:SqlDatabase,actor:WorkContext,personId:string,engagementId?:string){requireProjectWorkerUnit(database,actor);return invoke(()=>application(database).directoryPerson(actor,personId,engagementId));}

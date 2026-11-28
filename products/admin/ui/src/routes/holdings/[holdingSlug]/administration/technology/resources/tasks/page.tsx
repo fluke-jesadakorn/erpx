@@ -1,0 +1,6 @@
+import {technologyContext} from '@erpx/platform-workplace/routes/holdings/[holdingSlug]/administration/technology/_context';
+import {TechnologySectionWorkspace} from '@erpx/identity-access-ui/components/technology/section-workspace';
+import {PageHeader} from '@erpx/platform-ui/components/primitives';
+import {accessMetadata,accessEntries} from '@erpx/people-payroll-server/public/people-access';
+import {PreparationTasks} from '@erpx/people-payroll-ui/components/lifecycle-workspace';
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){const {local,actor,queries,base}=await technologyContext((await params).holdingSlug,'resources'),query=await searchParams;const [access,management,lifecycle]=await Promise.all([queries.peopleAccessData(actor),queries.readManagement(actor),queries.peopleLifecycleData(local)]);const meta=accessMetadata(access);return <div className="content-stack" data-source="live"><PageHeader appearance="standard" eyebrow="Technology" title="Resources" description="Choose a section, inspect records and review changes."/><TechnologySectionWorkspace base={base} view="resources" section="tasks" title="Resources"><PreparationTasks base={base} data={lifecycle!}/></TechnologySectionWorkspace></div>;}

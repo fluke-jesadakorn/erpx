@@ -1,0 +1,1 @@
+export {countSourceReadScope,initialPhysicalStockCountDestinations,countSourcePurchasePredicate,requireCountWorkspaceRecordRead} from "@erpx/inventory-server/adapters/count-record-purchases";
