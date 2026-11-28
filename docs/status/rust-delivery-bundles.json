@@ -9291,17 +9291,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 16541,
+    "revision": 16545,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-finance-invoice-click",
+      "runId": "run-my-day-recovery",
       "agentId": "codex-lead",
-      "startedAt": "2026-11-27T23:48:09.349Z",
-      "heartbeatAt": "2026-11-28T00:01:43.697Z",
-      "expiresAt": "2026-11-28T00:31:43.697Z",
-      "generation": 227,
-      "tokenHash": "bcf40ec1ea0d759a546ddd09e66047a8365c26c59157c2abdfe0f81ae6fb5d6c"
+      "startedAt": "2026-11-28T01:22:15.179Z",
+      "heartbeatAt": "2026-11-28T01:22:15.179Z",
+      "expiresAt": "2026-11-28T01:52:15.180Z",
+      "generation": 228,
+      "tokenHash": "20ce56995758a3e4d743fa5b18286a38452d2225951f6aa65402b92a953d9edd"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -227775,6 +227775,32 @@
         "lastPushedSha": "160b4d5e90760c716a8b68966501938fa384cbbe",
         "blocker": null,
         "handoff": null
+      },
+      {
+        "id": "integrate.finance.dev-my-day-expansion",
+        "goalId": "G4",
+        "owner": "finance",
+        "workflowIds": [],
+        "kind": "coordination",
+        "title": "Mount the Finance expansion review source for dev My Day",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "allowedPaths": [
+          "src/composition/src/private_development_api.rs"
+        ],
+        "resources": [
+          "my-day-native-finance"
+        ],
+        "status": "done",
+        "nextAction": "Private API build and PostgreSQL mounted checks passed Acme and Northstar 200, unknown Company and public Holding Host 404. Apps dev config points to 3192. Verify signed My Day after app reload. Remaining independent Support, Inventory, CRM and other owner dependencies still need end-to-end verification. Staff setup requires a verified active HR engagement.",
+        "claim": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "baseSha": "f4c65b988251d08078228bf7c0100d39edcd2464",
+        "implementedCommit": "21211dbb498696e194bba93e6faa59835fb5bbb0",
+        "lastPushedSha": "21211dbb498696e194bba93e6faa59835fb5bbb0",
+        "blocker": null,
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -227796,8 +227822,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 227,
-    "updatedAt": "2026-11-28T00:01:44.783Z",
+    "lastCoordinatorGeneration": 228,
+    "updatedAt": "2026-11-28T01:25:26.141Z",
     "handoff": {
       "fromRun": "run-20261128-route",
       "verifiedPushedCheckpoint": "4c1e26e976ce0edff3953e4b6837f06a12f7ab8b",
@@ -227805,10 +227831,10 @@
       "summary": "All 15 registered Acme Products and Company Admin pass normal-SSO browser checks at 4c1e26e. Real installed Plugin verification remains external because the approved registry is empty; full acceptance stays deferred."
     },
     "lastRecovery": {
-      "previousRunId": "run-main-ux-runtime",
-      "runId": "run-finance-invoice-click",
-      "at": "2026-11-27T23:48:09.350Z",
-      "reason": "Previous own run ended with no claims and ledger pushed; reviewed dirty CSS, Operations and Work files preserved.",
+      "previousRunId": "run-finance-invoice-click",
+      "runId": "run-my-day-recovery",
+      "at": "2026-11-28T01:22:15.181Z",
+      "reason": "Previous own run ended with zero claims. Existing Operations and Work Rust changes reviewed and preserved.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
